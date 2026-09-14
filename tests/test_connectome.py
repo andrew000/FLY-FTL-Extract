@@ -70,6 +70,27 @@ def test_edge_sign_matches_presynaptic_transmitter(brain: cx.Connectome) -> None
     assert (brain.sign[brain.dan_idx] == 0).all()
 
 
+def test_weights_have_no_explicit_zeros_and_dan_edges_are_separate(brain: cx.Connectome) -> None:
+    assert (brain.weights.data != 0).all()
+    assert brain.weights[brain.dan_idx].nnz == 0
+    assert brain.syn_count[brain.dan_idx].nnz == 0
+    dan = brain.dan_edges.tocoo()
+    assert brain.n_dan_edges > 0
+    assert np.isin(dan.row, brain.dan_idx).all()
+    assert (dan.data >= 5).all()
+    assert brain.dan_edges[brain.dan_idx][:, brain.kc_idx].nnz > 0
+    # the two edge sets are disjoint and together cover every thresholded pair
+    overlap = brain.syn_count.multiply(brain.dan_edges)
+    assert overlap.nnz == 0
+
+
+def test_kc_to_kc_edges_are_counted(brain: cx.Connectome) -> None:
+    meta = json.loads(cx.data_path(cx.META_NAME).read_text(encoding="utf-8"))
+    block = brain.weights[brain.kc_idx][:, brain.kc_idx]
+    assert block.nnz == meta["sanity"]["kc_to_kc_edges"]
+    assert block.data.min() > 0
+
+
 def test_pn_glomeruli_are_recorded(brain: cx.Connectome) -> None:
     glomeruli = brain.glomerulus[brain.pn_idx]
     assert (glomeruli != "").all()
@@ -82,6 +103,8 @@ def test_meta_matches_file(brain: cx.Connectome) -> None:
     assert meta["sha256_npz"] == brain.sha256
     assert meta["n_neurons"] == brain.n_neurons
     assert meta["edges"] == brain.n_edges
+    assert meta["dan_edges"] == brain.n_dan_edges
+    assert meta["sanity"]["dan_to_kc_edges"] == brain.dan_edges[brain.dan_idx][:, brain.kc_idx].nnz
     assert "CC-BY 4.0" in meta["license"]
     assert any("Dorkenwald" in c for c in meta["citations"])
     assert any("Schlegel" in c for c in meta["citations"])

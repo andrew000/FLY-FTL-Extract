@@ -15,13 +15,113 @@
   "n_neurons": 2935,
   "uniglomerular_pn_total": 139,
   "uniglomerular_pn_excluded_by_nt": 15,
-  "edges": 25080,
+  "edges": 24777,
+  "dan_edges": 303,
+  "dan_edges_by_post_group": {
+    "MBON": 182,
+    "KC": 72,
+    "APL": 30,
+    "PN": 15,
+    "DAN": 4
+  },
   "syn_threshold": 5,
+  "pn_kc_threshold_table": [
+    {
+      "threshold": 1,
+      "pn_kc_edges": 12579,
+      "mean_pn_inputs_per_kc": 4.84366576819407,
+      "median_pn_inputs_per_kc": 5.0,
+      "orphan_kc": 206,
+      "orphan_kc_without_gd": 72,
+      "kc_without_gd": 2449,
+      "orphans_by_cell_type": {
+        "KCg-d": 134,
+        "KCab-p": 55,
+        "KCg-m": 7,
+        "KCapbp-ap1": 6,
+        "KCapbp-ap2": 2,
+        "KCapbp-m": 1,
+        "KCg-s1": 1
+      }
+    },
+    {
+      "threshold": 2,
+      "pn_kc_edges": 11326,
+      "mean_pn_inputs_per_kc": 4.361185983827493,
+      "median_pn_inputs_per_kc": 5.0,
+      "orphan_kc": 215,
+      "orphan_kc_without_gd": 77,
+      "kc_without_gd": 2449,
+      "orphans_by_cell_type": {
+        "KCg-d": 138,
+        "KCab-p": 57,
+        "KCg-m": 8,
+        "KCapbp-ap1": 7,
+        "KCapbp-ap2": 3,
+        "KCapbp-m": 1,
+        "KCg-s1": 1
+      }
+    },
+    {
+      "threshold": 3,
+      "pn_kc_edges": 10811,
+      "mean_pn_inputs_per_kc": 4.162880246438198,
+      "median_pn_inputs_per_kc": 4.0,
+      "orphan_kc": 226,
+      "orphan_kc_without_gd": 88,
+      "kc_without_gd": 2449,
+      "orphans_by_cell_type": {
+        "KCg-d": 138,
+        "KCab-p": 58,
+        "KCapbp-ap1": 10,
+        "KCg-m": 9,
+        "KCapbp-ap2": 7,
+        "KCapbp-m": 3,
+        "KCg-s1": 1
+      }
+    },
+    {
+      "threshold": 4,
+      "pn_kc_edges": 10337,
+      "mean_pn_inputs_per_kc": 3.980361956103196,
+      "median_pn_inputs_per_kc": 4.0,
+      "orphan_kc": 245,
+      "orphan_kc_without_gd": 107,
+      "kc_without_gd": 2449,
+      "orphans_by_cell_type": {
+        "KCg-d": 138,
+        "KCab-p": 58,
+        "KCapbp-ap2": 13,
+        "KCapbp-ap1": 13,
+        "KCapbp-m": 12,
+        "KCg-m": 10,
+        "KCg-s1": 1
+      }
+    },
+    {
+      "threshold": 5,
+      "pn_kc_edges": 9841,
+      "mean_pn_inputs_per_kc": 3.789372352714671,
+      "median_pn_inputs_per_kc": 4.0,
+      "orphan_kc": 269,
+      "orphan_kc_without_gd": 128,
+      "kc_without_gd": 2449,
+      "orphans_by_cell_type": {
+        "KCg-d": 141,
+        "KCab-p": 58,
+        "KCapbp-ap2": 22,
+        "KCapbp-m": 19,
+        "KCapbp-ap1": 18,
+        "KCg-m": 10,
+        "KCg-s1": 1
+      }
+    }
+  ],
   "feather_rows_between_selected": 272970,
   "pairs_between_selected_before_threshold": 223229,
   "edges_dropped_by_threshold": 198149,
   "edges_with_pre_nt_outside_sign_table": 0,
-  "edge_argmax_agrees_with_pre_neuron_nt": 24955,
+  "edge_argmax_agrees_with_pre_neuron_nt": 24653,
   "edge_argmax_disagreements": [
     {
       "pre_group": "APL",
@@ -34,12 +134,6 @@
       "neuron_nt": "gaba",
       "edge_argmax": "acetylcholine",
       "n": 6
-    },
-    {
-      "pre_group": "DAN",
-      "neuron_nt": "dopamine",
-      "edge_argmax": "serotonin",
-      "n": 1
     },
     {
       "pre_group": "MBON",
@@ -108,7 +202,6 @@
       "n": 1
     }
   ],
-  "zero_weight_edges": 303,
   "feather_rows_total": 16847997,
   "sign_by_nt": {
     "acetylcholine": 1,
@@ -128,16 +221,18 @@
     "apl_to_kc_max_weight": -5,
     "kc_to_apl_edges": 2596,
     "kc_to_mbon_edges": 7485,
+    "kc_to_kc_edges": 942,
+    "dan_to_kc_edges": 72,
     "gaba_pn_count": 0,
     "gaba_pn_to_kc_edges": 0
   },
-  "sha256_npz": "e502a05aaa74b04c7e70a4666f92d9af3bc2bcbc7f5d2b1d7f1f5cc5743dde8a",
+  "sha256_npz": "2217fa82dbea57f30a13d90d757a5233d8b06b66acc30a0306837d1176bf6b6c",
   "sha256_sources": {
     "proofread_connections_783.feather": "24f960ae3e7d4f8cd30db3b62e99fb5179cc3d1e76d8c155bfb441e9737d3faf",
     "Supplemental_file1_neuron_annotations.tsv": "9a4f8b2f843196074431ebd7cd883536afa1be86c8a4ce90970441e8be81d1be",
     "proofread_root_ids_783.npy": "7c7b7e818e9232e5ab64793d52ba20574dbe9da3a6509fbc74193b0f259a01be"
   },
-  "built": "2026-09-14T13:40:00Z",
+  "built": "2026-09-14T13:50:22Z",
   "license": "CC-BY 4.0 (FlyWire connectome data and annotations)",
   "citations": [
     "Dorkenwald S. et al. (2024) Neuronal wiring diagram of an adult brain. Nature 634, 124\u2013138.",

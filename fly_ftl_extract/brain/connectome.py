@@ -39,11 +39,14 @@ class Connectome:
     """One hemisphere of the mushroom body as a signed synaptic-count matrix.
 
     ``weights[pre, post] = sign(pre) * syn_count`` in CSR form, so that
-    ``spikes @ weights`` gives the synaptic drive of every neuron.
+    ``spikes @ weights`` gives the synaptic drive of every neuron.  ``weights`` holds no
+    explicit zeros: edges whose presynaptic neuron is a DAN (sign 0, no current) are kept
+    apart in ``dan_edges`` (synapse counts, same neuron indexing) for the dopamine phase.
     """
 
     weights: sp.csr_matrix
     syn_count: sp.csr_matrix
+    dan_edges: sp.csr_matrix
     root_id: np.ndarray
     cell_class: np.ndarray
     cell_sub_class: np.ndarray
@@ -67,8 +70,13 @@ class Connectome:
 
     @property
     def n_edges(self) -> int:
-        """Number of stored edges (``syn_count >= 5``)."""
+        """Number of edges in ``weights`` (``syn_count >= 5``, DAN-presynaptic excluded)."""
         return int(self.weights.nnz)
+
+    @property
+    def n_dan_edges(self) -> int:
+        """Number of DAN-presynaptic edges kept in ``dan_edges``."""
+        return int(self.dan_edges.nnz)
 
     @property
     def hemisphere(self) -> str:
@@ -96,6 +104,13 @@ def _validate(c: Connectome) -> None:
         problems.append("array sizes disagree with the matrix shape")
     if len(set(c.side.tolist())) != 1:
         problems.append("neurons from more than one hemisphere")
+    if (c.weights.data == 0).any():
+        problems.append("weights contain explicit zeros")
+    if c.weights[c.dan_idx].nnz:
+        problems.append("DAN-presynaptic edges found in weights (they belong to dan_edges)")
+    dan_rows = np.unique(c.dan_edges.tocoo().row)
+    if not np.isin(dan_rows, c.dan_idx).all():
+        problems.append("dan_edges has a non-DAN presynaptic neuron")
     if c.meta.get("sha256_npz") not in (None, c.sha256):
         problems.append("meta.json sha256 does not match the npz file")
     if problems:
@@ -122,9 +137,11 @@ def load(path: Path | None = None) -> Connectome:
         n = len(z["root_id"])
         weights = sp.csr_matrix((z["data"], z["indices"], z["indptr"]), shape=(n, n))
         syn = sp.csr_matrix((z["syn_count"], z["indices"], z["indptr"]), shape=(n, n))
+        dan = sp.csr_matrix((z["dan_syn_count"], (z["dan_pre"], z["dan_post"])), shape=(n, n))
         connectome = Connectome(
             weights=weights,
             syn_count=syn,
+            dan_edges=dan,
             root_id=z["root_id"],
             cell_class=z["cell_class"],
             cell_sub_class=z["cell_sub_class"],

@@ -20,11 +20,16 @@ Selection (one hemisphere, the one with more Kenyon cells):
 * MBON = ``cell_class == "MBON"``;
 * DAN  = ``cell_class == "DAN"``.
 
-Edges between selected neurons with ``syn_count >= 5``.  The sign comes from the
-*presynaptic neuron's* transmitter: ``known_nt`` (first classical transmitter) when present,
-otherwise ``top_nt``.  ``top_nt`` alone would be wrong: the predictor labels every Kenyon cell
-``dopamine`` while ``known_nt`` says ``acetylcholine``.  Signs: ACh → +1, GABA and glutamate
-→ −1, dopamine / octopamine / serotonin → 0 (DANs are a teaching signal, not a current).
+Edges between selected neurons with ``syn_count >= 5`` (feather rows summed per neuron pair
+first).  The sign comes from the *presynaptic neuron's* transmitter: ``known_nt`` (first
+classical transmitter) when present, otherwise ``top_nt``.  ``top_nt`` alone would be wrong:
+the predictor labels every Kenyon cell ``dopamine`` while ``known_nt`` says ``acetylcholine``.
+Signs: ACh → +1, GABA and glutamate → −1, dopamine / octopamine / serotonin → 0.
+
+Edges whose presynaptic neuron is a DAN carry no current in the simulation (DANs are the
+teaching signal), so they are **not** stored in ``W`` at all: ``W.data`` has no explicit
+zeros.  Their topology (DAN→KC for the dopamine phase, plus DAN→MBON/APL/PN/DAN) lives in the
+separate arrays ``dan_pre``, ``dan_post``, ``dan_syn_count``.
 """
 
 from __future__ import annotations
@@ -52,6 +57,8 @@ OUT_META = REPO / "fly_ftl_extract" / "data" / "meta.json"
 OUT_DOC = REPO / "docs" / "CONNECTOME.md"
 
 SYN_THRESHOLD = 5
+PN_KC_THRESHOLDS = (1, 2, 3, 4, 5)
+GROUP_ORDER = {"PN": 0, "KC": 1, "APL": 2, "MBON": 3, "DAN": 4}
 SIGN_BY_NT: dict[str, int] = {
     "acetylcholine": 1,
     "gaba": -1,
@@ -180,9 +187,7 @@ def main() -> int:
     selected, side, kc_by_side = select_neurons(ann)
     selected = selected.sort_values(
         ["group", "root_id"],
-        key=lambda s: (
-            s.map({"PN": 0, "KC": 1, "APL": 2, "MBON": 3, "DAN": 4}) if s.name == "group" else s
-        ),
+        key=lambda s: s.map(GROUP_ORDER) if s.name == "group" else s,
     ).reset_index(drop=True)
 
     nt_info = [
@@ -213,9 +218,19 @@ def main() -> int:
     pairs[score_cols] = pairs[score_cols].div(pairs.syn_count, axis=0)
     pairs = pairs.reset_index()
     n_pairs_between = len(pairs)
-    edges = pairs[pairs.syn_count >= SYN_THRESHOLD].reset_index(drop=True)
-    n_dropped = n_pairs_between - len(edges)
-    kept_pairs = set(zip(edges.pre_pt_root_id, edges.post_pt_root_id, strict=True))
+    group_of = pd.Series(
+        selected.group.to_numpy(), index=selected.root_id.to_numpy().astype(np.int64)
+    )
+    pairs["pre_group"] = group_of[pairs.pre_pt_root_id.to_numpy()].to_numpy()
+    pairs["post_group"] = group_of[pairs.post_pt_root_id.to_numpy()].to_numpy()
+    threshold_table = pn_kc_threshold_table(pairs, selected)
+    all_edges = pairs[pairs.syn_count >= SYN_THRESHOLD].reset_index(drop=True)
+    # DAN-presynaptic edges carry no current (sign 0): keep them out of W, store separately.
+    is_dan_edge = (all_edges.pre_group == "DAN").to_numpy()
+    edges = all_edges[~is_dan_edge].reset_index(drop=True)
+    dan_edges = all_edges[is_dan_edge].reset_index(drop=True)
+    n_dropped = n_pairs_between - len(all_edges)
+    kept_pairs = set(zip(all_edges.pre_pt_root_id, all_edges.post_pt_root_id, strict=True))
     kept_rows = rows[
         [pair in kept_pairs for pair in zip(rows.pre_pt_root_id, rows.post_pt_root_id, strict=True)]
     ]
@@ -233,6 +248,15 @@ def main() -> int:
     if (w.indptr != syn_csr.indptr).any() or (w.indices != syn_csr.indices).any():
         msg = "sparse layouts diverged"
         raise SystemExit(msg)
+    if (w.data == 0).any():
+        msg = "W has explicit zeros (an edge with sign 0 that is not DAN-presynaptic)"
+        raise SystemExit(msg)
+    dan_pre = index[dan_edges.pre_pt_root_id.to_numpy()].to_numpy().astype(np.int32)
+    dan_post = index[dan_edges.post_pt_root_id.to_numpy()].to_numpy().astype(np.int32)
+    dan_syn = dan_edges.syn_count.to_numpy().astype(np.int32)
+    dan_order = np.lexsort((dan_post, dan_pre))
+    dan_pre, dan_post, dan_syn = dan_pre[dan_order], dan_post[dan_order], dan_syn[dan_order]
+    dan_by_post = dan_edges.post_group.value_counts().to_dict()
 
     # per-edge NT argmax vs the presynaptic neuron label (documentation only)
     edge_scores = edges[list(EDGE_NT_COLUMNS)].to_numpy()
@@ -248,7 +272,6 @@ def main() -> int:
         .reset_index(name="n")
         .sort_values(["pre_group", "n"], ascending=[True, False])
     )
-    zero_weight_edges = int((w.data == 0).sum())
     unknown_pre = int((~selected.nt_known_to_table.to_numpy()[pre]).sum())
 
     groups = selected.group.to_numpy()
@@ -270,6 +293,8 @@ def main() -> int:
         "apl_to_kc_max_weight": int(apl_kc.data.max()) if apl_kc.nnz else 0,
         "kc_to_apl_edges": int(kc_apl.nnz),
         "kc_to_mbon_edges": int(w[kc][:, idx["MBON"]].nnz),
+        "kc_to_kc_edges": int(w[kc][:, kc].nnz),
+        "dan_to_kc_edges": int(dan_by_post.get("KC", 0)),
         "gaba_pn_count": int(((selected.group == "PN") & (selected.nt == "gaba")).sum()),
         "gaba_pn_to_kc_edges": int(
             syn_csr[np.flatnonzero((groups == "PN") & (selected.nt.to_numpy() == "gaba"))][
@@ -299,6 +324,9 @@ def main() -> int:
         apl_idx=idx["APL"],
         mbon_idx=idx["MBON"],
         dan_idx=idx["DAN"],
+        dan_pre=dan_pre,
+        dan_post=dan_post,
+        dan_syn_count=dan_syn,
     )
     npz_sha = hashlib.sha256(OUT_NPZ.read_bytes()).hexdigest()
     counts = {g: len(idx[g]) for g in idx}
@@ -312,7 +340,10 @@ def main() -> int:
         "uniglomerular_pn_total": selected.attrs["uniglomerular_pn_total"],
         "uniglomerular_pn_excluded_by_nt": selected.attrs["uniglomerular_pn_excluded_by_nt"],
         "edges": int(w.nnz),
+        "dan_edges": len(dan_edges),
+        "dan_edges_by_post_group": {k: int(v) for k, v in dan_by_post.items()},
         "syn_threshold": SYN_THRESHOLD,
+        "pn_kc_threshold_table": threshold_table,
         "feather_rows_between_selected": int(n_rows_between),
         "pairs_between_selected_before_threshold": int(n_pairs_between),
         "edges_dropped_by_threshold": int(n_dropped),
@@ -327,7 +358,6 @@ def main() -> int:
             }
             for r in disagreements.itertuples()
         ],
-        "zero_weight_edges": zero_weight_edges,
         "feather_rows_total": int(total_rows),
         "sign_by_nt": SIGN_BY_NT,
         "sanity": stats,
@@ -363,7 +393,10 @@ def main() -> int:
                     "pairs_between_selected_before_threshold",
                     "edges_dropped_by_threshold",
                     "edges",
+                    "dan_edges",
+                    "dan_edges_by_post_group",
                     "edge_argmax_agrees_with_pre_neuron_nt",
+                    "pn_kc_threshold_table",
                     "sanity",
                 )
             },
@@ -372,6 +405,38 @@ def main() -> int:
     )
     print(f"wrote {OUT_NPZ} ({OUT_NPZ.stat().st_size / 1e6:.2f} MB), sha256 {npz_sha}")
     return 0
+
+
+def pn_kc_threshold_table(pairs: pd.DataFrame, selected: pd.DataFrame) -> list[dict[str, object]]:
+    """How the PN→KC synapse threshold changes claws per KC and the number of orphan KCs.
+
+    ``KCg-d`` (γ-dorsal) Kenyon cells receive visual, not olfactory, input and are expected
+    to have no PN partners, so the orphan fraction is also given without them.
+    """
+    kc = selected[selected.group == "KC"]
+    kc_type = pd.Series(kc.cell_type.to_numpy(), index=kc.root_id.to_numpy().astype(np.int64))
+    non_gd = kc_type != "KCg-d"
+    pn_kc = pairs[(pairs.pre_group == "PN") & (pairs.post_group == "KC")]
+    table: list[dict[str, object]] = []
+    for t in PN_KC_THRESHOLDS:
+        sub = pn_kc[pn_kc.syn_count >= t]
+        inputs = sub.groupby("post_pt_root_id").size().reindex(kc_type.index, fill_value=0)
+        orphan = inputs == 0
+        table.append(
+            {
+                "threshold": t,
+                "pn_kc_edges": len(sub),
+                "mean_pn_inputs_per_kc": float(inputs.mean()),
+                "median_pn_inputs_per_kc": float(inputs.median()),
+                "orphan_kc": int(orphan.sum()),
+                "orphan_kc_without_gd": int((orphan & non_gd).sum()),
+                "kc_without_gd": int(non_gd.sum()),
+                "orphans_by_cell_type": {
+                    str(k): int(v) for k, v in kc_type[orphan].value_counts().items()
+                },
+            }
+        )
+    return table
 
 
 def write_doc(
@@ -408,6 +473,24 @@ def write_doc(
     np_lines.extend(f"| {k} | {v} |" for k, v in neuropils.items())
     sanity = meta["sanity"]
     assert isinstance(sanity, dict)
+    thresholds = meta["pn_kc_threshold_table"]
+    assert isinstance(thresholds, list)
+    thr_lines = [
+        "| PN→KC threshold | edges | mean inputs/KC | median | orphans | orphans without KCγd | orphans by cell_type |",
+        "|---:|---:|---:|---:|---:|---:|---|",
+    ]
+    for row in thresholds:
+        by_type = ", ".join(f"{k} {v}" for k, v in row["orphans_by_cell_type"].items())
+        thr_lines.append(
+            f"| ≥ {row['threshold']} | {row['pn_kc_edges']} | {row['mean_pn_inputs_per_kc']:.2f} "
+            f"| {row['median_pn_inputs_per_kc']:.0f} | {row['orphan_kc']} "
+            f"({row['orphan_kc'] / counts['KC']:.1%}) | {row['orphan_kc_without_gd']} / {row['kc_without_gd']} "
+            f"({row['orphan_kc_without_gd'] / row['kc_without_gd']:.1%}) | {by_type} |"
+        )
+    thr_at = {row["threshold"]: row for row in thresholds}
+    dan_by_post = meta["dan_edges_by_post_group"]
+    assert isinstance(dan_by_post, dict)
+    dan_post_text = ", ".join(f"→{k} {v}" for k, v in dan_by_post.items())
     disagreements = meta["edge_argmax_disagreements"]
     assert isinstance(disagreements, list)
     dis_lines = [
@@ -511,11 +594,12 @@ artefact sits only in the neuron-level `top_nt` of the TSV. Disagreements by gro
   {meta["feather_rows_between_selected"]} rows = {meta["pairs_between_selected_before_threshold"]} neuron pairs
   (synapses summed over neuropils). The threshold `syn_count >= {SYN_THRESHOLD}` **per pair**
   dropped {meta["edges_dropped_by_threshold"]} pairs; **{meta["edges"]}** edges remain.
-- The matrix `W[pre, post] = sign(pre) · syn_count`, CSR (`indptr`, `indices`, `data`), plus
-  `syn_count`. Edges with a presynaptic DAN have sign 0 and are stored as explicit zeros in
-  `data` ({meta["zero_weight_edges"]} of {meta["edges"]}): for the simulation this is no current, but Phase 5 takes
-  the DAN→KC topology from them through `syn_count`.
-- The table below — the neuropils of the rows that form the kept pairs:
+- Edges with a presynaptic DAN (sign 0, no current in the simulation) **are not part of `W`**:
+  `data` has no explicit zeros. There are {meta["dan_edges"]} of them ({dan_post_text}); they sit in separate arrays
+  `dan_pre`, `dan_post`, `dan_syn_count` — Phase 5 takes the DAN→KC topology from there.
+- The matrix `W[pre, post] = sign(pre) · syn_count` for the remaining **{meta["edges"]}** edges, CSR
+  (`indptr`, `indices`, `data`), plus `syn_count` in the same layout.
+- The table below — the neuropils of the rows that form the kept pairs (including the DAN edges):
 
 {chr(10).join(np_lines)}
 
@@ -532,6 +616,26 @@ artefact sits only in the neuron-level `top_nt` of the TSV. Disagreements by gro
 | APL→KC edges / maximum weight (must be < 0) | {sanity["apl_to_kc_edges"]} / {sanity["apl_to_kc_max_weight"]} |
 | KC→APL edges | {sanity["kc_to_apl_edges"]} |
 | KC→MBON edges | {sanity["kc_to_mbon_edges"]} |
+| KC→KC edges (in `W`, cholinergic, +) | {sanity["kc_to_kc_edges"]} |
+| DAN→KC edges (separate arrays, not in `W`) | {sanity["dan_to_kc_edges"]} |
+
+## 6a. The PN→KC threshold: does this edge type need its own threshold
+
+The same threshold `syn_count >= {SYN_THRESHOLD}` for every edge cuts off weak KC «claws».
+The table shows what changes if PN→KC gets a lower threshold (all numbers from the same pairs
+before thresholding; «orphans» = KCs without any PN input; KCγd receive visual, not
+olfactory input, so the orphan share without them is shown separately):
+
+{chr(10).join(thr_lines)}
+
+Conclusion from the numbers: the orphans are structural, not a threshold effect. Even with no
+threshold (≥ 1) there are {thr_at[1]["orphan_kc"]} orphans, of them KCγd {thr_at[1]["orphans_by_cell_type"].get("KCg-d", 0)} and KCαβ-p {thr_at[1]["orphans_by_cell_type"].get("KCab-p", 0)} —
+types that anatomically receive no uniglomerular olfactory input. The ≥ {SYN_THRESHOLD} threshold adds
+only {thr_at[SYN_THRESHOLD]["orphan_kc"] - thr_at[1]["orphan_kc"]} orphans ({thr_at[SYN_THRESHOLD]["orphan_kc_without_gd"] - thr_at[1]["orphan_kc_without_gd"]} of them non-γd) and lowers the mean number of inputs
+from {thr_at[1]["mean_pn_inputs_per_kc"]:.2f} to {thr_at[SYN_THRESHOLD]["mean_pn_inputs_per_kc"]:.2f}; a ≥ 3 threshold would bring back {thr_at[SYN_THRESHOLD]["orphan_kc_without_gd"] - thr_at[3]["orphan_kc_without_gd"]} non-γd KCs and {thr_at[3]["mean_pn_inputs_per_kc"] - thr_at[SYN_THRESHOLD]["mean_pn_inputs_per_kc"]:.2f} inputs per KC at
+the price of one more magic number and an asymmetry between edge types. Decision: **the
+threshold stays single, ≥ {SYN_THRESHOLD}**. Consequence for Phase 3: count the active KC share with two
+denominators — all KCs and the KCs that have a PN input ({counts["KC"] - thr_at[SYN_THRESHOLD]["orphan_kc"]}).
 
 ## 7. Artefact
 

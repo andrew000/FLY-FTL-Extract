@@ -1,0 +1,2 @@
+# No EOL normalization: golden .ftl files must stay byte-for-byte identical (incl. CRLF fixtures).
+* -text

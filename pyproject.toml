@@ -1,0 +1,75 @@
+[project]
+name = "fly-ftl-extract"
+version = "0.0.0"
+description = "Drop-in replacement for ftl-extract where a simulated Drosophila mushroom body decides what is a Fluent key"
+readme = { text = "fly-ftl-extract: see CLAUDE.md until Phase 7", content-type = "text/markdown" }
+license = "MIT"
+requires-python = ">=3.14,<3.15"
+dependencies = [
+    "numpy>=2.3",
+    "scipy>=1.16",
+    "rich>=14",
+    "click>=8.2",
+]
+
+[project.optional-dependencies]
+connectome = [
+    "pyarrow>=21",
+    "pandas>=2.3",
+]
+
+[project.scripts]
+ftl = "fly_ftl_extract.cli:main"
+fly-ftl = "fly_ftl_extract.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4",
+    "ruff>=0.13",
+    "mypy>=1.18",
+]
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["fly_ftl_extract"]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 100
+extend-exclude = ["tests/fixtures", "tests/golden", ".cache"]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "COM812", # trailing comma — conflicts with formatter
+    "ISC001", # implicit str concat — conflicts with formatter
+    "D203",   # one-blank-line-before-class — conflicts with D211
+    "D213",   # multi-line-summary-second-line — conflicts with D212
+    "D100",   # module docstrings not required everywhere
+    "D104",   # package docstrings not required
+    "D107",   # __init__ docstrings
+    "FIX002", # TODO comments are allowed
+    "TD002", "TD003",
+    "PLR0913", # many-args functions are fine for CLI options
+    "CPY001",  # no copyright headers
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "D", "PLR2004", "INP001", "S603", "S607"]
+"scripts/**" = ["T201", "INP001", "S603", "S607"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+warn_unreachable = true
+packages = ["fly_ftl_extract"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

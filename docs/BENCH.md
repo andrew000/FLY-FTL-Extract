@@ -48,7 +48,7 @@ rate_max = 200 Hz stays from CLAUDE.md, and PLAN's «typical odour» (150 Hz) is
 | `t_refractory` | 2.2 | Refractory period, ms; `v` and `g` are frozen, inputs still accumulate in `g`. Shiu `t_rfc` (Lazar et al. 2021). |
 | `t_delay` | 1.8 | Synaptic delay, ms: a spike reaches its targets `t_delay` later. Shiu `t_dly` (Paul et al. 2015). Not in CLAUDE.md; taken from the model. |
 | `w_syn` | 0.275 | Potential added to `g` per synapse, mV (× `syn_count` × sign). Shiu `w_syn`, the model's one free parameter. |
-| `syn_scale` | 1.25 | Multiplier on `w_syn` for our subgraph. Shiu simulate the whole brain with 1; the isolated mushroom body needs its own value. Calibrated on the real odours of every fixture candidate (auditor's decision after Phase 4; the synthetic 30 %-PN odour is no longer used): target 8-10 % active Kenyon cells with APL, > 30 % without, no neuron above 1/t_refractory, median active-KC rate < 50 Hz. 1.25 gives 9.3 % / 43.7 %; `scripts/calibrate.py`, curve in docs/BENCH.md, value mirrored in docs/calibration.json. |
+| `syn_scale` | 4.0 | Multiplier on `w_syn` for our subgraph. Shiu simulate the whole brain with 1; the isolated mushroom body needs its own value. Calibrated on the real odours of every fixture candidate (auditor's decision after Phase 4; the synthetic 30 %-PN odour is no longer used): target 8-10 % active Kenyon cells with APL, > 30 % without, no neuron above 1/t_refractory, median active-KC rate < 50 Hz. With encoder fly-odor-2 (context 6/3, no bag n-grams: sparser odours) 4.0 gives 9.0% / 52.2%; `scripts/calibrate.py`, curve in docs/BENCH.md, value mirrored in docs/calibration.json. |
 | `dt` | 0.1 | Integration step, ms. brian2's `defaultclock.dt`, as used by Shiu. |
 | `rate_max` | 200.0 | Firing rate of a projection neuron at odour value 1.0, Hz. CLAUDE.md; Shiu drive their input neurons at `r_poi = 150 Hz`, which is odour value 0.75 here. |
 | `t_stim` | 100.0 | Duration of the odour (PN Poisson input), ms. CLAUDE.md said 50 ms; the auditor after Phase 3 set 100 ms because at 50 ms the same odour with two seeds gave a Kenyon-cell Jaccard of 0.40 (< 0.5 required); at 100 ms it is > 0.5 (docs/BENCH.md §2). |
@@ -58,48 +58,45 @@ rate_max = 200 Hz stays from CLAUDE.md, and PLAN's «typical odour» (150 Hz) is
 <!-- calibration:start -->
 ## 2. Calibrating `syn_scale` on real odours
 
-Odours: all 240 candidates from all fixtures (84 positive), tokenised and encoded with the `fly-odor-1` encoder using each fixture's options; the synthetic odour (30 % of PNs at 150 Hz) is no longer used (reviewer's decision after Phase 4). The same set for every variant, seed 1.
+Odours: all 240 candidates from all fixtures (84 positive), tokenised and encoded with the `fly-odor-2` encoder using each fixture's options; the synthetic odour (30 % of PNs at 150 Hz) is no longer used (reviewer's decision after Phase 4). The same set for every variant, seed 1.
 KC rate = spikes / (T_stim + T_silence). «no APL» — the APL→* weights zeroed;
 «no KC→KC» — the 942 KC→KC edges removed (a check for runaway through the recurrence).
 
 | syn_scale | KC active (all) | KC active (with PN input) | max KC, Hz | median active KC, Hz | APL spikes | MBON spikes | no APL: KC active | no APL: max KC, Hz | no KC→KC: KC active | no KC→KC: max KC, Hz |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| 0.5 | 0.013 | 0.014 | 36 | 9 | 18.5 | 0.00 | 0.056 | 45 | 0.013 | 36 |
-| 0.75 | 0.044 | 0.049 | 55 | 9 | 24.3 | 0.00 | 0.203 | 73 | 0.044 | 55 |
-| 1.0 | 0.072 | 0.081 | 73 | 9 | 28.8 | 0.02 | 0.337 | 91 | 0.072 | 73 |
-| 1.25 **←** | 0.093 | 0.104 | 82 | 9 | 32.2 | 0.10 | 0.437 | 100 | 0.093 | 82 |
-| 1.5 | 0.110 | 0.123 | 91 | 9 | 34.7 | 0.22 | 0.509 | 118 | 0.110 | 91 |
-| 1.75 | 0.124 | 0.138 | 100 | 18 | 36.6 | 0.35 | 0.563 | 127 | 0.123 | 100 |
-| 2.0 | 0.135 | 0.151 | 109 | 18 | 38.0 | 0.51 | 0.603 | 136 | 0.135 | 109 |
-| 2.25 | 0.145 | 0.161 | 127 | 18 | 39.1 | 0.67 | 0.635 | 145 | 0.144 | 127 |
-| 2.5 | 0.153 | 0.171 | 127 | 18 | 40.0 | 0.84 | 0.659 | 155 | 0.153 | 127 |
-| 2.75 | 0.161 | 0.179 | 136 | 18 | 40.8 | 1.01 | 0.680 | 164 | 0.161 | 136 |
-| 3.0 | 0.168 | 0.188 | 136 | 18 | 41.3 | 1.17 | 0.696 | 164 | 0.168 | 136 |
-| 3.5 | 0.180 | 0.201 | 145 | 18 | 42.2 | 1.50 | 0.722 | 182 | 0.180 | 145 |
-| 4.0 | 0.191 | 0.213 | 155 | 18 | 42.9 | 1.77 | 0.741 | 191 | 0.190 | 164 |
-| 5.0 | 0.208 | 0.232 | 173 | 18 | 43.9 | 2.28 | 0.767 | 218 | 0.207 | 173 |
-| 6.0 | 0.221 | 0.247 | 182 | 18 | 44.4 | 2.72 | 0.783 | 236 | 0.221 | 182 |
-| 8.0 | 0.243 | 0.271 | 209 | 18 | 45.2 | 3.44 | 0.804 | 255 | 0.242 | 209 |
+| 0.5 | 0.004 | 0.004 | 36 | 9 | 11.4 | 0.00 | 0.012 | 36 | 0.004 | 36 |
+| 0.75 | 0.018 | 0.020 | 55 | 9 | 16.3 | 0.00 | 0.069 | 64 | 0.018 | 55 |
+| 1.0 | 0.033 | 0.036 | 64 | 9 | 20.6 | 0.00 | 0.144 | 73 | 0.033 | 64 |
+| 1.25 | 0.044 | 0.049 | 82 | 9 | 24.1 | 0.00 | 0.215 | 91 | 0.044 | 82 |
+| 1.5 | 0.052 | 0.059 | 91 | 9 | 26.9 | 0.01 | 0.276 | 109 | 0.052 | 91 |
+| 1.75 | 0.059 | 0.066 | 100 | 9 | 29.1 | 0.03 | 0.326 | 118 | 0.059 | 100 |
+| 2.0 | 0.064 | 0.072 | 100 | 9 | 31.0 | 0.06 | 0.365 | 127 | 0.064 | 100 |
+| 2.25 | 0.069 | 0.077 | 109 | 9 | 32.4 | 0.09 | 0.398 | 136 | 0.069 | 109 |
+| 2.5 | 0.073 | 0.081 | 118 | 9 | 33.7 | 0.13 | 0.425 | 145 | 0.073 | 118 |
+| 2.75 | 0.076 | 0.085 | 118 | 9 | 34.8 | 0.17 | 0.449 | 145 | 0.076 | 118 |
+| 3.0 | 0.079 | 0.088 | 127 | 9 | 35.7 | 0.22 | 0.468 | 164 | 0.079 | 127 |
+| 3.5 | 0.085 | 0.095 | 136 | 18 | 37.2 | 0.32 | 0.499 | 173 | 0.085 | 136 |
+| 4.0 **←** | 0.090 | 0.101 | 155 | 18 | 38.3 | 0.42 | 0.522 | 191 | 0.090 | 155 |
+| 5.0 | 0.100 | 0.111 | 173 | 18 | 39.9 | 0.65 | 0.552 | 200 | 0.100 | 173 |
+| 6.0 | 0.108 | 0.121 | 173 | 18 | 40.9 | 0.86 | 0.571 | 218 | 0.108 | 173 |
+| 8.0 | 0.120 | 0.134 | 200 | 18 | 42.4 | 1.26 | 0.596 | 245 | 0.120 | 200 |
 
-Criteria: with APL 8%–10% of KCs active, without APL > 30%; runaway: no neuron above 1/t_refractory = 455 Hz, the median rate of active KCs < 50 Hz. Chosen: **syn_scale = 1.25** — every criterion met.
+Criteria: with APL 8%–10% of KCs active, without APL > 30%; runaway: no neuron above 1/t_refractory = 455 Hz, the median rate of active KCs < 50 Hz. Chosen: **syn_scale = 4.0** — every criterion met.
 
 ### How many KC claws a real odour reaches
 
-An active PN = odor > 0.1; on average 65.5 active PNs per odour. The mean number of PN inputs (claws) per KC: 3.79; of them on average 2.03 are active. The distribution (KC × trials) and
+An active PN = odor > 0.1; on average 28.8 active PNs per odour. The mean number of PN inputs (claws) per KC: 3.79; of them on average 0.91 are active. The distribution (KC × trials) and
 the probability that the KC spikes, by the number of active claws:
 
 | active claws | KC×trials | share | P(KC active) | share among active KCs |
 |---:|---:|---:|---:|---:|
-| 0 | 116945 | 0.188 | 0.000 | 0.000 |
-| 1 | 126087 | 0.202 | 0.005 | 0.011 |
-| 2 | 147836 | 0.237 | 0.045 | 0.113 |
-| 3 | 126572 | 0.203 | 0.137 | 0.298 |
-| 4 | 71889 | 0.115 | 0.269 | 0.332 |
-| 5 | 26661 | 0.043 | 0.395 | 0.181 |
-| 6 | 6166 | 0.010 | 0.509 | 0.054 |
-| 7 | 992 | 0.002 | 0.587 | 0.010 |
-| 8 | 125 | 0.000 | 0.624 | 0.001 |
-| 9 | 7 | 0.000 | 0.857 | 0.000 |
+| 0 | 258227 | 0.414 | 0.000 | 0.000 |
+| 1 | 214887 | 0.345 | 0.054 | 0.206 |
+| 2 | 108525 | 0.174 | 0.220 | 0.425 |
+| 3 | 34321 | 0.055 | 0.451 | 0.275 |
+| 4 | 6505 | 0.010 | 0.703 | 0.081 |
+| 5 | 785 | 0.001 | 0.829 | 0.012 |
+| 6 | 30 | 0.000 | 0.967 | 0.001 |
 
 ### Reliability of the KC code (the Jaccard test from PLAN) on real odours
 
@@ -107,11 +104,11 @@ Jaccard of the active-KC sets: the same candidate seed 1 vs 2 (mean over all can
 
 | T_stim, ms | steps | KC active | J same candidate | J vote-3 | J different candidates | max KC, Hz |
 |---:|---:|---:|---:|---:|---:|---:|
-| 50 | 600 | 0.060 | 0.351 | 0.470 | 0.159 | 83 |
-| 75 | 850 | 0.080 | 0.438 | 0.562 | 0.197 | 82 |
-| 100 **←** | 1100 | 0.093 | 0.496 | 0.615 | 0.219 | 82 |
+| 50 | 600 | 0.074 | 0.387 | 0.507 | 0.153 | 150 |
+| 75 | 850 | 0.084 | 0.454 | 0.575 | 0.176 | 153 |
+| 100 **←** | 1100 | 0.090 | 0.495 | 0.620 | 0.190 | 155 |
 
-With the current parameters: the same candidate J = 0.496 (gap to 0.5: -0.004), different candidates J = 0.219 (gap +0.281). The criterion «same > 0.5» is not met: by the reviewer's decision after Phase 4 the corresponding test is diagnostic (xfail), the Phase 5 gate is readout accuracy.
+With the current parameters: the same candidate J = 0.495 (gap to 0.5: -0.005), different candidates J = 0.190 (gap +0.310). The criterion «same > 0.5» is not met: by the reviewer's decision after Phase 4 the corresponding test is diagnostic (xfail), the Phase 5 gate is readout accuracy.
 <!-- calibration:end -->
 
 <!-- bench:start -->
@@ -122,18 +119,18 @@ A trial = 1100 steps of 0.1 ms (T_stim 100 + T_silence 10 ms), 2935 neurons in t
 
 | batch | s per batch | trials/s | ms per step |
 |---:|---:|---:|---:|
-| 64 | 0.354 | 180.8 | 0.322 |
-| 256 | 1.067 | 240.0 | 0.970 |
-| 1024 | 7.673 | 133.5 | 6.976 |
+| 64 | 0.381 | 168.1 | 0.346 |
+| 256 | 1.275 | 200.8 | 1.159 |
+| 1024 | 10.091 | 101.5 | 9.174 |
 
-PLAN target ≥ 200 trials/s at batch 256: 240.0 — met.
+PLAN target ≥ 200 trials/s at batch 256: 200.8 — met.
 
 ### Two ways to compute the synaptic current (batch 256)
 
 | drive | trials/s |
 |---|---:|
-| `events` | 243.7 |
-| `dense` | 48.9 |
+| `events` | 177.6 |
+| `dense` | 36.9 |
 
 `events`: from the step's (trial, neuron) events a CSR spike matrix S is built and `S @ W` is computed (sparse × sparse, the result is added into `g` by flat indices). `dense`: `W.T @ spikes.T` with a dense spike matrix (n_neurons × n_trials). The results are bit-for-bit identical: True. `events` is used.
 
@@ -141,20 +138,20 @@ PLAN target ≥ 200 trials/s at batch 256: 240.0 — met.
 
 ```
    ncalls  tottime  percall  cumtime  percall filename:lineno(function)
-        1    0.489    0.489    1.294    1.294 fly_ftl_extract\brain\lif.py:156(simulate)
-     1080    0.242    0.000    0.707    0.001 fly_ftl_extract\brain\lif.py:258(_deliver)
-     1080    0.103    0.000    0.103    0.000 {built-in method scipy.sparse._sparsetools.csr_matmat}
-     2100    0.080    0.000    0.080    0.000 {method 'nonzero' of 'numpy.ndarray' objects}
-     6480    0.050    0.000    0.071    0.000 site-packages\scipy\sparse\_sputils.py:263(get_index_dtype)
-     1080    0.033    0.000    0.033    0.000 {built-in method scipy.sparse._sparsetools.csr_matmat_maxnnz}
-     4324    0.015    0.000    0.015    0.000 {method 'reduce' of 'numpy.ufunc' objects}
-     3240    0.014    0.000    0.116    0.000 site-packages\scipy\sparse\_compressed.py:30(__init__)
-     1080    0.014    0.000    0.014    0.000 {built-in method scipy.sparse._sparsetools.expandptr}
-     6480    0.013    0.000    0.090    0.000 site-packages\scipy\sparse\_base.py:1695(_get_index_dtype)
-    12960    0.012    0.000    0.012    0.000 site-packages\numpy\_core\getlimits.py:399(__init__)
-     1080    0.011    0.000    0.244    0.000 site-packages\scipy\sparse\_compressed.py:415(_matmul_sparse)
-     3240    0.011    0.000    0.017    0.000 site-packages\scipy\sparse\_sputils.py:443(check_shape)
-     3240    0.011    0.000    0.038    0.000 site-packages\scipy\sparse\_compressed.py:166(check_format)
+        1    0.664    0.664    1.738    1.738 fly_ftl_extract\brain\lif.py:177(simulate)
+     1082    0.328    0.000    0.934    0.001 fly_ftl_extract\brain\lif.py:296(_deliver)
+     1082    0.126    0.000    0.126    0.000 {built-in method scipy.sparse._sparsetools.csr_matmat}
+     2100    0.117    0.000    0.117    0.000 {method 'nonzero' of 'numpy.ndarray' objects}
+     6492    0.066    0.000    0.095    0.000 site-packages\scipy\sparse\_sputils.py:263(get_index_dtype)
+     1082    0.042    0.000    0.042    0.000 {built-in method scipy.sparse._sparsetools.csr_matmat_maxnnz}
+     1082    0.019    0.000    0.019    0.000 {built-in method scipy.sparse._sparsetools.expandptr}
+     4332    0.019    0.000    0.019    0.000 {method 'reduce' of 'numpy.ufunc' objects}
+     3246    0.018    0.000    0.150    0.000 site-packages\scipy\sparse\_compressed.py:30(__init__)
+     6492    0.017    0.000    0.119    0.000 site-packages\scipy\sparse\_base.py:1695(_get_index_dtype)
+    12984    0.017    0.000    0.017    0.000 site-packages\numpy\_core\getlimits.py:399(__init__)
+     1082    0.014    0.000    0.308    0.000 site-packages\scipy\sparse\_compressed.py:415(_matmul_sparse)
+     3246    0.014    0.000    0.022    0.000 site-packages\scipy\sparse\_sputils.py:443(check_shape)
+     3246    0.014    0.000    0.048    0.000 site-packages\scipy\sparse\_compressed.py:166(check_format)
 ```
 
 Reading the profile: the ufunc calls (multiply/add/compare on (n_trials, n_int) arrays) are not shown separately by cProfile — they are part of the tottime of `simulate`; `_deliver` is building the CSR spike matrix and `csr_matmat` (the product itself is a small share, the rest is scipy's constructor checks); Poisson generation (`Generator.random`) does not make the top. The bottleneck is neither matmul nor Poisson but the per-step Python overhead.

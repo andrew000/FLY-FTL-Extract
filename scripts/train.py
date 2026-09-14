@@ -54,6 +54,7 @@ REPO = Path(__file__).resolve().parent.parent
 DATASET_DIR = REPO / "fly_ftl_extract" / "data" / "dataset"
 CACHE_DIR = REPO / ".cache" / "brain_states"
 OUT_DOC = REPO / "docs" / "METRICS.md"
+ATTEMPTS = REPO / "docs" / "attempts.jsonl"
 TRAIN_SEEDS = (101, 102, 103)  # three sniffs of every training odour
 MAX_RESNIFF = 3
 RESNIFF_FRACTION = 0.10
@@ -398,6 +399,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--lr", type=float, default=TrainConfig().lr)
     parser.add_argument("--l2", type=float, default=TrainConfig().l2)
     parser.add_argument("--epochs", type=int, default=TrainConfig().max_epochs)
+    parser.add_argument("--attempt", default="", help="label of this attempt for METRICS.md §5")
     args = parser.parse_args(argv)
     config = TrainConfig(lr=args.lr, l2=args.l2, max_epochs=args.epochs)
 
@@ -455,6 +457,7 @@ def main(argv: list[str] | None = None) -> int:
     args.out.parent.mkdir(parents=True, exist_ok=True)
     weights.save(args.out)
     timings["total_s"] = time.perf_counter() - t_start
+    record_attempt(args.attempt, results, fixtures, config, dataset_meta)
     print(
         f"fixtures: {fixtures.files_ok}/{fixtures.files_total} files match the teacher",
         flush=True,
@@ -472,6 +475,51 @@ def main(argv: list[str] | None = None) -> int:
     )
     print(f"wrote {args.out} ({args.out.stat().st_size} bytes) and {OUT_DOC}")
     return 0
+
+
+def record_attempt(
+    label: str,
+    results: dict[str, TaskResult],
+    fixtures: FixturesResult,
+    config: TrainConfig,
+    dataset_meta: dict[str, object],
+) -> None:
+    """Append one row to docs/attempts.jsonl (what changed -> what came out)."""
+    keys, kwargs = results["keys"].evaluation, results["kwargs"].evaluation
+    row = {
+        "label": label or "(no label)",
+        "encoder_version": ENCODER_VERSION,
+        "generator_version": dataset_meta["generator_version"],
+        "snippets": dataset_meta["snippets"],
+        "train_config": asdict(config),
+        "modes": {k: v.mode for k, v in results.items()},
+        "keys_plain": [keys.plain.precision, keys.plain.recall],
+        "keys_resniff": [keys.resniffed.precision, keys.resniffed.recall],
+        "kwargs_resniff": [kwargs.resniffed.precision, kwargs.resniffed.recall],
+        "fixtures": [fixtures.files_ok, fixtures.files_total],
+    }
+    with ATTEMPTS.open("a", encoding="utf-8", newline="\n") as fh:
+        fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+
+def attempts_table() -> list[str]:
+    if not ATTEMPTS.exists():
+        return []
+    rows = [json.loads(line) for line in ATTEMPTS.read_text(encoding="utf-8").splitlines() if line]
+    lines = [
+        "| # | change | encoder | snippets | keys test P/R (no resniff) | keys test P/R (resniff) "
+        "| kwargs test P/R | fixtures |",
+        "|---:|---|---|---:|---|---|---|---|",
+    ]
+    lines.extend(
+        f"| {i} | {r['label']} | {r['encoder_version']} | {r['snippets']} "
+        f"| {r['keys_plain'][0]:.4f} / {r['keys_plain'][1]:.4f} "
+        f"| {r['keys_resniff'][0]:.4f} / {r['keys_resniff'][1]:.4f} "
+        f"| {r['kwargs_resniff'][0]:.4f} / {r['kwargs_resniff'][1]:.4f} "
+        f"| {r['fixtures'][0]}/{r['fixtures'][1]} |"
+        for i, r in enumerate(rows, 1)
+    )
+    return lines
 
 
 def write_doc(
@@ -608,13 +656,7 @@ def write_doc(
         "## 5. Attempts (what changed → what came out)",
         "",
         "<!-- attempts:start -->",
-        "| # | change | keys test P/R | kwargs test P/R | fixtures |",
-        "|---:|---|---|---|---|",
-        (
-            f"| 1 | baseline run | {keys.evaluation.resniffed.precision:.4f} / "
-            f"{keys.evaluation.resniffed.recall:.4f} | {kwargs.evaluation.resniffed.precision:.4f} / "
-            f"{kwargs.evaluation.resniffed.recall:.4f} | {fixtures.files_ok}/{fixtures.files_total} |"
-        ),
+        *attempts_table(),
         "<!-- attempts:end -->",
     ]
     OUT_DOC.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")

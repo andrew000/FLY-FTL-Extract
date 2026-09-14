@@ -119,7 +119,7 @@ def test_different_odors_give_different_kc_patterns(brain: Brain, real_odors: np
 @pytest.mark.xfail(
     reason=(
         "diagnostic (auditor, after Phase 4): on real fixture odours the same candidate "
-        "with two seeds gives Jaccard 0.496 < 0.5 (docs/BENCH.md); the Phase 5 gate is "
+        "with two seeds gives Jaccard 0.495-0.496 < 0.5 (docs/BENCH.md); the Phase 5 gate is "
         "readout accuracy"
     ),
     strict=False,

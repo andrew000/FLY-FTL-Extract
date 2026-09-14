@@ -6,6 +6,7 @@ import numpy as np
 
 from fly_ftl_extract.ftl.model import ExtractOptions
 from fly_ftl_extract.odor.encoder import (
+    DEFAULT_ENCODER,
     ENCODER_VERSION,
     N_PN_DEFAULT,
     bucket,
@@ -75,7 +76,17 @@ def test_prefix_option_changes_only_windows_that_contain_self() -> None:
     changed = 0
     for c in cands():
         plain, with_prefix = encode(c.window, OPTS), encode(c.window, SELF_OPTS)
-        has_self = any(t.text == "self" for t in c.window.tokens())
+        encoded = [t for t, _ in normalize_window(c.window, OPTS)]
+        raw = normalize_window(c.window, OPTS)
+        has_self = any(
+            tok.text == "self"
+            for tok in (
+                *c.window.before[len(c.window.before) - DEFAULT_ENCODER.context_before :],
+                *c.window.focus,
+                *c.window.after[: DEFAULT_ENCODER.context_after],
+            )
+        )
+        assert len(encoded) == len(raw)
         if has_self:
             assert not np.array_equal(plain, with_prefix)
             changed += 1

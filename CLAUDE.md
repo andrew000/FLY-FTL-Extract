@@ -140,8 +140,14 @@ names other than the known i18n names and ignore attributes → `<NAME>`; those 
 on the concrete name, so `-k LF` smells the same as `i18n`; `get` and `_path` are constants
 of the original and stay literal; Python keywords and operators stay literal).
 Features → feature hashing (n-grams 1..3 with the position relative to the candidate) into a
-dimension = the number of PNs in the subgraph (~100–150 per hemisphere). The vector is
-normalised into [0, 1].
+dimension = the number of PNs in the subgraph (124 cholinergic uniglomerular PNs of the right
+hemisphere). The vector is normalised into [0, 1] (`tanh` of the sum of weights in the
+bucket). The tokenizer yields a 12/6 window, but the `fly-odor-2` encoder encodes only 6
+tokens before and 3 after the focus and no position-independent n-grams: in 124 buckets the
+hash collides, and the proxy measurement (logistic regression on the odours themselves,
+`docs/METRICS.md`) showed an F1 ceiling of 0.95 for 12/6 and 0.973 for 6/3 — the same
+features in 1024 buckets give 0.997. The number of PNs is the main limit on the fly's
+accuracy.
 
 Important: `--i18n-keys`, `-p/--i18n-keys-prefix`, `--ignore-attributes`, `--ignore-kwargs`
 affect the **token normalisation**, not the decision. The decision is the fly's. That is,
@@ -174,7 +180,13 @@ fixtures from `tests/` are **not** part of the dataset — they are the holdout.
 Goal: precision and recall ≥ 0.995 on the test split, and 100 % on the golden fixtures. If it
 is not reached — turn the encoder knobs (window, n-grams) and KC sparsity, do not add rules.
 One biological trick is allowed: if |MBON margin| < θ — «sniff again» (up to 3 trials with
-another seed, voting). This is not a crutch, it is a real strategy of the fly.
+another seed, voting by the sum of margins). This is not a crutch, it is a real strategy of
+the fly. θ is chosen on val so that the resniff share is ≤ 10 %; it is stored in the weights.
+Trial seed = sha256(file bytes + candidate index + ENCODER_VERSION); the extra trials are
+`sniff_seed(base, k)`. The whole fly together is `dopamine/judge.py` (`Judge.judge_source`):
+tokenizer → odor → brain → readout; kwargs are judged only for calls recognised as keys; a
+chain without a key name (`x.get(`, a bare `name(`) is not judged — there is nothing to emit
+for it.
 
 ## CLI compatibility (cli/)
 

@@ -9,11 +9,18 @@ literal; Python keywords stay literal; operators stay literal.  The options ther
 *how a window smells*, never what the fly decides about the smell.
 
 Features: n-grams (n = 1..3) of the normalised tokens with their position relative to the
-focus (positional n-grams) plus the same n-grams without position (bag n-grams, half
-weight), plus the window's scalar features (depth, first positional, in kwargs, focus
-kind).  Every feature is hashed with ``blake2b`` (salt = :data:`ENCODER_VERSION`) into one
-of ``n_pn`` buckets; the bucket sums its feature weights and the sum goes through ``tanh``.
-Tokens far from the focus weigh less (``exp(-distance / DISTANCE_TAU)``).
+focus (positional n-grams), optionally the same n-grams without position (bag n-grams,
+``bag_weight``), plus the window's scalar features (depth, first positional, in kwargs,
+focus kind).  Every feature is hashed with ``blake2b`` (salt = :data:`ENCODER_VERSION`)
+into one of ``n_pn`` buckets; the bucket sums its feature weights and the sum goes
+through ``tanh``.  Tokens far from the focus weigh less (``exp(-distance / distance_tau)``)
+and only ``context_before`` / ``context_after`` tokens around the focus are used at all.
+
+Why the context is 6/3 and there are no bag n-grams (``fly-odor-2``): with 124 PN buckets
+the hash collides; the Phase 5 proxy (logistic regression on the odours themselves,
+docs/METRICS.md) showed 12/6 + bag at F1 0.95 and 6/3 without bag at 0.973 — the same
+features in 1024 buckets reach 0.997, so fewer features per window is the only lever
+inside 124 PN.
 """
 
 from __future__ import annotations
@@ -28,7 +35,7 @@ import numpy as np
 from fly_ftl_extract.ftl.model import GET_ATTR, PATH_KWARG, ExtractOptions
 from fly_ftl_extract.tokenizer.candidates import Tok, Window
 
-ENCODER_VERSION = "fly-odor-1"
+ENCODER_VERSION = "fly-odor-2"
 """Salt of the feature hash.  Bump on *any* change of the normalisation, the feature set,
 the weights or the bucket count: trained MBON weights are only valid for one version."""
 
@@ -44,8 +51,12 @@ class EncoderParams:
     """Longest n-gram."""
     distance_tau: float = 6.0
     """Weight of a token ``d`` positions from the focus is ``exp(-d / distance_tau)``."""
-    bag_weight: float = 0.5
-    """Weight multiplier for position-free n-grams."""
+    bag_weight: float = 0.0
+    """Weight multiplier for position-free n-grams (0 = none)."""
+    context_before: int = 6
+    """Tokens before the focus that are encoded (the tokenizer's window may hold more)."""
+    context_after: int = 3
+    """Tokens after the focus that are encoded."""
     max_depth: int = 5
     """Bracket depth is clipped here before it becomes a feature."""
 
@@ -89,16 +100,26 @@ def normalize_token(tok: Tok, options: ExtractOptions) -> str:
     return _CLASS_TOKENS.get(tok.type, f"<{tok.type}>")
 
 
-def normalize_window(window: Window, options: ExtractOptions) -> list[tuple[str, int]]:
-    """``(token, position)`` pairs; position 0 is the first focus token, before < 0."""
+def normalize_window(
+    window: Window, options: ExtractOptions, params: EncoderParams = DEFAULT_ENCODER
+) -> list[tuple[str, int]]:
+    """``(token, position)`` pairs; position 0 is the first focus token, before < 0.
+
+    Only the last ``params.context_before`` tokens before and the first
+    ``params.context_after`` after the focus are kept.
+    """
+    before = (
+        window.before[len(window.before) - params.context_before :] if params.context_before else ()
+    )
+    after = window.after[: params.context_after]
     out: list[tuple[str, int]] = []
-    n_before = len(window.before)
-    for i, tok in enumerate(window.before):
+    n_before = len(before)
+    for i, tok in enumerate(before):
         out.append((normalize_token(tok, options), i - n_before))
     for i, tok in enumerate(window.focus):
         out.append((normalize_token(tok, options), i))
     n_focus = len(window.focus)
-    for i, tok in enumerate(window.after):
+    for i, tok in enumerate(after):
         out.append((normalize_token(tok, options), n_focus + i))
     return out
 
@@ -107,7 +128,7 @@ def features(
     window: Window, options: ExtractOptions, params: EncoderParams = DEFAULT_ENCODER
 ) -> list[tuple[str, float]]:
     """``(feature, weight)`` pairs of a window (before hashing)."""
-    seq = normalize_window(window, options)
+    seq = normalize_window(window, options, params)
     n_focus = len(window.focus)
     out: list[tuple[str, float]] = []
     for n in range(1, params.max_ngram + 1):
@@ -124,7 +145,8 @@ def features(
             weight = math.exp(-distance / params.distance_tau)
             text = "\x1f".join(t for t, _ in gram)
             out.append((f"pos:{n}:{pos}:{text}", weight))
-            out.append((f"bag:{n}:{text}", weight * params.bag_weight))
+            if params.bag_weight > 0:
+                out.append((f"bag:{n}:{text}", weight * params.bag_weight))
     out.append((f"depth:{min(window.depth, params.max_depth)}", 1.0))
     out.append((f"first_positional:{int(window.first_positional)}", 1.0))
     out.append((f"in_kwargs:{int(window.in_kwargs)}", 1.0))

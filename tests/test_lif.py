@@ -23,6 +23,7 @@ SPARSITY_CLAUDE_MD = (0.03, 0.15)  # CLAUDE.md: outside this range the weights a
 SPARSITY_WITHOUT_APL = 0.30
 JACCARD_DIFFERENT_MAX = 0.5
 JACCARD_SAME_MIN = 0.5
+ACTIVE_KC_MEDIAN_RATE_MAX_HZ = 50.0  # auditor's runaway criterion (after Phase 3)
 
 
 @pytest.fixture(scope="module")
@@ -127,6 +128,15 @@ def test_no_neuron_beats_the_refractory_period(brain: Brain) -> None:
     assert abs(active.mean() - expected) / expected < 0.05
 
 
+def test_active_kc_median_rate_is_below_50_hz(brain: Brain) -> None:
+    p = brain.params
+    res = brain.simulate(odor_set(brain.n_pn, seed=3), seed=1)
+    active = res.kc_counts[res.kc_counts > 0]
+    assert active.size > 0
+    median_hz = float(np.median(active)) * 1000.0 / (p.n_steps * p.dt)
+    assert median_hz < ACTIVE_KC_MEDIAN_RATE_MAX_HZ
+
+
 def test_raster_matches_counts(brain: Brain) -> None:
     odors = odor_set(brain.n_pn, seed=4, n_trials=8)
     res = brain.simulate(odors, seed=1, raster_trials=3)
@@ -157,6 +167,7 @@ def test_params_are_whole_steps() -> None:
     assert p.n_steps == round((p.t_stim + p.t_silence) / p.dt)
     assert p.refractory_steps == 22
     assert p.delay_steps == 18
+    assert p.t_stim == 100.0  # auditor's decision after Phase 3 (docs/BENCH.md §2)
     with pytest.raises(ValueError, match="whole number"):
         _ = BrainParams(t_stim=50.05).stim_steps
 

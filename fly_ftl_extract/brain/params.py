@@ -52,12 +52,13 @@ class BrainParams:
         the model's one free parameter.""",
     )
     syn_scale: float = _p(
-        2.25,
+        1.5,
         """Multiplier on `w_syn` for our subgraph. Shiu simulate the whole brain with 1;
         the isolated mushroom body needs its own value so that a typical odour (30 % PN at
-        150 Hz) drives 5–10 % of the Kenyon cells with APL and > 30 % without. 2.25 gives
-        7.3 % / 42.3 %; calibrated by `scripts/calibrate.py` (curve in docs/BENCH.md,
-        value mirrored in docs/calibration.json).""",
+        150 Hz, T_stim 100 ms) drives 5–10 % of the Kenyon cells with APL and > 30 % without,
+        with no neuron above 1/t_refractory and a median active-KC rate < 50 Hz. 1.5 gives
+        7.6 % / 38.0 %; calibrated by `scripts/calibrate.py` (curve in docs/BENCH.md, value
+        mirrored in docs/calibration.json).""",
     )
     dt: float = _p(0.1, "Integration step, ms. brian2's `defaultclock.dt`, as used by Shiu.")
     rate_max: float = _p(
@@ -65,7 +66,12 @@ class BrainParams:
         """Firing rate of a projection neuron at odour value 1.0, Hz. CLAUDE.md; Shiu drive
         their input neurons at `r_poi = 150 Hz`, which is odour value 0.75 here.""",
     )
-    t_stim: float = _p(50.0, "Duration of the odour (PN Poisson input), ms. CLAUDE.md.")
+    t_stim: float = _p(
+        100.0,
+        """Duration of the odour (PN Poisson input), ms. CLAUDE.md said 50 ms; the auditor
+        after Phase 3 set 100 ms because at 50 ms the same odour with two seeds gave a
+        Kenyon-cell Jaccard of 0.40 (< 0.5 required); at 100 ms it is > 0.5 (docs/BENCH.md §2).""",
+    )
     t_silence: float = _p(
         10.0, "Silence after the odour while the last spikes propagate, ms. CLAUDE.md."
     )

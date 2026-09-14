@@ -5,10 +5,12 @@ Typical odour (PLAN, Phase 3): 30 % of the projection neurons at 150 Hz, i.e. od
 odour set with APL, without APL (APL→* weights zeroed) and without KC→KC edges, and prints:
 
 * the active Kenyon-cell fraction (two denominators: all KC, and KC that have a PN input);
-* the highest KC firing rate of any trial (spikes / (T_stim + T_silence));
+* the highest firing rate of any neuron and the median rate of the *active* Kenyon
+  cells (spikes / (T_stim + T_silence));
 * mean APL and MBON spike counts.
 
-Target: 5–10 % active KC with APL, > 30 % without, max KC rate < 100 Hz.  The chosen value
+Target: 5–10 % active KC with APL, > 30 % without; runaway criterion (auditor, after
+Phase 3): no neuron above 1 / t_refractory and median rate of active KC < 50 Hz.  The chosen value
 is written to ``docs/calibration.json`` and the whole curve to the ``calibration`` section
 of ``docs/BENCH.md``; ``BrainParams.syn_scale`` is then set by hand to the chosen value
 (``tests/test_lif.py`` checks that the two agree).
@@ -44,11 +46,12 @@ PN_ACTIVE_FRACTION = 0.30
 ODOR_LEVEL = 0.75  # 150 Hz at rate_max = 200 Hz
 TARGET_WITH_APL = (0.05, 0.10)
 TARGET_WITHOUT_APL = 0.30
-MAX_KC_RATE_HZ = 100.0
+MAX_ACTIVE_KC_MEDIAN_HZ = 50.0
 JACCARD_TRIALS = 32
 JACCARD_STIMS = (50.0, 75.0, 100.0)
 JACCARD_LEVELS = (0.75, 1.0)
 VOTE_MAJORITY = 2  # of 3 sniffs
+JACCARD_THRESHOLD = 0.5
 
 SKELETON = "# Brain: parameters, calibration, speed\n"
 
@@ -81,6 +84,14 @@ def max_rate_hz(counts: np.ndarray, params: BrainParams) -> float:
     return float(counts.max()) * 1000.0 / (params.n_steps * params.dt)
 
 
+def median_active_rate_hz(counts: np.ndarray, params: BrainParams) -> float:
+    """Median firing rate over the (trial, KC) pairs that spiked at least once."""
+    active = counts[counts > 0]
+    if active.size == 0:
+        return 0.0
+    return float(np.median(active)) * 1000.0 / (params.n_steps * params.dt)
+
+
 def jaccard(a: np.ndarray, b: np.ndarray) -> float:
     a, b = a > 0, b > 0
     return float(((a & b).sum(1) / np.maximum((a | b).sum(1), 1)).mean())
@@ -100,6 +111,12 @@ def calibration_curve(cx: Connectome, odors: np.ndarray) -> list[dict[str, float
                 "kc_active_all": float(with_apl.kc_active_fraction.mean()),
                 "kc_active_pn_input": float(with_apl.kc_active_fraction_pn_input.mean()),
                 "kc_max_rate_hz": max_rate_hz(with_apl.kc_counts, p),
+                "kc_median_active_rate_hz": median_active_rate_hz(with_apl.kc_counts, p),
+                "max_rate_any_neuron_hz": max(
+                    max_rate_hz(with_apl.kc_counts, p),
+                    max_rate_hz(with_apl.apl_counts, p),
+                    max_rate_hz(with_apl.mbon_counts, p),
+                ),
                 "apl_spikes": float(with_apl.apl_counts.mean()),
                 "mbon_spikes": float(with_apl.mbon_counts.mean()),
                 "kc_active_no_apl": float(no_apl.kc_active_fraction.mean()),
@@ -111,6 +128,7 @@ def calibration_curve(cx: Connectome, odors: np.ndarray) -> list[dict[str, float
         print(
             f"syn_scale {scale:5.2f}: KC active {rows[-1]['kc_active_all']:.3f} "
             f"(PN-input {rows[-1]['kc_active_pn_input']:.3f}), max {rows[-1]['kc_max_rate_hz']:.0f} Hz, "
+            f"median active {rows[-1]['kc_median_active_rate_hz']:.0f} Hz, "
             f"no APL {rows[-1]['kc_active_no_apl']:.3f}, no KC->KC max {rows[-1]['kc_max_rate_no_kc_kc_hz']:.0f} Hz",
             flush=True,
         )
@@ -121,6 +139,7 @@ def choose(rows: list[dict[str, float]]) -> tuple[float, list[str]]:
     """The passing scale closest to the middle of the target band, and unmet criteria."""
     lo, hi = TARGET_WITH_APL
     mid = (lo + hi) / 2
+    max_rate = BrainParams().max_rate_hz
 
     def unmet(r: dict[str, float]) -> list[str]:
         out = []
@@ -128,8 +147,13 @@ def choose(rows: list[dict[str, float]]) -> tuple[float, list[str]]:
             out.append(f"KC active with APL {r['kc_active_all']:.3f} not in [{lo}, {hi}]")
         if r["kc_active_no_apl"] <= TARGET_WITHOUT_APL:
             out.append(f"KC active without APL {r['kc_active_no_apl']:.3f} <= {TARGET_WITHOUT_APL}")
-        if r["kc_max_rate_hz"] >= MAX_KC_RATE_HZ:
-            out.append(f"max KC rate {r['kc_max_rate_hz']:.0f} Hz >= {MAX_KC_RATE_HZ:.0f} Hz")
+        if r["max_rate_any_neuron_hz"] > max_rate:
+            out.append(f"a neuron fired at {r['max_rate_any_neuron_hz']:.0f} Hz > 1/t_refractory")
+        if r["kc_median_active_rate_hz"] >= MAX_ACTIVE_KC_MEDIAN_HZ:
+            out.append(
+                f"median active-KC rate {r['kc_median_active_rate_hz']:.0f} Hz >= "
+                f"{MAX_ACTIVE_KC_MEDIAN_HZ:.0f} Hz"
+            )
         return out
 
     passing = [r for r in rows if not unmet(r)]
@@ -225,23 +249,27 @@ def write_doc(
         "«no KC→KC» — the 942 KC→KC edges removed (a check for runaway through the recurrence).",
         "",
         (
-            "| syn_scale | KC active (all) | KC active (with PN input) | max KC, Hz | APL spikes | MBON spikes "
+            "| syn_scale | KC active (all) | KC active (with PN input) | max KC, Hz | median active KC, Hz "
+            "| APL spikes | MBON spikes "
             "| no APL: KC active | no APL: max KC, Hz | no KC→KC: KC active | no KC→KC: max KC, Hz |"
         ),
-        "|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+        "|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for r in curve:
         mark = " **←**" if r["syn_scale"] == chosen else ""
         lines.append(
             f"| {r['syn_scale']}{mark} | {r['kc_active_all']:.3f} | {r['kc_active_pn_input']:.3f} "
-            f"| {r['kc_max_rate_hz']:.0f} | {r['apl_spikes']:.1f} | {r['mbon_spikes']:.2f} "
+            f"| {r['kc_max_rate_hz']:.0f} | {r['kc_median_active_rate_hz']:.0f} "
+            f"| {r['apl_spikes']:.1f} | {r['mbon_spikes']:.2f} "
             f"| {r['kc_active_no_apl']:.3f} | {r['kc_max_rate_no_apl_hz']:.0f} "
             f"| {r['kc_active_no_kc_kc']:.3f} | {r['kc_max_rate_no_kc_kc_hz']:.0f} |"
         )
     lines += [
         "",
         f"Criteria: with APL {TARGET_WITH_APL[0]:.0%}–{TARGET_WITH_APL[1]:.0%} of KCs active, without APL > "
-        f"{TARGET_WITHOUT_APL:.0%}, max KC < {MAX_KC_RATE_HZ:.0f} Hz. Chosen: **syn_scale = {chosen}**"
+        f"{TARGET_WITHOUT_APL:.0%}; runaway (reviewer's decision after Phase 3): no neuron above "
+        f"1/t_refractory = {BrainParams().max_rate_hz:.0f} Hz, the median rate of active KCs < "
+        f"{MAX_ACTIVE_KC_MEDIAN_HZ:.0f} Hz. Chosen: **syn_scale = {chosen}**"
         + (" — every criterion met." if not unmet else " — not met: " + "; ".join(unmet) + "."),
         "",
         "### How many KC claws fall into the odour",
@@ -264,20 +292,40 @@ def write_doc(
     )
     lines += [
         "",
-        "### Reliability of the KC code (the Jaccard test from PLAN)",
+        "### Reliability of the KC code (the Jaccard test from PLAN) and the choice of T_stim",
         "",
         f"One odour, {JACCARD_TRIALS} trials; Jaccard of the active-KC sets between two seeds of the same odour,",
-        "between the votes of 3 trials (two independent seed triples) and between two different odours.",
+        "between the votes of 3 trials (two independent seed triples) and between two different odours. This is the table",
+        "from which the reviewer chose T_stim = 100 ms after Phase 3 (at 50 ms the same odour gave J ≈ 0.40).",
+        f"The row with the current parameters (T_stim = {BrainParams().t_stim:.0f} ms, {ODOR_LEVEL * 200:.0f} Hz) is marked.",
         "",
         "| T_stim, ms | PN, Hz | steps | KC active | J same odour | J vote-3 | J different odours | max KC, Hz |",
         "|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
-    lines.extend(
-        f"| {r['t_stim_ms']:.0f} | {r['pn_rate_hz']:.0f} | {r['n_steps']} | {r['kc_active_all']:.3f} "
-        f"| {r['jaccard_same_odor']:.3f} | {r['jaccard_same_odor_vote3']:.3f} "
-        f"| {r['jaccard_different_odors']:.3f} | {r['kc_max_rate_hz']:.0f} |"
-        for r in rel
+    current = BrainParams()
+    for r in rel:
+        mark = (
+            " **←**" if r["t_stim_ms"] == current.t_stim and r["odor_level"] == ODOR_LEVEL else ""
+        )
+        lines.append(
+            f"| {r['t_stim_ms']:.0f}{mark} | {r['pn_rate_hz']:.0f} | {r['n_steps']} | {r['kc_active_all']:.3f} "
+            f"| {r['jaccard_same_odor']:.3f} | {r['jaccard_same_odor_vote3']:.3f} "
+            f"| {r['jaccard_different_odors']:.3f} | {r['kc_max_rate_hz']:.0f} |"
+        )
+    chosen_row = next(
+        r for r in rel if r["t_stim_ms"] == current.t_stim and r["odor_level"] == ODOR_LEVEL
     )
+    same_gap = chosen_row["jaccard_same_odor"] - JACCARD_THRESHOLD
+    diff_gap = JACCARD_THRESHOLD - chosen_row["jaccard_different_odors"]
+    lines += [
+        "",
+        (
+            f"With the current parameters both criteria hold at once: the same odour J = "
+            f"{chosen_row['jaccard_same_odor']:.3f} > {JACCARD_THRESHOLD} (gap {same_gap:+.3f}), "
+            f"different odours J = {chosen_row['jaccard_different_odors']:.3f} < {JACCARD_THRESHOLD} "
+            f"(gap {diff_gap:+.3f})."
+        ),
+    ]
     update_section(OUT_DOC, "calibration", "\n".join(lines), SKELETON)
 
 
@@ -292,6 +340,21 @@ def main() -> int:
     payload = {
         "syn_scale": chosen,
         "unmet_criteria": unmet,
+        "t_stim_ms": BrainParams().t_stim,
+        "jaccard_gap": {
+            "same_odor": next(
+                r["jaccard_same_odor"]
+                for r in rel
+                if r["t_stim_ms"] == BrainParams().t_stim and r["odor_level"] == ODOR_LEVEL
+            )
+            - JACCARD_THRESHOLD,
+            "different_odors": JACCARD_THRESHOLD
+            - next(
+                r["jaccard_different_odors"]
+                for r in rel
+                if r["t_stim_ms"] == BrainParams().t_stim and r["odor_level"] == ODOR_LEVEL
+            ),
+        },
         "typical_odor": {"pn_active_fraction": PN_ACTIVE_FRACTION, "odor_level": ODOR_LEVEL},
         "n_trials": N_TRIALS,
         "curve": curve,

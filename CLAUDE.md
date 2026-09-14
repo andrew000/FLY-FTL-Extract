@@ -67,22 +67,34 @@ tests/
 ## Data sources (for scripts/build_connectome.py)
 
 - Zenodo, record 10676866 «FlyWire Whole-brain Connectome Connectivity Data», CC-BY 4.0:
-  `proofread_connections_783.feather` (~852 MB) — an edge list of pre/post root ids,
-  `syn_count`, `neuropil`, `nt_type`. Check the columns after downloading, do not guess.
+  `proofread_connections_783.feather` (852 MB, 16 847 997 rows) — **one row per
+  (pre, post, neuropil)**: `pre_pt_root_id`, `post_pt_root_id`, `neuropil`, `syn_count` and
+  per-edge transmitter scores `gaba_avg ach_avg glut_avg oct_avg ser_avg da_avg`.
+  There is **no** `nt_type` column. Plus `proofread_root_ids_783.npy` (139 255 ids).
 - Neuron annotations: https://github.com/flyconnectome/flywire_annotations,
-  `supplemental_files/Supplemental_file1_neuron_annotations.tsv` — columns `root_783`,
-  `side`, `flow`, `super_class`, `cell_class`, `cell_sub_class`, `cell_type`,
-  `hemibrain_type`. Look up the exact class values in the file (`Kenyon_Cell`, `MBON`, `DAN`,
-  `ALPN`, `APL` etc. — confirm the names from the data, not from memory).
+  `supplemental_files/Supplemental_file1_neuron_annotations.tsv` (139 248 rows) — columns
+  `root_id` (not `root_783`), `side` (`left/right/center/na`), `flow`, `super_class`,
+  `cell_class`, `cell_sub_class`, `cell_type`, `hemibrain_type`, `top_nt` (predictor),
+  `known_nt` (literature). Actual values: `Kenyon_Cell` (subclasses `KCab`, `KCg`, NaN for
+  KCα'β'/KCαβ-p), `MBON`, `DAN` (PAM/PPL), `MBIN` with `cell_type` `APL` and `DPM`, `ALPN` with
+  `cell_sub_class` `uniglomerular`/`multiglomerular`. There is no separate glomerulus column —
+  it sits in `cell_type` (`DA1_lPN` → `DA1`). Full value_counts are in `docs/CONNECTOME.md`.
 - Download: the user does it locally (Windows), the files go to `.cache/flywire/`, which is in
-  `.gitignore`. The script's result (`mb_fafb783.npz`, a few MB) is committed.
+  `.gitignore`. The script's result (`mb_fafb783.npz`, ~100 KB) is committed.
 
-Subgraph: one hemisphere (pick the one with more KCs), neurons of the classes PN (ALPN,
-uniglomerular), Kenyon cells (all subtypes), APL, MBON, DAN. Edges with `syn_count >= 5`. The
-synapse sign by `nt_type`: ACh → +1, GABA and Glu → −1, DA/OA/5HT → 0 in the forward
-simulation (DANs are used only as a «teaching signal», not as current). Store: `pre`, `post`,
-`weight` (= sign·syn_count), `cell_class`, `cell_type`, `root_id` — so that the TUI can show
-real neuron ids.
+Subgraph: one hemisphere — the one with more KCs (right: 2597 vs 2580 left). Neurons: PN =
+`ALPN` + `uniglomerular` + **cholinergic** (the 15 GABAergic iPNs per side are excluded: three
+of them have ≥ 5 synapses onto KCs and would break the rule «PN→KC only positive»), Kenyon
+cells (all subtypes), APL (exactly 1 per hemisphere), MBON, DAN. Feather rows are summed over
+neuropils down to a neuron pair, then the threshold `syn_count >= 5` **per pair**. The synapse
+sign follows the transmitter of the **presynaptic neuron**: the first classical transmitter
+from `known_nt`, otherwise `top_nt` (`top_nt` says `dopamine` for every KC — a predictor
+artefact, `known_nt` says acetylcholine): ACh → +1, GABA and Glu → −1, DA/OA/5HT → 0 in the
+forward simulation (DANs are used only as a «teaching signal», not as current; their edges
+sit in the matrix as explicit zeros, the topology is in `syn_count`). Store: CSR
+`indptr/indices/data` (= sign·syn_count), `syn_count`, `root_id`, `cell_class`,
+`cell_sub_class`, `cell_type`, `side`, `glomerulus`, `nt`, `sign`, group indices — so that
+the TUI can show real neuron ids.
 
 If the npz is missing (e.g. in CI without the download), `brain.load()` raises a clear error
 with instructions. There is **no** fallback «statistical» fly: the fly is either real or

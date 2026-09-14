@@ -22,6 +22,93 @@
   "edges_dropped_by_threshold": 198149,
   "edges_with_pre_nt_outside_sign_table": 0,
   "edge_argmax_agrees_with_pre_neuron_nt": 24955,
+  "edge_argmax_disagreements": [
+    {
+      "pre_group": "APL",
+      "neuron_nt": "gaba",
+      "edge_argmax": "dopamine",
+      "n": 23
+    },
+    {
+      "pre_group": "APL",
+      "neuron_nt": "gaba",
+      "edge_argmax": "acetylcholine",
+      "n": 6
+    },
+    {
+      "pre_group": "DAN",
+      "neuron_nt": "dopamine",
+      "edge_argmax": "serotonin",
+      "n": 1
+    },
+    {
+      "pre_group": "MBON",
+      "neuron_nt": "glutamate",
+      "edge_argmax": "dopamine",
+      "n": 30
+    },
+    {
+      "pre_group": "MBON",
+      "neuron_nt": "acetylcholine",
+      "edge_argmax": "dopamine",
+      "n": 25
+    },
+    {
+      "pre_group": "MBON",
+      "neuron_nt": "glutamate",
+      "edge_argmax": "gaba",
+      "n": 11
+    },
+    {
+      "pre_group": "MBON",
+      "neuron_nt": "gaba",
+      "edge_argmax": "dopamine",
+      "n": 9
+    },
+    {
+      "pre_group": "MBON",
+      "neuron_nt": "glutamate",
+      "edge_argmax": "acetylcholine",
+      "n": 5
+    },
+    {
+      "pre_group": "MBON",
+      "neuron_nt": "gaba",
+      "edge_argmax": "glutamate",
+      "n": 3
+    },
+    {
+      "pre_group": "MBON",
+      "neuron_nt": "gaba",
+      "edge_argmax": "acetylcholine",
+      "n": 1
+    },
+    {
+      "pre_group": "MBON",
+      "neuron_nt": "glutamate",
+      "edge_argmax": "serotonin",
+      "n": 1
+    },
+    {
+      "pre_group": "PN",
+      "neuron_nt": "acetylcholine",
+      "edge_argmax": "gaba",
+      "n": 5
+    },
+    {
+      "pre_group": "PN",
+      "neuron_nt": "acetylcholine",
+      "edge_argmax": "serotonin",
+      "n": 4
+    },
+    {
+      "pre_group": "PN",
+      "neuron_nt": "acetylcholine",
+      "edge_argmax": "dopamine",
+      "n": 1
+    }
+  ],
+  "zero_weight_edges": 303,
   "feather_rows_total": 16847997,
   "sign_by_nt": {
     "acetylcholine": 1,
@@ -46,10 +133,11 @@
   },
   "sha256_npz": "e502a05aaa74b04c7e70a4666f92d9af3bc2bcbc7f5d2b1d7f1f5cc5743dde8a",
   "sha256_sources": {
+    "proofread_connections_783.feather": "24f960ae3e7d4f8cd30db3b62e99fb5179cc3d1e76d8c155bfb441e9737d3faf",
     "Supplemental_file1_neuron_annotations.tsv": "9a4f8b2f843196074431ebd7cd883536afa1be86c8a4ce90970441e8be81d1be",
     "proofread_root_ids_783.npy": "7c7b7e818e9232e5ab64793d52ba20574dbe9da3a6509fbc74193b0f259a01be"
   },
-  "built": "2026-09-14T13:36:07Z",
+  "built": "2026-09-14T13:40:00Z",
   "license": "CC-BY 4.0 (FlyWire connectome data and annotations)",
   "citations": [
     "Dorkenwald S. et al. (2024) Neuronal wiring diagram of an adult brain. Nature 634, 124\u2013138.",

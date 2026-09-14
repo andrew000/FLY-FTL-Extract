@@ -82,6 +82,14 @@ Then run:  uv run python scripts/build_connectome.py
 """
 
 
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 24), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def primary_transmitter(known_nt: object, top_nt: object) -> tuple[str, str]:
     """``(transmitter, source)``: first classical transmitter of ``known_nt``, else ``top_nt``."""
     if isinstance(known_nt, str):
@@ -231,6 +239,16 @@ def main() -> int:
     edge_argmax = np.array(list(EDGE_NT_COLUMNS.values()))[edge_scores.argmax(axis=1)]
     pre_nt = selected.nt.to_numpy()[pre]
     agree = int((edge_argmax == pre_nt).sum())
+    pre_group = selected.group.to_numpy()[pre]
+    disagreements = (
+        pd.DataFrame({"pre_group": pre_group, "neuron_nt": pre_nt, "edge_argmax": edge_argmax})[
+            edge_argmax != pre_nt
+        ]
+        .value_counts()
+        .reset_index(name="n")
+        .sort_values(["pre_group", "n"], ascending=[True, False])
+    )
+    zero_weight_edges = int((w.data == 0).sum())
     unknown_pre = int((~selected.nt_known_to_table.to_numpy()[pre]).sum())
 
     groups = selected.group.to_numpy()
@@ -300,13 +318,21 @@ def main() -> int:
         "edges_dropped_by_threshold": int(n_dropped),
         "edges_with_pre_nt_outside_sign_table": unknown_pre,
         "edge_argmax_agrees_with_pre_neuron_nt": agree,
+        "edge_argmax_disagreements": [
+            {
+                "pre_group": r.pre_group,
+                "neuron_nt": r.neuron_nt,
+                "edge_argmax": r.edge_argmax,
+                "n": int(r.n),
+            }
+            for r in disagreements.itertuples()
+        ],
+        "zero_weight_edges": zero_weight_edges,
         "feather_rows_total": int(total_rows),
         "sign_by_nt": SIGN_BY_NT,
         "sanity": stats,
         "sha256_npz": npz_sha,
-        "sha256_sources": {
-            p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in (ANNOTATIONS, PROOFREAD_IDS)
-        },
+        "sha256_sources": {p.name: _sha256_file(p) for p in (FEATHER, ANNOTATIONS, PROOFREAD_IDS)},
         "built": dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "license": "CC-BY 4.0 (FlyWire connectome data and annotations)",
         "citations": [
@@ -382,6 +408,16 @@ def write_doc(
     np_lines.extend(f"| {k} | {v} |" for k, v in neuropils.items())
     sanity = meta["sanity"]
     assert isinstance(sanity, dict)
+    disagreements = meta["edge_argmax_disagreements"]
+    assert isinstance(disagreements, list)
+    dis_lines = [
+        "| presynaptic group | neuron transmitter | edge argmax | n |",
+        "|---|---|---|---:|",
+    ]
+    dis_lines.extend(
+        f"| {d['pre_group']} | {d['neuron_nt']} | {d['edge_argmax']} | {d['n']} |"
+        for d in disagreements
+    )
 
     doc = f"""# The mushroom-body connectome: what the data holds and what was selected
 
@@ -463,8 +499,11 @@ ACh → +1, GABA → −1, glutamate → −1, dopamine/octopamine/serotonin →
 
 Edges whose presynaptic transmitter is outside the sign table: {meta["edges_with_pre_nt_outside_sign_table"]}.
 The per-edge argmax of the six `*_avg` (averaged over neuropils weighted by synapses) agrees
-with the presynaptic neuron's label in {meta["edge_argmax_agrees_with_pre_neuron_nt"]} of {meta["edges"]} edges
-(the disagreements are mostly KCs that the predictor considers dopaminergic).
+with the presynaptic neuron's label in {meta["edge_argmax_agrees_with_pre_neuron_nt"]} of {meta["edges"]} edges.
+So the per-edge scores in the feather consider KC synapses cholinergic — the «KC = dopamine»
+artefact sits only in the neuron-level `top_nt` of the TSV. Disagreements by group (all {meta["edges"] - meta["edge_argmax_agrees_with_pre_neuron_nt"]}):
+
+{chr(10).join(dis_lines)}
 
 ## 5. Edges
 
@@ -472,8 +511,11 @@ with the presynaptic neuron's label in {meta["edge_argmax_agrees_with_pre_neuron
   {meta["feather_rows_between_selected"]} rows = {meta["pairs_between_selected_before_threshold"]} neuron pairs
   (synapses summed over neuropils). The threshold `syn_count >= {SYN_THRESHOLD}` **per pair**
   dropped {meta["edges_dropped_by_threshold"]} pairs; **{meta["edges"]}** edges remain.
+- The matrix `W[pre, post] = sign(pre) · syn_count`, CSR (`indptr`, `indices`, `data`), plus
+  `syn_count`. Edges with a presynaptic DAN have sign 0 and are stored as explicit zeros in
+  `data` ({meta["zero_weight_edges"]} of {meta["edges"]}): for the simulation this is no current, but Phase 5 takes
+  the DAN→KC topology from them through `syn_count`.
 - The table below — the neuropils of the rows that form the kept pairs:
-- The matrix `W[pre, post] = sign(pre) · syn_count`, CSR (`indptr`, `indices`, `data`), plus `syn_count`.
 
 {chr(10).join(np_lines)}
 

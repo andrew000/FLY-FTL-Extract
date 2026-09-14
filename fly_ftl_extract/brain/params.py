@@ -58,8 +58,8 @@ class BrainParams:
         every fixture candidate (auditor's decision after Phase 4; the synthetic 30 %-PN
         odour is no longer used): target 8-10 % active Kenyon cells with APL, > 30 % without,
         no neuron above 1/t_refractory, median active-KC rate < 50 Hz. With encoder
-        fly-odor-2 (context 6/3, no bag n-grams: sparser odours) 4.0 gives
-        9.0% / 52.2%; `scripts/calibrate.py`, curve in
+        fly-odor-3 (context 6/3, no bag n-grams: sparser odours) 4.0 gives
+        8.6% / 52.2%; `scripts/calibrate.py`, curve in
         docs/BENCH.md, value mirrored in docs/calibration.json.""",
     )
     dt: float = _p(0.1, "Integration step, ms. brian2's `defaultclock.dt`, as used by Shiu.")

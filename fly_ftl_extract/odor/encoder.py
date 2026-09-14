@@ -16,7 +16,8 @@ into one of ``n_pn`` buckets; the bucket sums its feature weights and the sum go
 through ``tanh``.  Tokens far from the focus weigh less (``exp(-distance / distance_tau)``)
 and only ``context_before`` / ``context_after`` tokens around the focus are used at all.
 
-Why the context is 6/3 and there are no bag n-grams (``fly-odor-2``): with 124 PN buckets
+Why the context is 6/3 and there are no bag n-grams (``fly-odor-2``, slice bug fixed in
+``fly-odor-3``): with 124 PN buckets
 the hash collides; the Phase 5 proxy (logistic regression on the odours themselves,
 docs/METRICS.md) showed 12/6 + bag at F1 0.95 and 6/3 without bag at 0.973 — the same
 features in 1024 buckets reach 0.997, so fewer features per window is the only lever
@@ -35,7 +36,7 @@ import numpy as np
 from fly_ftl_extract.ftl.model import GET_ATTR, PATH_KWARG, ExtractOptions
 from fly_ftl_extract.tokenizer.candidates import Tok, Window
 
-ENCODER_VERSION = "fly-odor-2"
+ENCODER_VERSION = "fly-odor-3"
 """Salt of the feature hash.  Bump on *any* change of the normalisation, the feature set,
 the weights or the bucket count: trained MBON weights are only valid for one version."""
 
@@ -108,9 +109,10 @@ def normalize_window(
     Only the last ``params.context_before`` tokens before and the first
     ``params.context_after`` after the focus are kept.
     """
-    before = (
-        window.before[len(window.before) - params.context_before :] if params.context_before else ()
-    )
+    # NB: a plain ``before[len - n:]`` goes negative for short contexts (a candidate on the
+    # first line of a file) and silently drops the leading tokens: fly-odor-2 lost
+    # ``<I18N> .`` there and missed every one-line file; fly-odor-3 fixed it.
+    before = window.before[max(0, len(window.before) - params.context_before) :]
     after = window.after[: params.context_after]
     out: list[tuple[str, int]] = []
     n_before = len(before)

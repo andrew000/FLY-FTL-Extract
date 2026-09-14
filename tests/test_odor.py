@@ -81,7 +81,7 @@ def test_prefix_option_changes_only_windows_that_contain_self() -> None:
         has_self = any(
             tok.text == "self"
             for tok in (
-                *c.window.before[len(c.window.before) - DEFAULT_ENCODER.context_before :],
+                *c.window.before[max(0, len(c.window.before) - DEFAULT_ENCODER.context_before) :],
                 *c.window.focus,
                 *c.window.after[: DEFAULT_ENCODER.context_after],
             )
@@ -107,6 +107,14 @@ def test_normalization_classes() -> None:
     assert "user" not in tokens
     c2 = next(c for c in cands() if c.text == "self.i18n.set_locale")
     assert "<IGNORE>" in [t for t, _ in normalize_window(c2.window, OPTS)]
+
+
+def test_short_before_context_keeps_its_leading_tokens() -> None:
+    """A candidate on the first line of a file still smells of ``<I18N> . get (``."""
+    c = next(c for c in cands('i18n.get("hello")\n') if c.kind == "string")
+    assert len(c.window.before) < DEFAULT_ENCODER.context_before
+    tokens = [t for t, _ in normalize_window(c.window, OPTS)]
+    assert tokens[:4] == ["<I18N>", ".", "get", "("]
 
 
 def test_focus_positions() -> None:

@@ -25,6 +25,14 @@ class LocaleStatistics:
     added: int = 0
     commented: int = 0
 
+    def merge(self, other: LocaleStatistics) -> None:
+        """``ExtractionStatistics::merge``: add the counters of one processed locale."""
+        self.files_count += other.files_count
+        self.stored_keys += other.stored_keys
+        self.updated += other.updated
+        self.added += other.added
+        self.commented += other.commented
+
 
 @dataclass
 class LocaleResult:

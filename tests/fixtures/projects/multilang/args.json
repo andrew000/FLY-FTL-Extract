@@ -36,6 +36,30 @@
       "en",
       "--default-ftl-file",
       "messages.ftl"
+    ],
+    "three": [
+      "app",
+      "locales",
+      "-l",
+      "en",
+      "-l",
+      "uk",
+      "-l",
+      "pl"
+    ],
+    "five": [
+      "app",
+      "locales",
+      "-l",
+      "en",
+      "-l",
+      "uk",
+      "-l",
+      "pl",
+      "-l",
+      "de",
+      "-l",
+      "fr"
     ]
   }
 }

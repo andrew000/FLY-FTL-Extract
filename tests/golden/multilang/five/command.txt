@@ -1,0 +1,1 @@
+ftl extract app locales -l en -l uk -l pl -l de -l fr

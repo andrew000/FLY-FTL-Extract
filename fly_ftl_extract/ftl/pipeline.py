@@ -142,7 +142,7 @@ def run_extract(extraction: CodeExtraction, options: ExtractOptions) -> ExtractO
         for lang in options.languages:
             result = process_locale(lang, imports[lang], extraction.keys, options)
             logs.extend(LogLine("WARN", "extractor::ftl", w) for w in result.warnings)
-            per_locale.insert(lang, result.statistics)
+            per_locale[lang].merge(result.statistics)
     except ExtractionError as err:
         logs.append(LogLine("ERROR", "cli", f"Error during extraction: {err}"))
         outcome.exit_code = EXIT_ERROR

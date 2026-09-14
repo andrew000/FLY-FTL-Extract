@@ -213,6 +213,12 @@ class RustMap[V]:
         self._place(key, fx_hash_str(key), value)
         return None
 
+    def replace(self, key: str, value: V) -> V:
+        """``*map.get_mut(key) = value`` / ``OccupiedEntry::insert``: no reserve, slot unchanged."""
+        old = self._values[key]
+        self._values[key] = value
+        return old
+
     def entry_insert(self, key: str, value: V) -> bool:
         """``map.entry(key).or_insert(value)``: no reserve when the key exists; True if inserted."""
         if key in self._values:

@@ -41,6 +41,7 @@ see `docs/FORMAT.md`).
 
 ```
 fly_ftl_extract/
+  files.py        walks .py/.ftl like the ignore crate (hidden, .gitignore, exclude globs); shared by reference and cli
   cli/            click commands, pyproject [tool.ftl-extract.*] parsing, statistics as in the original
   reference/      the ast REFERENCE — used ONLY to generate the dataset, for tests and for --audit.
                   Importing it from the extract path is forbidden (a test checks this).

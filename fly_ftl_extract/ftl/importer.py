@@ -98,7 +98,7 @@ def _merge_map(
             files = duplicates.setdefault(dup_name, set())
             files.add(existing.path)
             files.add(key.path)
-            a.insert(name, key)
+            a.replace(name, key)
         else:
             a.entry_insert(name, key)
     return a

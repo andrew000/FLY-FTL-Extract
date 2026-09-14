@@ -110,7 +110,8 @@ class _Matcher:
         if literal is not None:
             self.add_key(call, literal)
 
-    def add_key(self, call: ast.Call, key: str) -> None:
+    def build_key(self, call: ast.Call, key: str) -> FluentKey:
+        """The :class:`FluentKey` of one call site (before merging by key name)."""
         raw_path: str | None = None
         kwargs: list[str] = []
         kwargs_unknown: CodeLocation | None = None
@@ -125,14 +126,38 @@ class _Matcher:
                     raw_path = value.value
             elif keyword.arg not in self.options.ignore_kwargs:
                 kwargs.append(keyword.arg)
-        fluent_key = FluentKey(
+        return FluentKey(
             key,
             code_message(key, kwargs),
             code_ftl_path(raw_path, self.options.default_ftl_file),
             source_location=self.location(call),
             kwargs_unknown=kwargs_unknown,
         )
-        self.result.add(fluent_key)
+
+    def add_key(self, call: ast.Call, key: str) -> None:
+        self.result.add(self.build_key(call, key))
+
+
+class _OccurrenceMatcher(_Matcher):
+    """Records every key occurrence instead of merging them (for candidate-recall tests)."""
+
+    def __init__(self, path: str, source: str, options: ExtractOptions) -> None:
+        super().__init__(path, source, options)
+        self.occurrences: list[FluentKey] = []
+
+    def add_key(self, call: ast.Call, key: str) -> None:
+        self.occurrences.append(self.build_key(call, key))
+
+
+def key_occurrences(path: str, source: str, options: ExtractOptions) -> list[FluentKey]:
+    """Every key occurrence of ``source`` in call order, *not* merged by key name.
+
+    Test helper: the candidate tokenizer must offer each of these call sites (recall 1.0).
+    Raises ``SyntaxError`` for unparsable sources.
+    """
+    matcher = _OccurrenceMatcher(path, source, options)
+    matcher.visit(ast.parse(source))
+    return matcher.occurrences
 
 
 def extract_file(path: str, options: ExtractOptions) -> FileExtraction:

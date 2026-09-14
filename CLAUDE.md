@@ -135,7 +135,10 @@ Context window: 12 tokens before the candidate, the candidate itself, 6 tokens a
 features: bracket depth, whether the candidate is the first positional argument, whether it is
 inside kwargs, token type, normalised string (all string literals → `<STR>`, numbers → `<NUM>`,
 names other than the known i18n names and ignore attributes → `<NAME>`; those that belong to
-`--i18n-keys` / `--ignore-attributes` / prefix stay literal, because that is the signal).
+`--i18n-keys` / `-p` / `--ignore-attributes` / `--ignore-kwargs` become the class tokens
+`<I18N>` / `<PREFIX>` / `<IGNORE>` / `<IGNORE_KW>` — that is the signal, and it does not depend
+on the concrete name, so `-k LF` smells the same as `i18n`; `get` and `_path` are constants
+of the original and stay literal; Python keywords and operators stay literal).
 Features → feature hashing (n-grams 1..3 with the position relative to the candidate) into a
 dimension = the number of PNs in the subgraph (~100–150 per hemisphere). The vector is
 normalised into [0, 1].

@@ -1,0 +1,4 @@
+[INFO  cli] Code path: app
+[INFO  cli] Locales path: locales
+[INFO  extractor::ftl] FTL Extraction completed in <t>s.
+[ERROR cli] Error during extraction: Failed to parse FTL file locales\en\_default.ftl:2:1: Expected a message field for "broken"

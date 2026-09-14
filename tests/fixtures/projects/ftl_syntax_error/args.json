@@ -1,0 +1,9 @@
+{
+  "description": "a locale file with a Fluent syntax error aborts before anything is written",
+  "runs": {
+    "default": [
+      "app",
+      "locales"
+    ]
+  }
+}

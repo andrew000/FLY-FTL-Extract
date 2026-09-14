@@ -1,0 +1,14 @@
+{
+  "description": "a Python file that is not valid UTF-8 (latin-1 bytes) but mentions i18n",
+  "runs": {
+    "default": [
+      "app",
+      "locales"
+    ],
+    "allow": [
+      "app",
+      "locales",
+      "--allow-parse-errors"
+    ]
+  }
+}

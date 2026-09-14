@@ -1,0 +1,14 @@
+{
+  "description": "IndentationError (unexpected indent, and a missing block) in files that mention i18n",
+  "runs": {
+    "default": [
+      "app",
+      "locales"
+    ],
+    "allow": [
+      "app",
+      "locales",
+      "--allow-parse-errors"
+    ]
+  }
+}

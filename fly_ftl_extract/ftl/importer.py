@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass, field
 
 from fluent.syntax import FluentParser
@@ -10,6 +11,7 @@ from fluent.syntax import ast as fl
 
 from fly_ftl_extract.files import find_ftl_files, path_sort_key
 from fly_ftl_extract.ftl.model import FluentKey
+from fly_ftl_extract.ftl.pyerrors import eof_location
 from fly_ftl_extract.ftl.rustorder import RustMap, rayon_tree
 
 
@@ -46,13 +48,35 @@ class LocaleImport:
     files_count: int = 0
 
 
-def _ftl_syntax_error(path: str, resource: fl.Resource) -> str:
-    junk = next(e for e in resource.body if isinstance(e, fl.Junk))
-    annotation = junk.annotations[0] if junk.annotations else None
-    what = annotation.message if annotation is not None else "syntax error"
-    more = sum(1 for e in resource.body if isinstance(e, fl.Junk)) - 1
+_ENTRY_WITHOUT_FIELD = re.compile(r"^(-?)([A-Za-z][A-Za-z0-9_-]*)[ \t]*=[ \t]*(?:\r?\n|$)")
+
+
+def _ftl_syntax_error(path: str, content: str, resource: fl.Resource) -> str:
+    """``Failed to parse FTL file <path>:<line>:<col>: <what>`` as fluent-rs would report it.
+
+    python-fluent and fluent-rs disagree on where a broken entry fails.  The one shape
+    verified by golden (``ftl_syntax_error``) is an entry with neither value nor attributes:
+    fluent-rs reports ``Expected a message field for "id"`` at the entry start.  Other
+    shapes fall back to python-fluent's annotation text, which is an approximation.
+    """
+    junks = [e for e in resource.body if isinstance(e, fl.Junk)]
+    junk = junks[0]
+    start = junk.span.start if junk.span is not None else 0
+    what: str | None = None
+    match = _ENTRY_WITHOUT_FIELD.match(junk.content or "")
+    if match is not None:
+        kind = "term" if match.group(1) else "message"
+        what = f'Expected a {kind} field for "{match.group(2)}"'
+    else:
+        annotation = junk.annotations[0] if junk.annotations else None
+        if annotation is not None:
+            what = annotation.message
+            if annotation.span is not None:
+                start = annotation.span.start
+    line, column = eof_location(content[:start])
+    more = len(junks) - 1
     suffix = f" (and {more} more)" if more > 0 else ""
-    return f"Failed to parse FTL file {path}:1:1: {what}{suffix}"
+    return f"Failed to parse FTL file {path}:{line}:{column}: {what or 'syntax error'}{suffix}"
 
 
 def import_file(full_path: str, rel_path: str, locale: str) -> LocaleImport:
@@ -62,9 +86,9 @@ def import_file(full_path: str, rel_path: str, locale: str) -> LocaleImport:
             content = fh.read()
     except OSError as err:
         raise ExtractionError(f"Failed to read FTL file: {full_path}") from err
-    resource = FluentParser(with_spans=False).parse(content)
+    resource = FluentParser(with_spans=True).parse(content)
     if any(isinstance(e, fl.Junk) for e in resource.body):
-        raise ExtractionError(_ftl_syntax_error(full_path, resource))
+        raise ExtractionError(_ftl_syntax_error(full_path, content, resource))
 
     result = LocaleImport(messages=RustMap(capacity=len(resource.body)))
     for position, entry in enumerate(resource.body):

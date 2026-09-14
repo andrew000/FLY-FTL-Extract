@@ -15,17 +15,26 @@ import pytest
 from fly_ftl_extract.ftl import rustorder
 from fly_ftl_extract.ftl.rustorder import RustMap, fx_hash_str, simulate_new_key_order
 
-CASES = json.loads(
-    (Path(__file__).resolve().parent / "fixtures" / "rustorder_cases.json").read_text(
-        encoding="utf-8"
-    )
-)
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
+CASES = json.loads((FIXTURES / "rustorder_cases.json").read_text(encoding="utf-8"))
+LANG_CASES = json.loads((FIXTURES / "rustorder_lang_cases.json").read_text(encoding="utf-8"))
 
 
 @pytest.mark.parametrize("name", sorted(CASES))
 def test_reference_key_order_is_reproduced(name: str) -> None:
     case = CASES[name]
     assert simulate_new_key_order(case["files"]) == case["order"]
+
+
+@pytest.mark.parametrize("name", sorted(LANG_CASES))
+def test_language_order_in_statistics_is_reproduced(name: str) -> None:
+    # `init_lang` inserts every `-l` language into fresh maps; the statistics block prints
+    # them in map order (3/4 and 7/8 languages sit on the 4- and 8-bucket capacity edges).
+    case = LANG_CASES[name]
+    table: RustMap[int] = RustMap()
+    for lang in case["languages"]:
+        table.insert(lang, 0)
+    assert table.keys() == case["order"]
 
 
 def test_fx_hash_matches_rustc_hash_test_vectors() -> None:

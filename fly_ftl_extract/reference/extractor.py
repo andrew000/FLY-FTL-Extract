@@ -20,7 +20,7 @@ import ast
 import os
 from collections.abc import Iterator
 
-from fly_ftl_extract.files import find_py_files
+from fly_ftl_extract.files import find_py_files, mentions_any_name
 from fly_ftl_extract.ftl.merge import CodeExtraction, FileExtraction, merge_extractions
 from fly_ftl_extract.ftl.model import (
     GET_ATTR,
@@ -135,11 +135,6 @@ class _Matcher:
         self.result.add(fluent_key)
 
 
-def _contains_any_name(data: bytes, options: ExtractOptions) -> bool:
-    names = list(options.i18n_keys) + list(options.i18n_keys_prefix)
-    return any(name.encode("utf-8") in data for name in names)
-
-
 def extract_file(path: str, options: ExtractOptions) -> FileExtraction:
     """Keys and diagnostics of one Python file (display ``path`` as produced by the walker)."""
     result = FileExtraction(path)
@@ -155,7 +150,7 @@ def extract_file(path: str, options: ExtractOptions) -> FileExtraction:
             )
         )
         return result
-    if not _contains_any_name(data, options):
+    if not mentions_any_name(data, options.i18n_keys | options.i18n_keys_prefix):
         return result
     try:
         source = data.decode("utf-8")

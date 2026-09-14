@@ -1,0 +1,14 @@
+{
+  "description": "invalid tokens in the middle of a file that mentions i18n",
+  "runs": {
+    "default": [
+      "app",
+      "locales"
+    ],
+    "allow": [
+      "app",
+      "locales",
+      "--allow-parse-errors"
+    ]
+  }
+}

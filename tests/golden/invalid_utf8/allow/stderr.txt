@@ -1,0 +1,15 @@
+[INFO  cli] Code path: app
+[INFO  cli] Locales path: locales
+[INFO  extractor::ftl] FTL Extraction completed in <t>s.
+[WARN  extractor::ftl] Skipping Python file: [invalid-utf8] Python file is not valid UTF-8: incomplete utf-8 byte sequence from index 18 (app\truncated.py:2:3)
+[WARN  extractor::ftl] Skipping Python file: [invalid-utf8] Python file is not valid UTF-8: invalid utf-8 sequence of 1 bytes from index 5 (app\latin1.py:1:6)
+[INFO  extractor::ftl] FTL Processing completed in <t>s.
+[INFO  cli] Extraction statistics:
+[INFO  cli]   - Py files count: 1
+[INFO  cli]   - FTL files count: {"en": 1}
+[INFO  cli]   - FTL keys in code: 1
+[INFO  cli]   - FTL keys stored: {"en": 1}
+[INFO  cli]   - FTL keys updated: {"en": 0}
+[INFO  cli]   - FTL keys added: {"en": 0}
+[INFO  cli]   - FTL keys commented: {"en": 0}
+[INFO  cli] ✅ Done in <t>s.

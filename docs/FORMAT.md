@@ -198,12 +198,31 @@ then the unused ones in the iteration order of the map of kept keys, which itsel
 with `with_capacity(len(body))` per file and merged over the same tree) and the order of
 languages in the statistics (`init_lang` in `-l` order).
 
-## 8. What is NOT reproduced by the golden tests (deliberately)
+## 8. Parser errors: what is reproduced, what is not
 
-- A syntax error in a `.ftl` (the error text comes from fluent-rs; python-fluent gives a different one).
-- Invalid UTF-8 in a `.py` (the text comes from the Rust `Utf8Error`).
+Reproduced from the golden files (fixtures `parse_error*`, `invalid_utf8`, `ftl_syntax_error`):
+
+| Situation | Original (ruff / Rust / fluent-rs) | Our source |
+|---|---|---|
+| an unclosed bracket up to the end of file | `unexpected EOF while parsing` at the EOF position | `SyntaxError` «was never closed» → EOF |
+| an extra indent | `Unexpected indentation` `line:1` | «unexpected indent» |
+| no block after `def` | `Expected an indented block after function definition` | «expected an indented block after … on line N» without the tail |
+| a character outside the grammar (`$`) | `Got unexpected token $` at the character's position | «invalid syntax» + the character at the position |
+| `def (x):` | `Expected an identifier` | «invalid syntax» right after `def`/`class` |
+| a latin-1 byte | `invalid utf-8 sequence of 1 bytes from index 5` (`1:6`) | `UnicodeDecodeError` → the Rust `Utf8Error` format |
+| a truncated UTF-8 sequence at the end | `incomplete utf-8 byte sequence from index 18` | the same, reason «unexpected end» |
+| `.ftl`: an entry without a value or attributes | `Failed to parse FTL file <path>:2:1: Expected a message field for "broken"` | the start of python-fluent's Junk + the regex `id =` |
+
+Files with UTF-8 errors also count as «unreadable»: with `--allow-parse-errors` they are
+skipped with a WARN, without it — an abort with the hint about the flag.
+
+NOT reproduced (deliberately, approximations):
+
+- other ruff messages (e.g. `Expected ')'`, `Unparenthesized …`) are passed through as the
+  Python error text;
+- other kinds of fluent-rs errors (`Expected a token starting with "="`, a select without a
+  default, etc.) — the text is taken from python-fluent's annotation, the position may differ;
 - `--cache*` (Phase 6), `-v` (debug lines).
-- Other ruff parser messages besides `unexpected EOF while parsing`.
 - A commented-out key with **a blank line inside a multi-line value**: fluent-rs writes a
   whitespace-only line as a bare `#`; python-fluent — only an empty one. In
   `comment_ftl_key` such lines are replaced with empty ones before serialization, so the

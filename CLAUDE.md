@@ -223,12 +223,17 @@ Nothing is drawn «for looks» from random. This is a matter of principle.
    `reference/` and the extract pipeline (for `--fly-audit`). `cli/` imports `audit` only
    lazily inside the `if fly_audit:` branch. A plain `extract` (without `--fly-audit`) must
    load neither `reference` nor `audit` — the same test checks this.
+2c. `files.py` holds the original's textual prefilter: a file is parsed only if its bytes
+   contain one of the `--i18n-keys`/`-p` names (`mentions_any_name`). This is allowed in the
+   hot path because it reproduces the original's *walk*, not the decision «is this a key» —
+   the decision stays with the fly.
 3. Do not change the output format «for the better» — only as in the real `ftl 0.12.1`.
    A difference → first check with the binary, then fix our code.
 4. Every magic number (LIF parameters, window size, thresholds) lives in a dataclass with a
    docstring and a reference to the source.
 5. Small commits, messages describe «what changed in behaviour». After every phase a tag
-   `phase-N`. The reviewer looks at the diff between tags.
+   `phase-N`. The reviewer looks at the diff between tags. A `phase-N` tag may be moved only
+   until the phase is «accepted»; after that, fixes go as separate commits on top of the tag.
 6. No README before Phase 7. No web dashboard. No dependencies without need.
 7. If something in the FlyWire data disagrees with the description here (class names,
    columns) — the data is the truth; update this file and mention it in the commit.

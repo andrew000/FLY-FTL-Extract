@@ -1,0 +1,7 @@
+[INFO  cli] Code path: app
+[INFO  cli] Locales path: locales
+[INFO  extractor::ftl] FTL Extraction completed in <t>s.
+[ERROR cli] Error during extraction: Extraction aborted: 2 problems found in Python sources, no .ftl files were written.
+      - [parse-error] Failed to parse Python file: Expected an identifier (app\bad_syntax.py:2:5)
+      - [parse-error] Failed to parse Python file: Got unexpected token $ (app\bad_char.py:2:7)
+    Pass --allow-parse-errors to skip unreadable or unparseable files and continue.

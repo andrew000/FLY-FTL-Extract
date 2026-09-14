@@ -1,0 +1,104 @@
+{
+ "langs_en_uk_pl": {
+  "languages": [
+   "en",
+   "uk",
+   "pl"
+  ],
+  "order": [
+   "uk",
+   "pl",
+   "en"
+  ]
+ },
+ "langs_en_uk_pl_de": {
+  "languages": [
+   "en",
+   "uk",
+   "pl",
+   "de"
+  ],
+  "order": [
+   "de",
+   "uk",
+   "pl",
+   "en"
+  ]
+ },
+ "langs_en_uk_pl_de_fr_it_es": {
+  "languages": [
+   "en",
+   "uk",
+   "pl",
+   "de",
+   "fr",
+   "it",
+   "es"
+  ],
+  "order": [
+   "de",
+   "uk",
+   "fr",
+   "it",
+   "es",
+   "pl",
+   "en"
+  ]
+ },
+ "langs_en_uk_pl_de_fr_it_es_pt": {
+  "languages": [
+   "en",
+   "uk",
+   "pl",
+   "de",
+   "fr",
+   "it",
+   "es",
+   "pt"
+  ],
+  "order": [
+   "es",
+   "en",
+   "it",
+   "de",
+   "uk",
+   "pl",
+   "pt",
+   "fr"
+  ]
+ },
+ "langs_zz_aa_mm": {
+  "languages": [
+   "zz",
+   "aa",
+   "mm"
+  ],
+  "order": [
+   "aa",
+   "zz",
+   "mm"
+  ]
+ },
+ "langs_a1_b2_c3_d4_e5_f6_g7_h8": {
+  "languages": [
+   "a1",
+   "b2",
+   "c3",
+   "d4",
+   "e5",
+   "f6",
+   "g7",
+   "h8"
+  ],
+  "order": [
+   "d4",
+   "f6",
+   "g7",
+   "c3",
+   "b2",
+   "a1",
+   "e5",
+   "h8"
+  ]
+ }
+}

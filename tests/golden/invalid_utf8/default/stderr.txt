@@ -1,0 +1,7 @@
+[INFO  cli] Code path: app
+[INFO  cli] Locales path: locales
+[INFO  extractor::ftl] FTL Extraction completed in <t>s.
+[ERROR cli] Error during extraction: Extraction aborted: 2 problems found in Python sources, no .ftl files were written.
+      - [invalid-utf8] Python file is not valid UTF-8: incomplete utf-8 byte sequence from index 18 (app\truncated.py:2:3)
+      - [invalid-utf8] Python file is not valid UTF-8: invalid utf-8 sequence of 1 bytes from index 5 (app\latin1.py:1:6)
+    Pass --allow-parse-errors to skip unreadable or unparseable files and continue.

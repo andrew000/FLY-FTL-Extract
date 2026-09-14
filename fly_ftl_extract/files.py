@@ -216,6 +216,16 @@ def find_ftl_files(locale_dir: str) -> list[str]:
     return sorted(rels, key=_components)
 
 
+def mentions_any_name(data: bytes, names: set[str] | frozenset[str]) -> bool:
+    """The original's pre-filter: a file is parsed only if its bytes contain one of ``names``.
+
+    ``names`` are the ``--i18n-keys`` and ``-p`` prefixes.  This is a *walk* rule, not a
+    key decision (CLAUDE.md rule 2c): a file that never mentions ``i18n`` is skipped
+    entirely, so e.g. a syntax error in it is never reported.
+    """
+    return any(name.encode("utf-8") in data for name in names)
+
+
 def path_sort_key(path: str) -> tuple[str, ...]:
     """Sort key reproducing Rust ``PathBuf`` ordering (component-wise)."""
     return _components(path)

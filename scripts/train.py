@@ -55,6 +55,7 @@ DATASET_DIR = REPO / "fly_ftl_extract" / "data" / "dataset"
 CACHE_DIR = REPO / ".cache" / "brain_states"
 OUT_DOC = REPO / "docs" / "METRICS.md"
 ATTEMPTS = REPO / "docs" / "attempts.jsonl"
+PROXY_JSON = REPO / "docs" / "encoder_proxy.json"
 TRAIN_SEEDS = (101, 102, 103)  # three sniffs of every training odour
 MAX_RESNIFF = 3
 RESNIFF_FRACTION = 0.10
@@ -308,6 +309,7 @@ def train_task(
     cache: Path,
     modes: list[str],
     config: TrainConfig,
+    max_resniff: int = MAX_RESNIFF,
 ) -> tuple[TaskResult, dict[str, float]]:
     table = Table(name, dataset)
     tr, va, te = table.rows(0), table.rows(1), table.rows(2)
@@ -361,7 +363,7 @@ def train_task(
         theta=theta,
         counts_test=counts_te,
         cache_dir=cache,
-        max_resniff=MAX_RESNIFF,
+        max_resniff=max_resniff,
     )
     val_scores = score(readout.margin(counts_va) > 0, table.label[va])
     print(
@@ -400,8 +402,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--l2", type=float, default=TrainConfig().l2)
     parser.add_argument("--epochs", type=int, default=TrainConfig().max_epochs)
     parser.add_argument("--attempt", default="", help="label of this attempt for METRICS.md §5")
+    parser.add_argument("--max-resniff", type=int, default=MAX_RESNIFF)
     args = parser.parse_args(argv)
     config = TrainConfig(lr=args.lr, l2=args.l2, max_epochs=args.epochs)
+    max_resniff = args.max_resniff
 
     t_start = time.perf_counter()
     dataset_meta = json.loads((args.dataset / "meta.json").read_text(encoding="utf-8"))
@@ -419,7 +423,13 @@ def main(argv: list[str] | None = None) -> int:
     timings: dict[str, float] = {}
     for name in ("keys", "kwargs"):
         result, task_timings = train_task(
-            name, brain, dataset=args.dataset, cache=args.cache, modes=args.modes, config=config
+            name,
+            brain,
+            dataset=args.dataset,
+            cache=args.cache,
+            modes=args.modes,
+            config=config,
+            max_resniff=max_resniff,
         )
         results[name] = result
         timings.update({f"{name}_{k}": v for k, v in task_timings.items()})
@@ -429,7 +439,7 @@ def main(argv: list[str] | None = None) -> int:
         "brain_hash": brain.hash,
         "train_config": asdict(config),
         "train_seeds": TRAIN_SEEDS,
-        "max_resniff": MAX_RESNIFF,
+        "max_resniff": max_resniff,
         "resniff_fraction_target": RESNIFF_FRACTION,
         "dataset": {
             k: dataset_meta[k]
@@ -445,7 +455,7 @@ def main(argv: list[str] | None = None) -> int:
         brain_hash=brain.hash,
         encoder_version=ENCODER_VERSION,
         metrics=metrics,
-        max_resniff=MAX_RESNIFF,
+        max_resniff=max_resniff,
     )
     fixtures = fixtures_check(weights)
     metrics["fixtures"] = {
@@ -457,7 +467,14 @@ def main(argv: list[str] | None = None) -> int:
     args.out.parent.mkdir(parents=True, exist_ok=True)
     weights.save(args.out)
     timings["total_s"] = time.perf_counter() - t_start
-    record_attempt(args.attempt, results, fixtures, config, dataset_meta)
+    record_attempt(
+        args.attempt,
+        results=results,
+        fixtures=fixtures,
+        config=config,
+        dataset_meta=dataset_meta,
+        weights_resniff=max_resniff,
+    )
     print(
         f"fixtures: {fixtures.files_ok}/{fixtures.files_total} files match the teacher",
         flush=True,
@@ -479,10 +496,12 @@ def main(argv: list[str] | None = None) -> int:
 
 def record_attempt(
     label: str,
+    *,
     results: dict[str, TaskResult],
     fixtures: FixturesResult,
     config: TrainConfig,
     dataset_meta: dict[str, object],
+    weights_resniff: int = MAX_RESNIFF,
 ) -> None:
     """Append one row to docs/attempts.jsonl (what changed -> what came out)."""
     keys, kwargs = results["keys"].evaluation, results["kwargs"].evaluation
@@ -492,6 +511,7 @@ def record_attempt(
         "generator_version": dataset_meta["generator_version"],
         "snippets": dataset_meta["snippets"],
         "train_config": asdict(config),
+        "max_resniff": weights_resniff,
         "modes": {k: v.mode for k, v in results.items()},
         "keys_plain": [keys.plain.precision, keys.plain.recall],
         "keys_resniff": [keys.resniffed.precision, keys.resniffed.recall],
@@ -507,8 +527,10 @@ def attempts_table() -> list[str]:
         return []
     rows = [json.loads(line) for line in ATTEMPTS.read_text(encoding="utf-8").splitlines() if line]
     lines = [
-        "| # | change | encoder | snippets | keys test P/R (no resniff) | keys test P/R (resniff) "
-        "| kwargs test P/R | fixtures |",
+        (
+            "| # | change | encoder | snippets | keys test P/R (no resniff) | keys test P/R (resniff) "
+            "| kwargs test P/R | fixtures |"
+        ),
         "|---:|---|---|---:|---|---|---|---|",
     ]
     lines.extend(
@@ -518,6 +540,33 @@ def attempts_table() -> list[str]:
         f"| {r['kwargs_resniff'][0]:.4f} / {r['kwargs_resniff'][1]:.4f} "
         f"| {r['fixtures'][0]}/{r['fixtures'][1]} |"
         for i, r in enumerate(rows, 1)
+    )
+    return lines
+
+
+def proxy_section() -> list[str]:
+    """METRICS.md §6 from docs/encoder_proxy.json (scripts/encoder_proxy.py)."""
+    if not PROXY_JSON.exists():
+        return []
+    data = json.loads(PROXY_JSON.read_text(encoding="utf-8"))
+    lines = [
+        "",
+        "## 6. Encoder proxy: separability of the odours themselves (no brain)",
+        "",
+        (
+            f"`scripts/encoder_proxy.py`: logistic regression (the same `dan_update`) on the 124-dimensional "
+            f"odours of {data['probe_rows']} candidates from {data['snippets']} separate snippets "
+            f"(seed {data['seed']}, balance 1:3, val {data['val_rows']} rows by snippet). This is an upper bound "
+            "for any readout after the noisy brain: information destroyed by the hash cannot come back."
+        ),
+        "",
+        "| encoder variant | buckets (PN) | active PN | val F1 |",
+        "|---|---:|---:|---:|",
+    ]
+    lines.extend(
+        f"| {r['name']}{' (top-' + str(r['top_k']) + ')' if r['top_k'] else ''} | {r['n_pn']} "
+        f"| {r['active_pn']:.1f} | {r['val_f1']:.4f} |"
+        for r in data["rows"]
     )
     return lines
 
@@ -536,7 +585,6 @@ def write_doc(
     assert isinstance(ds_timing, dict)
     counts = dataset_meta["balanced_counts"]
     assert isinstance(counts, dict)
-    keys, kwargs = results["keys"], results["kwargs"]
     lines = [
         "# Readout metrics (Phase 5)",
         "",
@@ -658,6 +706,7 @@ def write_doc(
         "<!-- attempts:start -->",
         *attempts_table(),
         "<!-- attempts:end -->",
+        *proxy_section(),
     ]
     OUT_DOC.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
 

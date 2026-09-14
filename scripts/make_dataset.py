@@ -41,12 +41,14 @@ from fly_ftl_extract.tokenizer.candidates import Candidate, CandidateError, iter
 
 REPO = Path(__file__).resolve().parent.parent
 DATASET_DIR = REPO / "fly_ftl_extract" / "data" / "dataset"
-GENERATOR_VERSION = "grammar-2"
+GENERATOR_VERSION = "grammar-3"
 DEFAULT_SNIPPETS = 20_000
 DEFAULT_SEED = 20240914
 SPLIT_FRACTIONS = (0.8, 0.1, 0.1)
 NEGATIVE_RATIO = 3  # majority : minority
 SPLIT_NAMES = ("train", "val", "test")
+PREFIXED_BARE_CALL = 0.6  # share of bare calls written as self.L(...) / cls.LazyProxy(...)
+PREFIX_GET_CALL = 0.08
 
 # ------------------------------------------------------------------- vocabulary
 
@@ -198,7 +200,10 @@ class Grammar:
         if r < 0.7:  # noqa: PLR2004
             unused = [n for n in I18N_POOL if n not in self.config.i18n_keys]
             return self.rng.choice(unused) if unused else "translate"
-        return f"{self.rng.choice(['obj', 'other', 'request', 'self'])}.{self.rng.choice(self.config.i18n_keys)}"
+        if r < 0.85:  # noqa: PLR2004
+            return f"{self.rng.choice(['obj', 'other', 'request', 'self'])}.{self.rng.choice(self.config.i18n_keys)}"
+        # a prefix name behind another object is not a root (obj.self.i18n.get is no key)
+        return f"{self.rng.choice(['obj', 'request', 'ctx'])}.{self.rng.choice(PREFIX_POOL)}.{self.rng.choice(self.config.i18n_keys)}"
 
     def kwarg_name(self) -> str:
         r = self.rng.random()
@@ -293,7 +298,9 @@ class Grammar:
         return f"{root}.{'.'.join(attrs)}({self.call_args(first, 0)})"
 
     def bare_call(self, root: str | None = None) -> str:
-        root = root or self.rng.choice(self.config.i18n_keys)
+        # self.L("k") / cls.LazyProxy("k") are keys with -p, plain LF("k") always
+        prefixed = self.rng.random() < PREFIXED_BARE_CALL
+        root = root or (self.root() if prefixed else self.rng.choice(self.config.i18n_keys))
         first = self.string() if self.rng.random() < 0.85 else self.ident()  # noqa: PLR2004
         return f"{root}({self.call_args(first, 0)})"
 
@@ -315,6 +322,14 @@ class Grammar:
     def lookalike_call(self) -> str:
         root = self.negative_root()
         r = self.rng.random()
+        if r < 0.12:  # noqa: PLR2004
+            # a prefix name is not a key by itself: self.get("x"), cls("x")
+            prefix = self.rng.choice(PREFIX_POOL)
+            return (
+                f"{prefix}.get({self.call_args(self.string(), 0)})"
+                if r < PREFIX_GET_CALL
+                else f"{prefix}({self.call_args(self.string(), 0)})"
+            )
         if r < 0.5:  # noqa: PLR2004
             return self.get_call(root=root)
         if r < 0.8:  # noqa: PLR2004
@@ -479,9 +494,12 @@ class Grammar:
         return lines
 
     def module(self) -> str:
-        target = self.rng.randint(5, 40)
+        r = self.rng.random()
+        # 8 % of modules are 1-4 lines and start with a statement: keys at file start
+        # (no context before the candidate) must be smelled too
+        target = self.rng.randint(1, 4) if r < 0.08 else self.rng.randint(5, 40)  # noqa: PLR2004
         lines: list[str] = []
-        if self.rng.random() < 0.6:  # noqa: PLR2004
+        if r >= 0.08 and self.rng.random() < 0.55:  # noqa: PLR2004
             names = ", ".join(
                 sorted(
                     set(

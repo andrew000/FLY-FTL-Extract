@@ -1,0 +1,264 @@
+{
+  "snippets": 3000,
+  "seed": 777,
+  "probe_rows": 47896,
+  "val_rows": 9788,
+  "rows": [
+    {
+      "name": "fly-odor-1: context 12/6, 3-grams, bag 0.5",
+      "n_pn": 124,
+      "top_k": 0,
+      "salt": "fly-odor-2",
+      "params": {
+        "max_ngram": 3,
+        "distance_tau": 6.0,
+        "bag_weight": 0.5,
+        "context_before": 12,
+        "context_after": 6
+      },
+      "active_pn": 68.90147402705863,
+      "mass": 38.86196517944336,
+      "val_f1": 0.924342765402368
+    },
+    {
+      "name": "12/6 without bag",
+      "n_pn": 124,
+      "top_k": 0,
+      "salt": "fly-odor-2",
+      "params": {
+        "max_ngram": 3,
+        "distance_tau": 6.0,
+        "bag_weight": 0.0,
+        "context_before": 12,
+        "context_after": 6
+      },
+      "active_pn": 47.962084516452315,
+      "mass": 27.58473777770996,
+      "val_f1": 0.9212391172302086
+    },
+    {
+      "name": "12/6, 2-grams, without bag",
+      "n_pn": 124,
+      "top_k": 0,
+      "salt": "fly-odor-2",
+      "params": {
+        "max_ngram": 2,
+        "distance_tau": 6.0,
+        "bag_weight": 0.0,
+        "context_before": 12,
+        "context_after": 6
+      },
+      "active_pn": 35.98313011524971,
+      "mass": 19.672142028808594,
+      "val_f1": 0.9254032258064516
+    },
+    {
+      "name": "6/3, bag 0.5",
+      "n_pn": 124,
+      "top_k": 0,
+      "salt": "fly-odor-2",
+      "params": {
+        "max_ngram": 3,
+        "distance_tau": 6.0,
+        "bag_weight": 0.5,
+        "context_before": 6,
+        "context_after": 3
+      },
+      "active_pn": 47.932165525304825,
+      "mass": 29.16780662536621,
+      "val_f1": 0.9750302053966975
+    },
+    {
+      "name": "fly-odor-2: context 6/3, without bag",
+      "n_pn": 124,
+      "top_k": 0,
+      "salt": "fly-odor-2",
+      "params": {
+        "max_ngram": 3,
+        "distance_tau": 6.0,
+        "bag_weight": 0.0,
+        "context_before": 6,
+        "context_after": 3
+      },
+      "active_pn": 30.172644897277433,
+      "mass": 20.48418617248535,
+      "val_f1": 0.9786376461104394
+    },
+    {
+      "name": "6/3, tau 2, without bag",
+      "n_pn": 124,
+      "top_k": 0,
+      "salt": "fly-odor-2",
+      "params": {
+        "max_ngram": 3,
+        "distance_tau": 2.0,
+        "bag_weight": 0.0,
+        "context_before": 6,
+        "context_after": 3
+      },
+      "active_pn": 27.90638049106397,
+      "mass": 15.768424987792969,
+      "val_f1": 0.9740518962075848
+    },
+    {
+      "name": "4/2, without bag",
+      "n_pn": 124,
+      "top_k": 0,
+      "salt": "fly-odor-2",
+      "params": {
+        "max_ngram": 3,
+        "distance_tau": 6.0,
+        "bag_weight": 0.0,
+        "context_before": 4,
+        "context_after": 2
+      },
+      "active_pn": 23.06148738934358,
+      "mass": 16.6016788482666,
+      "val_f1": 0.9146431199411332
+    },
+    {
+      "name": "3/2, 2-grams, without bag",
+      "n_pn": 124,
+      "top_k": 0,
+      "salt": "fly-odor-2",
+      "params": {
+        "max_ngram": 2,
+        "distance_tau": 6.0,
+        "bag_weight": 0.0,
+        "context_before": 3,
+        "context_after": 2
+      },
+      "active_pn": 16.06580925338233,
+      "mass": 11.654550552368164,
+      "val_f1": 0.8847610459873761
+    },
+    {
+      "name": "fly-odor-1 + top-40 PN",
+      "n_pn": 124,
+      "top_k": 40,
+      "salt": "fly-odor-2",
+      "params": {
+        "max_ngram": 3,
+        "distance_tau": 6.0,
+        "bag_weight": 0.5,
+        "context_before": 12,
+        "context_after": 6
+      },
+      "active_pn": 39.982441122431936,
+      "mass": 29.400344848632812,
+      "val_f1": 0.9210472904404302
+    },
+    {
+      "name": "fly-odor-2 + top-40 PN",
+      "n_pn": 124,
+      "top_k": 40,
+      "salt": "fly-odor-2",
+      "params": {
+        "max_ngram": 3,
+        "distance_tau": 6.0,
+        "bag_weight": 0.0,
+        "context_before": 6,
+        "context_after": 3
+      },
+      "active_pn": 29.9750709871388,
+      "mass": 20.392011642456055,
+      "val_f1": 0.9780463242698892
+    },
+    {
+      "name": "fly-odor-2, salt salt-a",
+      "n_pn": 124,
+      "top_k": 0,
+      "salt": "salt-a",
+      "params": {
+        "max_ngram": 3,
+        "distance_tau": 6.0,
+        "bag_weight": 0.0,
+        "context_before": 6,
+        "context_after": 3
+      },
+      "active_pn": 29.346458994488057,
+      "mass": 20.081079483032227,
+      "val_f1": 0.9759229534510433
+    },
+    {
+      "name": "fly-odor-2, salt salt-b",
+      "n_pn": 124,
+      "top_k": 0,
+      "salt": "salt-b",
+      "params": {
+        "max_ngram": 3,
+        "distance_tau": 6.0,
+        "bag_weight": 0.0,
+        "context_before": 6,
+        "context_after": 3
+      },
+      "active_pn": 29.97809837982295,
+      "mass": 20.466899871826172,
+      "val_f1": 0.9780904522613065
+    },
+    {
+      "name": "fly-odor-2, 160 buckets",
+      "n_pn": 160,
+      "top_k": 0,
+      "salt": "fly-odor-2",
+      "params": {
+        "max_ngram": 3,
+        "distance_tau": 6.0,
+        "bag_weight": 0.0,
+        "context_before": 6,
+        "context_after": 3
+      },
+      "active_pn": 30.664272590612995,
+      "mass": 20.76272201538086,
+      "val_f1": 0.9895414320193081
+    },
+    {
+      "name": "fly-odor-2, 256 buckets",
+      "n_pn": 256,
+      "top_k": 0,
+      "salt": "fly-odor-2",
+      "params": {
+        "max_ngram": 3,
+        "distance_tau": 6.0,
+        "bag_weight": 0.0,
+        "context_before": 6,
+        "context_after": 3
+      },
+      "active_pn": 32.52597294137298,
+      "mass": 21.49871253967285,
+      "val_f1": 0.990990990990991
+    },
+    {
+      "name": "fly-odor-2, 1024 buckets",
+      "n_pn": 1024,
+      "top_k": 0,
+      "salt": "fly-odor-2",
+      "params": {
+        "max_ngram": 3,
+        "distance_tau": 6.0,
+        "bag_weight": 0.0,
+        "context_before": 6,
+        "context_after": 3
+      },
+      "active_pn": 34.093828294638385,
+      "mass": 22.15717315673828,
+      "val_f1": 0.9956052736715941
+    },
+    {
+      "name": "fly-odor-1, 1024 buckets",
+      "n_pn": 1024,
+      "top_k": 0,
+      "salt": "fly-odor-2",
+      "params": {
+        "max_ngram": 3,
+        "distance_tau": 6.0,
+        "bag_weight": 0.5,
+        "context_before": 12,
+        "context_after": 6
+      },
+      "active_pn": 96.12067813596126,
+      "mass": 44.77614974975586,
+      "val_f1": 0.9969981989193516
+    }
+  ]
+}

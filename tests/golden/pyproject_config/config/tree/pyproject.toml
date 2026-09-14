@@ -1,0 +1,12 @@
+[project]
+name = "fixture"
+
+[tool.ftl-extract.extract]
+code-path = "src/bot"
+locales-path = "src/bot/locales"
+languages = ["en", "uk"]
+i18n-keys-append = ["LF"]
+ignore-attributes-append = ["core"]
+ignore-kwargs = ["when"]
+comment-keys-mode = "warn"
+line-endings = "lf"

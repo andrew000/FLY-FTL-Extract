@@ -1,0 +1,9 @@
+{
+  "description": "i18n.get / attribute chains / kwargs / _path / nested calls / non-literal keys",
+  "runs": {
+    "default": [
+      "app",
+      "locales"
+    ]
+  }
+}

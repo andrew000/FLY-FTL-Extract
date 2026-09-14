@@ -1,0 +1,13 @@
+{
+  "description": "-p self / -p cls prefixes: self.i18n.get, self.i18n.key(), self.i18n('key')",
+  "runs": {
+    "default": [
+      "app",
+      "locales",
+      "-p",
+      "self",
+      "-p",
+      "cls"
+    ]
+  }
+}

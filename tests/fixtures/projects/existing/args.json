@@ -1,0 +1,20 @@
+{
+  "description": "merge with existing locale: translations kept, stale keys commented/warned, kwargs change, _path move, terms, references, comments",
+  "runs": {
+    "comment": [
+      "app",
+      "locales"
+    ],
+    "warn": [
+      "app",
+      "locales",
+      "--comment-keys-mode",
+      "warn"
+    ],
+    "dry_run": [
+      "app",
+      "locales",
+      "--dry-run"
+    ]
+  }
+}

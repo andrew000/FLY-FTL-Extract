@@ -1,0 +1,17 @@
+{
+  "description": "-I appends to default ignore-attributes, -i replaces them (set_locale becomes a key)",
+  "runs": {
+    "append": [
+      "app",
+      "locales",
+      "-I",
+      "core"
+    ],
+    "replace": [
+      "app",
+      "locales",
+      "-i",
+      "core"
+    ]
+  }
+}

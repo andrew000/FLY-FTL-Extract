@@ -1,0 +1,1 @@
+ftl extract -l pl --comment-keys-mode comment

@@ -1,0 +1,13 @@
+[INFO  cli] Code path: <cwd>\src/bot
+[INFO  cli] Locales path: <cwd>\src/bot/locales
+[INFO  extractor::ftl] FTL Extraction completed in <t>s.
+[INFO  extractor::ftl] FTL Processing completed in <t>s.
+[INFO  cli] Extraction statistics:
+[INFO  cli]   - Py files count: 1
+[INFO  cli]   - FTL files count: {"pl": 0}
+[INFO  cli]   - FTL keys in code: 2
+[INFO  cli]   - FTL keys stored: {"pl": 2}
+[INFO  cli]   - FTL keys updated: {"pl": 0}
+[INFO  cli]   - FTL keys added: {"pl": 2}
+[INFO  cli]   - FTL keys commented: {"pl": 0}
+[INFO  cli] ✅ Done in <t>s.

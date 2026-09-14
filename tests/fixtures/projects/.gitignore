@@ -1,0 +1,5 @@
+# Fixture trees deliberately contain dirs the root .gitignore hides; re-include them here.
+!__pycache__/
+!.venv/
+!.pytest_cache/
+!*.pyc

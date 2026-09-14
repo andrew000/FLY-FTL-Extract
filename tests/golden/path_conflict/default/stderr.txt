@@ -1,0 +1,7 @@
+[INFO  cli] Code path: app
+[INFO  cli] Locales path: locales
+[INFO  extractor::ftl] FTL Extraction completed in <t>s.
+[ERROR cli] Error during extraction: Extraction aborted: 3 problems found in Python sources, no .ftl files were written.
+      - [key-message-conflict] Fluent key kw is used with different keyword arguments: a and b (app\a.py:2:1, app\b.py:2:1)
+      - [key-path-conflict] Fluent key same-file-conflict has different paths: x.ftl and y.ftl (app\c.py:1:1, app\c.py:2:1)
+      - [key-path-conflict] Fluent key shared has different paths: one.ftl and two.ftl (app\a.py:1:1, app\b.py:1:1)

@@ -1,0 +1,14 @@
+[INFO  cli] Code path: <cwd>\src/bot
+[INFO  cli] Locales path: <cwd>\src/bot/locales
+[INFO  extractor::ftl] FTL Extraction completed in <t>s.
+[WARN  extractor::ftl] Key `stale` in `<cwd>\src/bot/locales\en\_default.ftl` is not in code (kwargs mismatch or missing).
+[INFO  extractor::ftl] FTL Processing completed in <t>s.
+[INFO  cli] Extraction statistics:
+[INFO  cli]   - Py files count: 1
+[INFO  cli]   - FTL files count: {"uk": 0, "en": 1}
+[INFO  cli]   - FTL keys in code: 2
+[INFO  cli]   - FTL keys stored: {"uk": 2, "en": 3}
+[INFO  cli]   - FTL keys updated: {"uk": 0, "en": 0}
+[INFO  cli]   - FTL keys added: {"uk": 2, "en": 1}
+[INFO  cli]   - FTL keys commented: {"uk": 0, "en": 1}
+[INFO  cli] ✅ Done in <t>s.

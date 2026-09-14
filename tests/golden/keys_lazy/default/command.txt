@@ -1,0 +1,1 @@
+ftl extract app locales -k LF -K LazyProxy -K I18nFormat --ignore-kwargs when

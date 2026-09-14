@@ -10,6 +10,7 @@ dependencies = [
     "scipy>=1.16",
     "rich>=14",
     "click>=8.2",
+    "fluent-syntax>=0.19.0",
 ]
 
 [project.optional-dependencies]
@@ -76,4 +77,5 @@ packages = ["fly_ftl_extract"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+norecursedirs = ["fixtures", "golden"]
 addopts = "-ra"

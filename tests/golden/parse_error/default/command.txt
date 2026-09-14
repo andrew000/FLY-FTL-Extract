@@ -1,0 +1,1 @@
+ftl extract app locales

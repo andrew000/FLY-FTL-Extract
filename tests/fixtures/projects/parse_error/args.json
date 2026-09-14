@@ -1,0 +1,14 @@
+{
+  "description": "a Python file with a syntax error aborts unless --allow-parse-errors",
+  "runs": {
+    "default": [
+      "app",
+      "locales"
+    ],
+    "allow": [
+      "app",
+      "locales",
+      "--allow-parse-errors"
+    ]
+  }
+}

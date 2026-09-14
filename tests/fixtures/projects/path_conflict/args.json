@@ -1,0 +1,14 @@
+{
+  "description": "same key with different _path in two files (and a kwargs conflict) aborts the run",
+  "runs": {
+    "default": [
+      "app",
+      "locales"
+    ],
+    "allow": [
+      "app",
+      "locales",
+      "--allow-parse-errors"
+    ]
+  }
+}

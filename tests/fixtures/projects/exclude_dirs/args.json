@@ -1,0 +1,21 @@
+{
+  "description": "default exclude globs, -E append, -e replace; hidden dirs and app/.gitignore",
+  "runs": {
+    "default": [
+      "app",
+      "locales"
+    ],
+    "append": [
+      "app",
+      "locales",
+      "-E",
+      "**/tests/**"
+    ],
+    "replace": [
+      "app",
+      "locales",
+      "-e",
+      "**/tests/**"
+    ]
+  }
+}

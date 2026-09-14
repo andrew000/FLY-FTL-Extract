@@ -1,0 +1,11 @@
+async def main(i18n):
+    i18n.set_locale("uk")
+    i18n.use_locale("en")
+    i18n.use_context(x=1)
+    i18n.set_context()
+    i18n.core.internal()
+    i18n.core()
+    i18n.get("real-key")
+    i18n.set_locale.get("weird-chain")
+    i18n.nested.set_locale()
+    i18n.core.get("core-get")

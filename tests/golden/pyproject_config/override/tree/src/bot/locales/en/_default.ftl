@@ -1,0 +1,2 @@
+hello = Hello
+stale = Stale

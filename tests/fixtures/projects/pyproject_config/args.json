@@ -1,0 +1,12 @@
+{
+  "description": "[tool.ftl-extract.extract] in pyproject.toml supplies paths/options; CLI overrides",
+  "runs": {
+    "config": [],
+    "override": [
+      "-l",
+      "pl",
+      "--comment-keys-mode",
+      "comment"
+    ]
+  }
+}

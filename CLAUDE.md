@@ -20,14 +20,18 @@ chain before `(`), encodes the window into an activity pattern of projection neu
 an odour — runs it through a LIF simulation of a real mushroom body from the FlyWire FAFB
 v783 connectome (PN → Kenyon cells ⇄ APL → MBON), and a readout on the MBONs trained with
 «dopamine» decides: key / not a key, and for kwargs: placeable / ignore. The result is then
-written to `.ftl` in a format byte-for-byte compatible with the original.
+written to `.ftl` in a format byte-for-byte compatible with the original (including the hash
+order of new keys — the original iterates an `FxHashMap`; reproduced in `ftl/rustorder.py`,
+see `docs/FORMAT.md`).
 
 ## Stack
 
 - Python ≥ 3.14, `uv` for the env and the lock, `ruff` (lint+format), `mypy --strict`, `pytest`.
   `requires-python = ">=3.14,<3.15"` is the project owner's decision; do not «fix» it back to
   3.11 for compatibility with the original.
-- Runtime dependencies: `numpy`, `scipy` (sparse), `rich` (TUI), `click`. That is all.
+- Runtime dependencies: `numpy`, `scipy` (sparse), `rich` (TUI), `click`, `fluent.syntax`
+  (Mozilla's Fluent parser/serializer; the serializer matches fluent-rs byte for byte,
+  verified by golden tests). That is all.
   `tomllib` is the standard library. No torch/brian2 at runtime.
 - Build-time (extra `[connectome]`): `pyarrow` (to read the feather from Zenodo), `pandas`.
 - Package: `fly_ftl_extract`, distribution `fly-ftl-extract`.
@@ -164,7 +168,7 @@ hello-user = hello-user{ $name }
 balance-info = balance-info{ $amount }{ $currency }
 ```
 
-The key from `i18n.some.key_1()` → `some-key-1`; `_path="wallet/balance.ftl"` → the file
+The key from `i18n.some.key_1()` → `some-key_1` (attributes are joined with a hyphen, underscores stay — verified by golden); `_path="wallet/balance.ftl"` → the file
 `<locales>/<lang>/wallet/balance.ftl`; without `_path` → `_default.ftl`. Key order, the
 behaviour when merging with existing files (translations kept, unused keys commented out in
 `comment` mode, a warning in `warn` mode), the `# ftl-extract: ignore ...` markers — all of

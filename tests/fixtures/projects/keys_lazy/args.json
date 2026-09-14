@@ -1,0 +1,17 @@
+{
+  "description": "-k replaces the default key names, -K appends, --ignore-kwargs drops a kwarg",
+  "runs": {
+    "default": [
+      "app",
+      "locales",
+      "-k",
+      "LF",
+      "-K",
+      "LazyProxy",
+      "-K",
+      "I18nFormat",
+      "--ignore-kwargs",
+      "when"
+    ]
+  }
+}

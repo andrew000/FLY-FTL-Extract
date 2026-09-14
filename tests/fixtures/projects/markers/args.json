@@ -1,0 +1,9 @@
+{
+  "description": "# ftl-extract: ignore stale/all/kwargs/untranslated markers",
+  "runs": {
+    "default": [
+      "app",
+      "locales"
+    ]
+  }
+}

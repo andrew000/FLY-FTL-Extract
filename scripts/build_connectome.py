@@ -194,10 +194,23 @@ def main() -> int:
         msg = f"{len(missing)} selected root ids are not in proofread_root_ids_783.npy"
         raise SystemExit(msg)
 
-    edges, total_rows = read_edges(root_ids)
-    n_between = len(edges)
-    edges = edges[edges.syn_count >= SYN_THRESHOLD].reset_index(drop=True)
-    n_dropped = n_between - len(edges)
+    rows, total_rows = read_edges(root_ids)
+    n_rows_between = len(rows)
+    # One feather row per (pre, post, neuropil): aggregate to neuron pairs first (synapse
+    # counts summed, NT scores averaged with synapse weights), then apply the threshold.
+    score_cols = list(EDGE_NT_COLUMNS)
+    weighted = rows[score_cols].mul(rows.syn_count, axis=0)
+    weighted["syn_count"] = rows.syn_count
+    pairs = weighted.groupby([rows.pre_pt_root_id, rows.post_pt_root_id]).sum()
+    pairs[score_cols] = pairs[score_cols].div(pairs.syn_count, axis=0)
+    pairs = pairs.reset_index()
+    n_pairs_between = len(pairs)
+    edges = pairs[pairs.syn_count >= SYN_THRESHOLD].reset_index(drop=True)
+    n_dropped = n_pairs_between - len(edges)
+    kept_pairs = set(zip(edges.pre_pt_root_id, edges.post_pt_root_id, strict=True))
+    kept_rows = rows[
+        [pair in kept_pairs for pair in zip(rows.pre_pt_root_id, rows.post_pt_root_id, strict=True)]
+    ]
 
     index = pd.Series(np.arange(len(selected)), index=selected.root_id.to_numpy().astype(np.int64))
     pre = index[edges.pre_pt_root_id.to_numpy()].to_numpy()
@@ -282,7 +295,8 @@ def main() -> int:
         "uniglomerular_pn_excluded_by_nt": selected.attrs["uniglomerular_pn_excluded_by_nt"],
         "edges": int(w.nnz),
         "syn_threshold": SYN_THRESHOLD,
-        "edges_between_selected_before_threshold": int(n_between),
+        "feather_rows_between_selected": int(n_rows_between),
+        "pairs_between_selected_before_threshold": int(n_pairs_between),
         "edges_dropped_by_threshold": int(n_dropped),
         "edges_with_pre_nt_outside_sign_table": unknown_pre,
         "edge_argmax_agrees_with_pre_neuron_nt": agree,
@@ -309,7 +323,7 @@ def main() -> int:
         counts=counts,
         meta=meta,
         nt_table=nt_table,
-        edges=edges,
+        edges=kept_rows,
     )
     print(
         json.dumps(
@@ -319,15 +333,18 @@ def main() -> int:
                     "side",
                     "kc_by_side",
                     "neurons",
-                    "edges",
+                    "feather_rows_between_selected",
+                    "pairs_between_selected_before_threshold",
                     "edges_dropped_by_threshold",
+                    "edges",
+                    "edge_argmax_agrees_with_pre_neuron_nt",
                     "sanity",
                 )
             },
             indent=2,
         )
     )
-    print(f"wrote {OUT_NPZ} ({OUT_NPZ.stat().st_size / 1e6:.2f} MB), sha256 {npz_sha[:16]}…")
+    print(f"wrote {OUT_NPZ} ({OUT_NPZ.stat().st_size / 1e6:.2f} MB), sha256 {npz_sha}")
     return 0
 
 
@@ -445,14 +462,17 @@ ACh → +1, GABA → −1, glutamate → −1, dopamine/octopamine/serotonin →
 {chr(10).join(nt_lines)}
 
 Edges whose presynaptic transmitter is outside the sign table: {meta["edges_with_pre_nt_outside_sign_table"]}.
-The per-edge argmax of the six `*_avg` agrees with the presynaptic neuron's label in
-{meta["edge_argmax_agrees_with_pre_neuron_nt"]} of {meta["edges"]} edges (the disagreements are mostly
-KCs that the predictor considers dopaminergic).
+The per-edge argmax of the six `*_avg` (averaged over neuropils weighted by synapses) agrees
+with the presynaptic neuron's label in {meta["edge_argmax_agrees_with_pre_neuron_nt"]} of {meta["edges"]} edges
+(the disagreements are mostly KCs that the predictor considers dopaminergic).
 
 ## 5. Edges
 
-- Between the selected neurons in the feather: {meta["edges_between_selected_before_threshold"]} edges;
-  the threshold `syn_count >= {SYN_THRESHOLD}` dropped {meta["edges_dropped_by_threshold"]}; **{meta["edges"]}** remain.
+- The feather has one row per (pre, post, neuropil): between the selected neurons
+  {meta["feather_rows_between_selected"]} rows = {meta["pairs_between_selected_before_threshold"]} neuron pairs
+  (synapses summed over neuropils). The threshold `syn_count >= {SYN_THRESHOLD}` **per pair**
+  dropped {meta["edges_dropped_by_threshold"]} pairs; **{meta["edges"]}** edges remain.
+- The table below — the neuropils of the rows that form the kept pairs:
 - The matrix `W[pre, post] = sign(pre) · syn_count`, CSR (`indptr`, `indices`, `data`), plus `syn_count`.
 
 {chr(10).join(np_lines)}

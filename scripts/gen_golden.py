@@ -27,7 +27,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _reference_bin import reference_ftl_command  # noqa: E402
+from _reference_bin import reference_ftl_command
 
 REPO = Path(__file__).resolve().parent.parent
 FIXTURES = REPO / "tests" / "fixtures" / "projects"
@@ -59,7 +59,7 @@ def run_fixture(name: str, run: str, args: list[str], out_dir: Path, work_root: 
     if not (work / "pyproject.toml").exists():
         assert_no_pyproject_above(work)
     cmd = [*reference_ftl_command(), "extract", *args]
-    result = subprocess.run(  # noqa: S603
+    result = subprocess.run(
         cmd, cwd=work, capture_output=True, text=True, encoding="utf-8", check=False, timeout=300
     )
     if out_dir.exists():
@@ -114,7 +114,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="compare against committed golden")
     ns = parser.parse_args()
-    version = subprocess.run(  # noqa: S603
+    version = subprocess.run(
         [*reference_ftl_command(), "--version"], capture_output=True, text=True, check=True
     ).stdout.strip()
     print(f"reference: {version}")

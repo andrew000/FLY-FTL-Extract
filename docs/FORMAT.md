@@ -204,3 +204,13 @@ languages in the statistics (`init_lang` in `-l` order).
 - Invalid UTF-8 in a `.py` (the text comes from the Rust `Utf8Error`).
 - `--cache*` (Phase 6), `-v` (debug lines).
 - Other ruff parser messages besides `unexpected EOF while parsing`.
+- A commented-out key with **a blank line inside a multi-line value**: fluent-rs writes a
+  whitespace-only line as a bare `#`; python-fluent — only an empty one. In
+  `comment_ftl_key` such lines are replaced with empty ones before serialization, so the
+  result is the same, but the fixtures have no such case.
+- The file walk: the `.gitignore` semantics are implemented by hand (`fly_ftl_extract/files.py`):
+  negation, `**`, anchored patterns, dir-only. Gitignore exotica (escape sequences, `\#`),
+  patterns like `./tests/*` — not checked by golden.
+- The rayon-tree model (every file is its own leaf) is checked up to 30 files; for very large
+  projects (files ≫ 2 × the number of threads) the original could in theory give a different
+  order of new keys between machines with different core counts.

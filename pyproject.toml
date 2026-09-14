@@ -60,11 +60,18 @@ ignore = [
     "TD002", "TD003",
     "PLR0913", # many-args functions are fine for CLI options
     "CPY001",  # no copyright headers
+    "TRY003", "EM101", "EM102",  # exception messages are built inline (they mirror the original texts)
+    "PTH",    # os.path is deliberate: the original prints paths exactly as it joined them
+    "C901", "PLR0911", "PLR0912", "PLR0915",  # ports of the original's functions keep their shape
+    "D105",   # magic methods need no docstrings
+    "TC001", "TC002", "TC003",  # runtime imports are fine; TYPE_CHECKING blocks hurt readability
+    "ANN401", # Any is needed for tomllib payloads
+    "RUF001", "RUF002", "RUF003",  # Ukrainian/typographic characters in docstrings and comments
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101", "D", "PLR2004", "INP001", "S603", "S607"]
-"scripts/**" = ["T201", "INP001", "S603", "S607"]
+"tests/**" = ["S101", "D", "PLR2004", "INP001", "S603", "S607", "SLF001"]
+"scripts/**" = ["T201", "INP001", "S603", "S607", "D"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

@@ -106,7 +106,13 @@ LIF, parameters as in Shiu et al. 2024 (Nature, «A Drosophila computational bra
 reveals sensorimotor processing»), to be checked against the paper/repo
 `philshiu/Drosophila_brain_model`: V_rest = V_reset = −52 mV, V_th = −45 mV, τ_m = 20 ms,
 refractory 2.2 ms, τ_syn = 5 ms, one synapse = 0.275 mV (× syn_count, × sign), dt = 0.1 ms.
-The parameters live in one dataclass `BrainParams`, not scattered over the code.
+The parameters live in one dataclass `BrainParams`, not scattered over the code. Checked
+against the authors' `model.py` (Phase 3): it also has a synaptic delay `t_dly = 1.8 ms` (so
+do we), reset zeroes both `v` and `g`, and input neurons spike on every Poisson event without
+refractoriness — hence our PNs do not integrate but emit Bernoulli spikes with
+p = rate_max·odor·dt. The weights are multiplied by `syn_scale` (calibrated, `docs/BENCH.md`),
+because an isolated mushroom body without the rest of the brain needs a different scale than
+Shiu's whole brain.
 
 Input: PNs receive Poisson spikes at rate `rate_max · odor[i]` (rate_max ≈ 200 Hz) for
 `T_stim = 50 ms`, then 10 ms of silence. The «trial» state = the vector of KC spike counts

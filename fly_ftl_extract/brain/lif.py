@@ -10,7 +10,10 @@ dopamine phase).
 
 Determinism: the only randomness is ``numpy.random.Generator(PCG64(seed))`` for the PN
 spikes; the float32 arithmetic is done in a fixed order, so equal inputs and seeds give
-bit-identical results.
+bit-identical results.  ``seed`` is either one integer for the whole batch (one stream,
+drawn step by step — calibration and training augmentation) or one integer per trial
+(production: every candidate has its own seed, see ``dopamine/seed.py``; each trial's
+Poisson numbers are drawn from its own PCG64 stream up front).
 
 Implementation notes (measured, see ``docs/BENCH.md``): spikes and refractory neurons are
 handled as *flat* index arrays (``np.flatnonzero`` on a boolean mask is ~30× faster than
@@ -21,7 +24,9 @@ is ``S @ W`` with ``S`` a CSR spike matrix built directly from ``indptr``.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import hashlib
+import json
+from dataclasses import asdict, dataclass
 from typing import Literal
 
 import numpy as np
@@ -153,11 +158,30 @@ class Brain:
         self._u_th = np.float32(params.v_th - params.v_rest)
         self._u_reset = np.float32(params.v_reset - params.v_rest)
 
-    def simulate(self, odors: np.ndarray, seed: int, *, raster_trials: int = 0) -> TrialResult:
+    @property
+    def hash(self) -> str:
+        """Identity of this brain: connectome file + every parameter (16 hex digits).
+
+        Trained readouts are only valid for the brain they were trained on.
+        """
+        payload = json.dumps(
+            {
+                "connectome": self.connectome.sha256,
+                "params": asdict(self.params),
+                "apl_enabled": self.apl_enabled,
+            },
+            sort_keys=True,
+        )
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+
+    def simulate(
+        self, odors: np.ndarray, seed: int | np.ndarray, *, raster_trials: int = 0
+    ) -> TrialResult:
         """Run one trial per row of ``odors`` (``(n_trials, n_pn)`` values in ``[0, 1]``).
 
-        ``raster_trials`` says for how many leading trials the Kenyon-cell spike times are
-        kept as :class:`SpikeRaster`.
+        ``seed`` is one integer (one random stream for the batch) or an array with one
+        seed per trial.  ``raster_trials`` says for how many leading trials the
+        Kenyon-cell spike times are kept as :class:`SpikeRaster`.
         """
         odors = np.asarray(odors, dtype=np.float32)
         if odors.ndim != _ODOR_NDIM or odors.shape[1] != self.n_pn:
@@ -169,8 +193,22 @@ class Brain:
         p = self.params
         n_trials = odors.shape[0]
         n_int, n_pn = self.n_int, self.n_pn
-        rng = np.random.Generator(np.random.PCG64(seed))
         p_spike = odors * np.float32(p.rate_max * p.dt / 1000.0)
+        n_steps, stim_steps = p.n_steps, p.stim_steps
+        per_trial = not isinstance(seed, int | np.integer)
+        if per_trial:
+            seeds = np.asarray(seed)
+            if seeds.shape != (n_trials,):
+                msg = f"one seed per trial expected, got shape {seeds.shape} for {n_trials} trials"
+                raise ValueError(msg)
+            # (stim_steps, n_trials, n_pn): every trial its own stream, drawn up front
+            uniforms = np.empty((stim_steps, n_trials, n_pn), dtype=np.float32)
+            for k in range(n_trials):
+                uniforms[:, k, :] = np.random.Generator(np.random.PCG64(int(seeds[k]))).random(
+                    (stim_steps, n_pn), dtype=np.float32
+                )
+        else:
+            rng = np.random.Generator(np.random.PCG64(int(seed)))
         pn_idx = self.connectome.pn_idx.astype(np.int32)
         int_idx = self.int_idx
 
@@ -180,7 +218,6 @@ class Brain:
         u_flat, g_flat = u.reshape(-1), g.reshape(-1)
         counts = np.zeros(n_trials * n_int, dtype=np.int16)
         pn_counts = np.zeros(n_trials * n_pn, dtype=np.int16)
-        n_steps, stim_steps = p.n_steps, p.stim_steps
         delay, refr_steps = p.delay_steps, p.refractory_steps
         # Spike events (flat indices) of the last `refr_steps` steps = the refractory set.
         refr_ring: list[np.ndarray] = [_EMPTY] * refr_steps
@@ -214,7 +251,8 @@ class Brain:
             cols = int_idx[spk - rows * n_int]
             # 4. PN Poisson input
             if t < stim_steps:
-                pn = np.flatnonzero(rng.random(p_spike.shape, dtype=np.float32) < p_spike)
+                draw = uniforms[t] if per_trial else rng.random(p_spike.shape, dtype=np.float32)
+                pn = np.flatnonzero(draw < p_spike)
                 pn_counts[pn] += 1
                 pn_rows = pn // n_pn
                 rows = np.concatenate([rows, pn_rows])

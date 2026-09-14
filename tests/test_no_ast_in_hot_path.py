@@ -1,15 +1,22 @@
 """Guard rail: the extraction hot path must never touch ``ast`` or ``reference/``.
 
-CLAUDE.md rule 2. The fly is the only classifier; ``fly_ftl_extract.reference`` (the ast
-teacher) may be imported only from ``reference/`` itself, ``scripts/`` and ``tests/``.
+CLAUDE.md rules 2 and 2b. The fly is the only classifier; ``fly_ftl_extract.reference`` (the
+ast teacher) may be imported only from ``reference/`` itself, ``audit/`` (the ``--fly-audit``
+runner), ``scripts/`` and ``tests/``.  A plain ``ftl extract`` must load neither ``reference``
+nor ``audit``.
 """
 
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 PACKAGE_DIR = Path(__file__).resolve().parent.parent / "fly_ftl_extract"
+FIXTURE_APP = PACKAGE_DIR.parent / "tests" / "fixtures" / "projects" / "basic" / "app"
+GREP_EXEMPT_PACKAGES = frozenset({"reference", "audit"})
 
 FORBIDDEN_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"^\s*import\s+.*\bast\b"),
@@ -22,7 +29,7 @@ FORBIDDEN_PATTERNS: tuple[re.Pattern[str], ...] = (
 
 def _hot_path_files() -> list[Path]:
     files = sorted(PACKAGE_DIR.rglob("*.py"))
-    return [f for f in files if "reference" not in f.relative_to(PACKAGE_DIR).parts]
+    return [f for f in files if not GREP_EXEMPT_PACKAGES & set(f.relative_to(PACKAGE_DIR).parts)]
 
 
 def test_hot_path_files_exist() -> None:
@@ -53,3 +60,38 @@ def test_importing_cli_does_not_load_reference_or_ast() -> None:
         [sys.executable, "-c", code], capture_output=True, text=True, check=True, timeout=60
     )
     assert result.stdout.splitlines()[0] == "CLEAN", result.stdout
+
+
+_LEAK_PROBE = """
+import runpy, sys
+sys.argv = ["ftl", *sys.argv[1:]]
+try:
+    runpy.run_module("fly_ftl_extract.cli", run_name="__main__", alter_sys=True)
+except SystemExit:
+    pass
+leaked = sorted(
+    m for m in sys.modules
+    if m.split(".")[:2] in (["fly_ftl_extract", "reference"], ["fly_ftl_extract", "audit"])
+)
+print("LEAKED " + ",".join(leaked) if leaked else "CLEAN")
+"""
+
+
+def test_plain_extract_does_not_load_reference_or_audit(tmp_path: Path) -> None:
+    # TODO(phase-6): remove the skip once ``ftl extract`` exists.
+    if not (PACKAGE_DIR / "cli" / "extract.py").exists():
+        pytest.skip("ftl extract is not implemented until Phase 6")
+    if not (PACKAGE_DIR / "__main__.py").exists():
+        pytest.skip("fly_ftl_extract.__main__ is not implemented until Phase 6")
+    app = tmp_path / "app"
+    shutil.copytree(FIXTURE_APP, app)
+    locales = tmp_path / "locales"
+    locales.mkdir()
+    result = subprocess.run(
+        [sys.executable, "-c", _LEAK_PROBE, "extract", str(app), str(locales), "--fly-no-tui"],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=600,
+    )
+    assert result.stdout.strip().splitlines()[-1] == "CLEAN", result.stdout + result.stderr

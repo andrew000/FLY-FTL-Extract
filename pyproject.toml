@@ -1,6 +1,6 @@
 [project]
 name = "fly-ftl-extract"
-version = "0.0.0"
+version = "0.1.0.dev1"
 description = "Drop-in replacement for ftl-extract where a simulated Drosophila mushroom body decides what is a Fluent key"
 readme = { text = "fly-ftl-extract: see CLAUDE.md until Phase 7", content-type = "text/markdown" }
 license = "MIT"
@@ -35,6 +35,10 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["fly_ftl_extract"]
+# Trained brain + connectome ship inside the wheel (Phase 7 check). `artifacts` also
+# survives VCS-ignore rules; the generated dataset is explicitly kept out.
+artifacts = ["fly_ftl_extract/data/*.npz", "fly_ftl_extract/data/meta.json"]
+exclude = ["fly_ftl_extract/data/dataset/"]
 
 [tool.ruff]
 target-version = "py314"

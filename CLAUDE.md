@@ -25,6 +25,8 @@ written to `.ftl` in a format byte-for-byte compatible with the original.
 ## Stack
 
 - Python ≥ 3.14, `uv` for the env and the lock, `ruff` (lint+format), `mypy --strict`, `pytest`.
+  `requires-python = ">=3.14,<3.15"` is the project owner's decision; do not «fix» it back to
+  3.11 for compatibility with the original.
 - Runtime dependencies: `numpy`, `scipy` (sparse), `rich` (TUI), `click`. That is all.
   `tomllib` is the standard library. No torch/brian2 at runtime.
 - Build-time (extra `[connectome]`): `pyarrow` (to read the feather from Zenodo), `pandas`.
@@ -210,7 +212,12 @@ Nothing is drawn «for looks» from random. This is a matter of principle.
    from the plan must pass. Do not start the next phase until the previous one is green.
 2. Never import `fly_ftl_extract.reference` from `cli/`, `tokenizer/`, `odor/`, `brain/`,
    `ftl/`. The test `tests/test_no_ast_in_hot_path.py` checks this through `sys.modules` and
-   a grep of the imports; it must exist from the very first phase.
+   a grep of the imports (the grep does not cover `audit/`); it must exist from the very
+   first phase.
+2b. The package `fly_ftl_extract/audit/` is the only place allowed to import both
+   `reference/` and the extract pipeline (for `--fly-audit`). `cli/` imports `audit` only
+   lazily inside the `if fly_audit:` branch. A plain `extract` (without `--fly-audit`) must
+   load neither `reference` nor `audit` — the same test checks this.
 3. Do not change the output format «for the better» — only as in the real `ftl 0.12.1`.
    A difference → first check with the binary, then fix our code.
 4. Every magic number (LIF parameters, window size, thresholds) lives in a dataclass with a

@@ -82,3 +82,17 @@ def utf8_error_message(data: bytes, error: UnicodeDecodeError) -> tuple[str, int
     else:
         text = f"invalid utf-8 sequence of {length} bytes from index {error.start}"
     return f"Python file is not valid UTF-8: {text}", line, column
+
+
+def check_syntax(source: str, path: str) -> SyntaxError | None:
+    """The ``SyntaxError`` the original would report for ``source``, or ``None``.
+
+    CLAUDE.md rule 2c: this is the only place in the hot path that parses Python, and it
+    does so only to learn *whether* the file parses — the code object is discarded and
+    nothing is executed.  Deciding what is a key stays with the fly.
+    """
+    try:
+        compile(source, path, "exec", dont_inherit=True)
+    except SyntaxError as err:
+        return err
+    return None

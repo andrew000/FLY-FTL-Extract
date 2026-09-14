@@ -22,7 +22,8 @@ from fly_ftl_extract.brain.lif import DriveMode
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _docsection import update_section
-from calibrate import SKELETON, typical_odors
+from _fixtures import fixture_odors
+from calibrate import SKELETON
 
 REPO = Path(__file__).resolve().parent.parent
 OUT_DOC = REPO / "docs" / "BENCH.md"
@@ -67,7 +68,8 @@ def main() -> int:
     cx = load()
     p = DEFAULT_PARAMS
     n_pn = len(cx.pn_idx)
-    odors = typical_odors(max(BATCHES), n_pn, seed=7)
+    real, _ = fixture_odors()
+    odors = np.resize(real, (max(BATCHES), n_pn))  # real fixture odours, repeated to fill
     brain = Brain(cx, p)
     brain.simulate(odors[:16], seed=0)  # warm-up
 
@@ -109,8 +111,8 @@ def main() -> int:
         (
             f"A trial = {p.n_steps} steps of {p.dt} ms (T_stim {p.t_stim:.0f} + T_silence "
             f"{p.t_silence:.0f} ms), {cx.n_neurons} neurons in the graph, of which "
-            f"{brain.n_int} integrate (KC + APL + MBON), W has {brain.w.nnz} edges. A typical odour "
-            "(30 % of PNs at 150 Hz), the best of several runs."
+            f"{brain.n_int} integrate (KC + APL + MBON), W has {brain.w.nnz} edges. Odours — real "
+            "candidates from the fixtures (repeated up to batch), the best of several runs."
         ),
         "",
         "| batch | s per batch | trials/s | ms per step |",

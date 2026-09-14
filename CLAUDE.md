@@ -156,6 +156,14 @@ Training is a delta rule with L2, in mini-batches, named `dan_update()` in the c
 error signal). Weights → `data/mbon_weights.npz` together with `brain_hash`,
 `encoder_version`, `metrics`. Check the hashes on load; a mismatch is an error, not a warning.
 
+Candidate labelling (`reference/labels.py`): for every occurrence from
+`reference.key_occurrences()` exactly one positive. A get-like call (`name(...)`,
+`x.get(...)` — a chain with no attributes after the root) → only the string candidate (the
+first positional argument) is positive, the chain is negative. An attribute call
+(`i18n.a.b(...)`) → the chain is positive, a string inside is negative even when its text
+equals the key (`i18n.core.get("core-get")`). Kwargs of a positive call: placeable are those
+the teacher put into the message (`_path` and `--ignore-kwargs` are not).
+
 Dataset: `scripts/make_dataset.py` generates ≥ 20 000 snippets from a grammar of random
 Python constructs (`i18n.get` calls, attribute chains of various lengths, `self.i18n`,
 `LazyProxy`, `I18nFormat`, ignore attributes such as `set_locale`, `_path=`, kwargs, nested
@@ -247,7 +255,9 @@ Nothing is drawn «for looks» from random. This is a matter of principle.
 2c. `files.py` holds the original's textual prefilter: a file is parsed only if its bytes
    contain one of the `--i18n-keys`/`-p` names (`mentions_any_name`). This is allowed in the
    hot path because it reproduces the original's *walk*, not the decision «is this a key» —
-   the decision stays with the fly.
+   the decision stays with the fly. Likewise `ftl/pyerrors.py` calls `compile(source, path,
+   "exec", dont_inherit=True)` **only** to learn whether the original would report a
+   `parse-error`; the result is discarded. A bare `compile(` is allowed only there (grep test).
 3. Do not change the output format «for the better» — only as in the real `ftl 0.12.1`.
    A difference → first check with the binary, then fix our code.
 4. Every magic number (LIF parameters, window size, thresholds) lives in a dataclass with a

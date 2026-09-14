@@ -28,11 +28,10 @@ from fly_ftl_extract.odor.encoder import (
     encode_many,
     normalize_window,
 )
-from fly_ftl_extract.reference.extractor import key_occurrences
-from fly_ftl_extract.tokenizer.candidates import Candidate, iter_candidates
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _fixtures import FixtureFile, all_fixture_files
+from _fixtures import LabeledCandidate as Labeled
+from _fixtures import fixture_candidates as labeled_candidates
 
 REPO = Path(__file__).resolve().parent.parent
 OUT_DOC = REPO / "docs" / "ODOR.md"
@@ -49,34 +48,6 @@ SWEEP = (
     EncoderParams(max_ngram=2, distance_tau=3.0, bag_weight=0.0),
     EncoderParams(max_ngram=1, distance_tau=6.0, bag_weight=0.0),
 )
-
-
-@dataclass(frozen=True)
-class Labeled:
-    file: FixtureFile
-    candidate: Candidate
-    positive: bool
-
-
-def labeled_candidates() -> list[Labeled]:
-    out: list[Labeled] = []
-    for f in all_fixture_files():
-        if f.source is None:
-            continue
-        try:
-            positives = key_occurrences(f.path, f.source, f.options)
-        except SyntaxError:
-            continue
-        keys = {
-            ((k.source_location.line, k.source_location.column), k.key)
-            for k in positives
-            if k.source_location is not None
-        }
-        out.extend(
-            Labeled(f, c, (c.call_position, c.key_name) in keys)
-            for c in iter_candidates(f.source, f.options)
-        )
-    return out
 
 
 def jaccard_pairs(a: np.ndarray, b: np.ndarray) -> np.ndarray:
@@ -242,7 +213,7 @@ def main() -> int:
             f"brain `BrainParams` at the defaults (T_stim {DEFAULT_PARAMS.t_stim:.0f} ms, syn_scale "
             f"{DEFAULT_PARAMS.syn_scale}). Candidates — from every fixture (the first run of each `args.json`),"
         ),
-        "positive = `reference/` finds a key with the same call position and the same name.",
+        "positive = the labelling rule from `reference/labels.py` (exactly one positive per teacher occurrence).",
         "",
         "## 1. Candidates",
         "",
@@ -275,7 +246,7 @@ def main() -> int:
         "",
         f"Simulation of all {len(items)} odours with two seeds. The share of active KCs: "
         + ", ".join(f"seed {s}: {v:.3f}" for s, v in frac.items())
-        + " (the calibration aimed at 0.05–0.10 on a typical odour of 30 % PNs).",
+        + " (the calibration on these very odours aimed at 0.08–0.10).",
         "",
         "| pairs | n | Jaccard of active KCs: mean (median, min, max) |",
         "|---|---:|---|",

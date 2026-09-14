@@ -27,6 +27,10 @@ FORBIDDEN_PATTERNS: tuple[re.Pattern[str], ...] = (
 )
 
 
+COMPILE_CALL = re.compile(r"(?<![\w.])compile\(")
+COMPILE_ALLOWED = Path("ftl") / "pyerrors.py"
+
+
 def _hot_path_files() -> list[Path]:
     files = sorted(PACKAGE_DIR.rglob("*.py"))
     return [f for f in files if not GREP_EXEMPT_PACKAGES & set(f.relative_to(PACKAGE_DIR).parts)]
@@ -43,6 +47,22 @@ def test_no_forbidden_imports_in_hot_path_sources() -> None:
             if any(p.search(line) for p in FORBIDDEN_PATTERNS):
                 offenders.append(f"{path.relative_to(PACKAGE_DIR.parent)}:{lineno}: {line.strip()}")
     assert not offenders, "ast / reference leaked into the hot path:\n" + "\n".join(offenders)
+
+
+def test_bare_compile_only_in_pyerrors() -> None:
+    """CLAUDE.md rule 2c: ``compile()`` may detect parse errors in one place only."""
+    offenders: list[str] = []
+    for path in _hot_path_files():
+        if path.relative_to(PACKAGE_DIR) == COMPILE_ALLOWED:
+            continue
+        for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if COMPILE_CALL.search(line):
+                offenders.append(f"{path.relative_to(PACKAGE_DIR.parent)}:{lineno}: {line.strip()}")
+    assert not offenders, "compile() outside ftl/pyerrors.py:\n" + "\n".join(offenders)
+    assert any(
+        COMPILE_CALL.search(line)
+        for line in (PACKAGE_DIR / COMPILE_ALLOWED).read_text(encoding="utf-8").splitlines()
+    )
 
 
 def test_importing_cli_does_not_load_reference_or_ast() -> None:

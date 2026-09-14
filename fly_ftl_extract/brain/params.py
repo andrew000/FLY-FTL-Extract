@@ -52,13 +52,14 @@ class BrainParams:
         the model's one free parameter.""",
     )
     syn_scale: float = _p(
-        1.5,
+        1.25,
         """Multiplier on `w_syn` for our subgraph. Shiu simulate the whole brain with 1;
-        the isolated mushroom body needs its own value so that a typical odour (30 % PN at
-        150 Hz, T_stim 100 ms) drives 5–10 % of the Kenyon cells with APL and > 30 % without,
-        with no neuron above 1/t_refractory and a median active-KC rate < 50 Hz. 1.5 gives
-        7.6 % / 38.0 %; calibrated by `scripts/calibrate.py` (curve in docs/BENCH.md, value
-        mirrored in docs/calibration.json).""",
+        the isolated mushroom body needs its own value. Calibrated on the real odours of
+        every fixture candidate (auditor's decision after Phase 4; the synthetic 30 %-PN
+        odour is no longer used): target 8-10 % active Kenyon cells with APL, > 30 % without,
+        no neuron above 1/t_refractory, median active-KC rate < 50 Hz. 1.25 gives
+        9.3 % / 43.7 %; `scripts/calibrate.py`, curve in docs/BENCH.md, value mirrored in
+        docs/calibration.json.""",
     )
     dt: float = _p(0.1, "Integration step, ms. brian2's `defaultclock.dt`, as used by Shiu.")
     rate_max: float = _p(

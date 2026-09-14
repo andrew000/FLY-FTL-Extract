@@ -1,0 +1,57 @@
+{
+  "dataset": "FlyWire FAFB v783",
+  "side": "right",
+  "kc_by_side": {
+    "right": 2597,
+    "left": 2580
+  },
+  "neurons": {
+    "PN": 124,
+    "KC": 2597,
+    "APL": 1,
+    "MBON": 48,
+    "DAN": 165
+  },
+  "n_neurons": 2935,
+  "uniglomerular_pn_total": 139,
+  "uniglomerular_pn_excluded_by_nt": 15,
+  "edges": 21241,
+  "syn_threshold": 5,
+  "edges_between_selected_before_threshold": 272970,
+  "edges_dropped_by_threshold": 247123,
+  "edges_with_pre_nt_outside_sign_table": 0,
+  "edge_argmax_agrees_with_pre_neuron_nt": 25666,
+  "feather_rows_total": 16847997,
+  "sign_by_nt": {
+    "acetylcholine": 1,
+    "gaba": -1,
+    "glutamate": -1,
+    "dopamine": 0,
+    "octopamine": 0,
+    "serotonin": 0
+  },
+  "sanity": {
+    "pn_to_kc_edges": 9831,
+    "pn_to_kc_min_weight": 5,
+    "mean_pn_inputs_per_kc": 3.78552175587216,
+    "median_pn_inputs_per_kc": 4.0,
+    "kc_without_pn_input": 269,
+    "apl_to_kc_edges": 2290,
+    "apl_to_kc_max_weight": -5,
+    "kc_to_apl_edges": 2437,
+    "kc_to_mbon_edges": 5217,
+    "gaba_pn_count": 0,
+    "gaba_pn_to_kc_edges": 0
+  },
+  "sha256_npz": "38e8eb40e0738171a581a300676dd3b099c1a655193b8c966e56273df019f411",
+  "sha256_sources": {
+    "Supplemental_file1_neuron_annotations.tsv": "9a4f8b2f843196074431ebd7cd883536afa1be86c8a4ce90970441e8be81d1be",
+    "proofread_root_ids_783.npy": "7c7b7e818e9232e5ab64793d52ba20574dbe9da3a6509fbc74193b0f259a01be"
+  },
+  "built": "2026-09-14T13:34:03Z",
+  "license": "CC-BY 4.0 (FlyWire connectome data and annotations)",
+  "citations": [
+    "Dorkenwald S. et al. (2024) Neuronal wiring diagram of an adult brain. Nature 634, 124\u2013138.",
+    "Schlegel P. et al. (2024) Whole-brain annotation and multi-connectome cell typing of Drosophila. Nature 634, 139\u2013152."
+  ]
+}

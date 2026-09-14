@@ -489,6 +489,7 @@ def main(argv: list[str] | None = None) -> int:
         dataset_meta=dataset_meta,
         out=args.out,
         config=config,
+        max_resniff=max_resniff,
     )
     print(f"wrote {args.out} ({args.out.stat().st_size} bytes) and {OUT_DOC}")
     return 0
@@ -580,6 +581,7 @@ def write_doc(
     dataset_meta: dict[str, object],
     out: Path,
     config: TrainConfig,
+    max_resniff: int = MAX_RESNIFF,
 ) -> None:
     ds_timing = dataset_meta["timing_s"]
     assert isinstance(ds_timing, dict)
@@ -603,8 +605,8 @@ def write_doc(
         "## 1. Results on test",
         "",
         (
-            "| task | features | val F1 | test without resniff | test with resniff (≤ 3 trials) "
-            "| resniff share | θ |"
+            "| task | features | val F1 | test without resniff | test with resniff "
+            f"(≤ {max_resniff} extra trials) | resniff share | θ |"
         ),
         "|---|---|---:|---|---|---:|---:|",
     ]

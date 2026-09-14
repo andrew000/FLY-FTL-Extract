@@ -56,7 +56,7 @@ class BrainParams:
         """Multiplier on `w_syn` for our subgraph. Shiu simulate the whole brain with 1;
         the isolated mushroom body needs its own value so that a typical odour (30 % PN at
         150 Hz) drives 5–10 % of the Kenyon cells with APL and > 30 % without. 2.25 gives
-        6.7 % / 38.5 %; calibrated by `scripts/calibrate.py` (curve in docs/BENCH.md,
+        7.3 % / 42.3 %; calibrated by `scripts/calibrate.py` (curve in docs/BENCH.md,
         value mirrored in docs/calibration.json).""",
     )
     dt: float = _p(0.1, "Integration step, ms. brian2's `defaultclock.dt`, as used by Shiu.")

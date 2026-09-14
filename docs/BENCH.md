@@ -48,7 +48,7 @@ rate_max = 200 Hz stays from CLAUDE.md, and PLAN's «typical odour» (150 Hz) is
 | `t_refractory` | 2.2 | Refractory period, ms; `v` and `g` are frozen, inputs still accumulate in `g`. Shiu `t_rfc` (Lazar et al. 2021). |
 | `t_delay` | 1.8 | Synaptic delay, ms: a spike reaches its targets `t_delay` later. Shiu `t_dly` (Paul et al. 2015). Not in CLAUDE.md; taken from the model. |
 | `w_syn` | 0.275 | Potential added to `g` per synapse, mV (× `syn_count` × sign). Shiu `w_syn`, the model's one free parameter. |
-| `syn_scale` | 2.25 | Multiplier on `w_syn` for our subgraph. Shiu simulate the whole brain with 1; the isolated mushroom body needs its own value so that a typical odour (30 % PN at 150 Hz) drives 5–10 % of the Kenyon cells with APL and > 30 % without. 2.25 gives 6.7 % / 38.5 %; calibrated by `scripts/calibrate.py` (curve in docs/BENCH.md, value mirrored in docs/calibration.json). |
+| `syn_scale` | 2.25 | Multiplier on `w_syn` for our subgraph. Shiu simulate the whole brain with 1; the isolated mushroom body needs its own value so that a typical odour (30 % PN at 150 Hz) drives 5–10 % of the Kenyon cells with APL and > 30 % without. 2.25 gives 7.3 % / 42.3 %; calibrated by `scripts/calibrate.py` (curve in docs/BENCH.md, value mirrored in docs/calibration.json). |
 | `dt` | 0.1 | Integration step, ms. brian2's `defaultclock.dt`, as used by Shiu. |
 | `rate_max` | 200.0 | Firing rate of a projection neuron at odour value 1.0, Hz. CLAUDE.md; Shiu drive their input neurons at `r_poi = 150 Hz`, which is odour value 0.75 here. |
 | `t_stim` | 50.0 | Duration of the odour (PN Poisson input), ms. CLAUDE.md. |
@@ -123,18 +123,18 @@ A trial = 600 steps of 0.1 ms (T_stim 50 + T_silence 10 ms), 2935 neurons in the
 
 | batch | s per batch | trials/s | ms per step |
 |---:|---:|---:|---:|
-| 64 | 0.219 | 291.8 | 0.366 |
-| 256 | 0.628 | 407.5 | 1.047 |
-| 1024 | 4.141 | 247.3 | 6.901 |
+| 64 | 0.184 | 348.0 | 0.307 |
+| 256 | 0.599 | 427.2 | 0.999 |
+| 1024 | 4.241 | 241.5 | 7.068 |
 
-PLAN target ≥ 200 trials/s at batch 256: 407.5 — met.
+PLAN target ≥ 200 trials/s at batch 256: 427.2 — met.
 
 ### Two ways to compute the synaptic current (batch 256)
 
 | drive | trials/s |
 |---|---:|
-| `events` | 416.2 |
-| `dense` | 87.7 |
+| `events` | 396.5 |
+| `dense` | 87.4 |
 
 `events`: from the step's (trial, neuron) events a CSR spike matrix S is built and `S @ W` is computed (sparse × sparse, the result is added into `g` by flat indices). `dense`: `W.T @ spikes.T` with a dense spike matrix (n_neurons × n_trials). The results are bit-for-bit identical: True. `events` is used.
 
@@ -142,20 +142,20 @@ PLAN target ≥ 200 trials/s at batch 256: 407.5 — met.
 
 ```
    ncalls  tottime  percall  cumtime  percall filename:lineno(function)
-        1    0.329    0.329    0.733    0.733 fly_ftl_extract\brain\lif.py:156(simulate)
-      582    0.114    0.000    0.347    0.001 fly_ftl_extract\brain\lif.py:258(_deliver)
+        1    0.318    0.318    0.713    0.713 fly_ftl_extract\brain\lif.py:156(simulate)
+      582    0.126    0.000    0.347    0.001 fly_ftl_extract\brain\lif.py:258(_deliver)
       582    0.049    0.000    0.049    0.000 {built-in method scipy.sparse._sparsetools.csr_matmat}
-     1100    0.046    0.000    0.046    0.000 {method 'nonzero' of 'numpy.ndarray' objects}
-     3492    0.025    0.000    0.036    0.000 site-packages\scipy\sparse\_sputils.py:263(get_index_dtype)
-      582    0.016    0.000    0.016    0.000 {built-in method scipy.sparse._sparsetools.csr_matmat_maxnnz}
-     1746    0.008    0.000    0.061    0.000 site-packages\scipy\sparse\_compressed.py:30(__init__)
-     2332    0.008    0.000    0.008    0.000 {method 'reduce' of 'numpy.ufunc' objects}
-      582    0.007    0.000    0.007    0.000 {built-in method scipy.sparse._sparsetools.expandptr}
+     1100    0.040    0.000    0.040    0.000 {method 'nonzero' of 'numpy.ndarray' objects}
+     3492    0.025    0.000    0.035    0.000 site-packages\scipy\sparse\_sputils.py:263(get_index_dtype)
+      582    0.013    0.000    0.013    0.000 {built-in method scipy.sparse._sparsetools.csr_matmat_maxnnz}
+     2332    0.007    0.000    0.007    0.000 {method 'reduce' of 'numpy.ufunc' objects}
+     1746    0.007    0.000    0.057    0.000 site-packages\scipy\sparse\_compressed.py:30(__init__)
      3492    0.007    0.000    0.045    0.000 site-packages\scipy\sparse\_base.py:1695(_get_index_dtype)
+      582    0.006    0.000    0.006    0.000 {built-in method scipy.sparse._sparsetools.expandptr}
      6984    0.006    0.000    0.006    0.000 site-packages\numpy\_core\getlimits.py:399(__init__)
-      582    0.006    0.000    0.120    0.000 site-packages\scipy\sparse\_compressed.py:415(_matmul_sparse)
-     1746    0.006    0.000    0.009    0.000 site-packages\scipy\sparse\_sputils.py:443(check_shape)
-     1746    0.006    0.000    0.020    0.000 site-packages\scipy\sparse\_compressed.py:166(check_format)
+     1746    0.005    0.000    0.019    0.000 site-packages\scipy\sparse\_compressed.py:166(check_format)
+      582    0.005    0.000    0.117    0.000 site-packages\scipy\sparse\_compressed.py:415(_matmul_sparse)
+     1746    0.005    0.000    0.012    0.000 site-packages\scipy\sparse\_compressed.py:1132(prune)
 ```
 
 Reading the profile: the ufunc calls (multiply/add/compare on (n_trials, n_int) arrays) are not shown separately by cProfile — they are part of the tottime of `simulate`; `_deliver` is building the CSR spike matrix and `csr_matmat` (the product itself is a small share, the rest is scipy's constructor checks); Poisson generation (`Generator.random`) does not make the top. The bottleneck is neither matmul nor Poisson but the per-step Python overhead.

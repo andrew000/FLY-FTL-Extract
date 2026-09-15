@@ -10,11 +10,14 @@ import pytest
 from fly_ftl_extract.dopamine import (
     MbonWeights,
     Readout,
+    SparseStates,
     TrainConfig,
     WeightsMismatchError,
     WeightsMissingError,
     dan_update,
+    dan_update_sparse,
     features,
+    margin_sparse,
     resniff_threshold,
     score,
     sniff_seed,
@@ -115,3 +118,43 @@ def test_seeds_are_deterministic_and_distinct() -> None:
     assert sniff_seed(a, 0) == a
     assert len({sniff_seed(a, s) for s in range(4)}) == 4
     assert kwarg_trial_index(2, 5) != kwarg_trial_index(2, 6) != kwarg_trial_index(3, 5)
+
+
+def test_sparse_states_match_dense_features() -> None:
+    """The CSR path computes the same margins and the same delta-rule step as the dense
+    one, for per-puff counts ``(n, n_puffs, n_kc)``."""
+    rng = np.random.default_rng(5)
+    counts = (rng.random((300, 4, 16)) < 0.1).astype(np.uint8) * rng.integers(1, 4, (300, 4, 16))
+    counts = counts.astype(np.uint8)
+    counts[7] = 0  # an all-silent trial
+    y = (rng.random(300) < 0.4).astype(np.float32)
+    states = SparseStates(counts, chunk=64)
+    assert len(states) == 300
+    assert states.n_states == 64
+    for mode in ("binary", "log1p", "both"):
+        dense = Readout.zeros(64, mode)
+        sparse_r = Readout.zeros(64, mode)
+        idx = np.array([3, 7, 250, 12, 99])
+        pattern, logs = states.rows(idx)
+        assert np.allclose(margin_sparse(sparse_r, pattern, logs), dense.margin(counts[idx]))
+        for _ in range(5):
+            loss_d = dan_update(dense, features(counts[idx], mode), y[idx], lr=0.3, l2=1e-3)
+            loss_s = dan_update_sparse(sparse_r, pattern, logs, y[idx], lr=0.3, l2=1e-3)
+            assert loss_d == pytest.approx(loss_s, rel=1e-5)
+        assert np.allclose(dense.w, sparse_r.w, atol=1e-6)
+        assert dense.b == pytest.approx(sparse_r.b)
+        assert np.allclose(
+            margin_sparse(sparse_r, pattern, logs), dense.margin(counts[idx]), atol=1e-5
+        )
+
+
+def test_train_readout_sparse_equals_dense() -> None:
+    counts, y = separable(2000, 4)
+    counts_val, y_val = separable(500, 6)
+    cfg = TrainConfig(lr=0.2, max_epochs=5, patience=5)
+    dense, log_d = train_readout(counts, y, counts_val, y_val, mode="both", config=cfg)
+    sparse_r, log_s = train_readout(
+        SparseStates(counts), y, counts_val, y_val, mode="both", config=cfg
+    )
+    assert log_d.best_val_f1 == pytest.approx(log_s.best_val_f1, abs=1e-6)
+    assert np.allclose(dense.w, sparse_r.w, atol=1e-4)

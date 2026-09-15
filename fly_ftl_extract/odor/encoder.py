@@ -28,8 +28,10 @@ proxy in docs/METRICS.md §6 topped at F1 0.973 for context 6/3 while the same f
 buckets and lets the Kenyon cells' membrane carry the previous tokens into the next puff.
 Proxy on the grammar-3 test split (docs/METRICS.md §6): fly-odor-3 0.9870, slots 0.9921,
 slots + bigrams 0.9973, slots + bigrams with 2 hashes per feature 0.9985 (the default).
-What remains is beyond a 6/3 window: ``obj.self.i18n.get("k", …)`` — the object that makes
-it a non-key sits seven tokens before the string.
+What remains is mostly ``obj.self.i18n.get("k", …)`` (a non-key: the root is ``obj``): the
+``.`` before ``<PREFIX>`` sits seven tokens before the string, outside the slots, but it is
+in the bigram of slot −6, so the odour does carry it — the linear probe over 124 buckets
+does not separate it (1024 buckets give the same F1); the brain has to.
 :func:`ngram_features` is the ``fly-odor-3`` feature set, kept only so that the proxy can
 put the two encoders side by side.
 """

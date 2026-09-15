@@ -12,10 +12,12 @@ error signal), early stopping on the validation F1.  Numpy only.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Literal
 
 import numpy as np
+import scipy.sparse as sp
 
 FeatureMode = Literal["binary", "log1p", "both"]
 FEATURE_MODES: tuple[FeatureMode, ...] = ("binary", "log1p", "both")
@@ -89,12 +91,105 @@ def dan_update(readout: Readout, x: np.ndarray, y: np.ndarray, lr: float, l2: fl
     would have made it right.
     """
     margin = readout.margin_from_features(x)
+    err, loss = _dopamine_error(margin, y)
+    grad_w = x.T @ err / len(x) + np.float32(l2) * readout.w
+    readout.w -= np.float32(lr) * grad_w
+    readout.b -= lr * float(err.mean())
+    return loss
+
+
+def _dopamine_error(margin: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, float]:
     p = 1.0 / (1.0 + np.exp(-margin))
     eps = 1e-7
     loss = float(-np.mean(y * np.log(p + eps) + (1 - y) * np.log(1 - p + eps)))
-    err = (p - y).astype(np.float32)
-    grad_w = x.T @ err / len(x) + np.float32(l2) * readout.w
-    readout.w -= np.float32(lr) * grad_w
+    return (p - y).astype(np.float32), loss
+
+
+class SparseStates:
+    """KC spike counts of many trials as one CSR matrix, for fast readout training.
+
+    Only ~9 % of the (puff, KC) states of a trial are non-zero, so the features of a
+    minibatch are built from the non-zero entries alone: the ``binary`` part is the
+    pattern with ones as data, the ``log1p`` part the same pattern with ``log1p(count)``
+    as data.  The maths is exactly that of :func:`features` / :func:`dan_update`; only the
+    zeros are never materialised (a dense ``512 × 51940`` float32 minibatch costs ~80 ms,
+    the sparse one a few).
+    """
+
+    def __init__(self, counts: np.ndarray, chunk: int = 4096) -> None:
+        n = counts.shape[0]
+        self.n_states = int(np.prod(counts.shape[1:]))
+        indptr = np.zeros(n + 1, dtype=np.int64)
+        indices_parts: list[np.ndarray] = []
+        log_parts: list[np.ndarray] = []
+        for start in range(0, n, chunk):
+            block = np.asarray(counts[start : start + chunk]).reshape(-1, self.n_states)
+            rows, cols = np.nonzero(block)
+            indices_parts.append(cols.astype(np.int32))
+            log_parts.append(np.log1p(block[rows, cols].astype(np.float32)))
+            indptr[start + 1 : start + 1 + len(block)] = indptr[start] + np.cumsum(
+                np.bincount(rows, minlength=len(block))
+            )
+        self.indptr = indptr
+        self.indices = np.concatenate(indices_parts) if indices_parts else np.zeros(0, np.int32)
+        self.log1p = np.concatenate(log_parts) if log_parts else np.zeros(0, np.float32)
+        self.n = int(n)
+
+    def __len__(self) -> int:
+        return self.n
+
+    def rows(self, idx: np.ndarray) -> tuple[sp.csr_matrix, sp.csr_matrix]:
+        """``(pattern, log1p)`` CSR matrices of the selected trials (same sparsity)."""
+        starts, ends = self.indptr[idx], self.indptr[idx + 1]
+        lengths = ends - starts
+        take = np.concatenate([np.arange(a, b) for a, b in zip(starts, ends, strict=True)])
+        indptr = np.zeros(len(idx) + 1, dtype=np.int64)
+        np.cumsum(lengths, out=indptr[1:])
+        shape = (len(idx), self.n_states)
+        cols = self.indices[take]
+        log_data = self.log1p[take]
+        pattern = sp.csr_matrix((np.ones(len(cols), dtype=np.float32), cols, indptr), shape=shape)
+        logs = sp.csr_matrix((log_data, cols, indptr), shape=shape)
+        return pattern, logs
+
+
+def _split_weights(readout: Readout) -> tuple[np.ndarray | None, np.ndarray | None]:
+    """Views of the binary and log1p halves of the weight vector (``None`` when absent)."""
+    if readout.mode == "binary":
+        return readout.w, None
+    if readout.mode == "log1p":
+        return None, readout.w
+    n = readout.n_states
+    return readout.w[:n], readout.w[n:]
+
+
+def margin_sparse(readout: Readout, pattern: sp.csr_matrix, logs: sp.csr_matrix) -> np.ndarray:
+    """``X @ W + b`` from the sparse minibatch (identical to the dense margin)."""
+    w_bin, w_log = _split_weights(readout)
+    margin = np.full(pattern.shape[0], np.float32(readout.b), dtype=np.float32)
+    if w_bin is not None:
+        margin += pattern @ w_bin
+    if w_log is not None:
+        margin += logs @ w_log
+    return margin
+
+
+def dan_update_sparse(  # noqa: PLR0917
+    readout: Readout,
+    pattern: sp.csr_matrix,
+    logs: sp.csr_matrix,
+    y: np.ndarray,
+    lr: float,
+    l2: float,
+) -> float:
+    """:func:`dan_update` on a sparse minibatch — the same step, zeros skipped."""
+    err, loss = _dopamine_error(margin_sparse(readout, pattern, logs), y)
+    n = np.float32(len(y))
+    w_bin, w_log = _split_weights(readout)
+    if w_bin is not None:
+        w_bin -= np.float32(lr) * ((pattern.T @ err) / n + np.float32(l2) * w_bin)
+    if w_log is not None:
+        w_log -= np.float32(lr) * ((logs.T @ err) / n + np.float32(l2) * w_log)
     readout.b -= lr * float(err.mean())
     return loss
 
@@ -178,21 +273,25 @@ DEFAULT_TRAIN_CONFIG = TrainConfig()
 
 
 def train_readout(
-    counts_train: np.ndarray,
+    counts_train: np.ndarray | SparseStates,
     y_train: np.ndarray,
     counts_val: np.ndarray,
     y_val: np.ndarray,
     *,
     mode: FeatureMode,
     config: TrainConfig = DEFAULT_TRAIN_CONFIG,
+    on_epoch: Callable[[dict[str, float]], None] | None = None,
 ) -> tuple[Readout, TrainLog]:
     """Delta-rule training with early stopping on the validation F1.
 
     ``counts_*`` are KC spike counts ``(n, n_kc)`` or ``(n, n_puffs, n_kc)`` (uint8/int16);
     features are built per minibatch so that the full feature matrix never has to fit in
-    memory.
+    memory.  ``counts_train`` may also be a :class:`SparseStates` (the same trials as a
+    CSR matrix): same delta rule, ~10× faster per epoch for the temporal code.
     """
-    n_states = int(np.prod(counts_train.shape[1:]))
+    sparse = counts_train if isinstance(counts_train, SparseStates) else None
+    dense = None if isinstance(counts_train, SparseStates) else np.asarray(counts_train)
+    n_states = sparse.n_states if sparse is not None else int(np.prod(dense.shape[1:]))  # type: ignore[union-attr]
     readout = Readout.zeros(n_states, mode)
     best = Readout.zeros(n_states, mode)
     log = TrainLog()
@@ -204,13 +303,20 @@ def train_readout(
         losses = []
         for start in range(0, len(order), config.batch_size):
             idx = order[start : start + config.batch_size]
-            losses.append(
-                dan_update(
-                    readout, features(counts_train[idx], mode), y_tr[idx], config.lr, config.l2
+            if sparse is not None:
+                pattern, logs = sparse.rows(idx)
+                losses.append(
+                    dan_update_sparse(readout, pattern, logs, y_tr[idx], config.lr, config.l2)
                 )
-            )
+            else:
+                assert dense is not None  # noqa: S101 — the branch above handles the sparse case
+                losses.append(
+                    dan_update(readout, features(dense[idx], mode), y_tr[idx], config.lr, config.l2)
+                )
         val_f1 = score(readout.margin_batched(counts_val) > 0, y_val).f1
         log.epochs.append({"epoch": epoch, "loss": float(np.mean(losses)), "val_f1": val_f1})
+        if on_epoch is not None:
+            on_epoch(log.epochs[-1])
         if val_f1 > log.best_val_f1:
             log.best_val_f1, log.best_epoch, since_best = val_f1, epoch, 0
             best = Readout(readout.w.copy(), readout.b, mode)

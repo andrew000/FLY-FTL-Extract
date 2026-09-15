@@ -42,6 +42,7 @@ from fly_ftl_extract.dopamine import (
     MbonWeights,
     Readout,
     Scores,
+    SparseStates,
     TrainConfig,
     resniff_threshold,
     score,
@@ -426,17 +427,28 @@ def train_task(
     print(f"{name}: KC active per non-empty puff {kc_active}", flush=True)
 
     t1 = time.perf_counter()
+    sparse_tr = SparseStates(counts_tr)
+    del counts_tr  # ~18 GB dense for keys; the CSR form is what training reads
+    print(
+        f"{name}: train states as CSR: {len(sparse_tr)} rows, {len(sparse_tr.indices) / 1e6:.0f} M "
+        f"non-zeros ({time.perf_counter() - t1:.0f} s)",
+        flush=True,
+    )
     logs: dict[str, TrainLog] = {}
     candidates: dict[str, Readout] = {}
     for mode in modes:
         assert mode in FEATURE_MODES
         readout, log = train_readout(
-            counts_tr,
+            sparse_tr,
             y_tr,
             counts_va,
             table.label[va],
             mode=mode,
             config=config,
+            on_epoch=lambda e, m=mode: print(
+                f"    {name}/{m} epoch {int(e['epoch'])}: loss {e['loss']:.4f} val F1 {e['val_f1']:.4f}",
+                flush=True,
+            ),
         )
         logs[mode] = log
         candidates[mode] = readout
@@ -497,6 +509,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--lr", type=float, default=TrainConfig().lr)
     parser.add_argument("--l2", type=float, default=TrainConfig().l2)
     parser.add_argument("--epochs", type=int, default=TrainConfig().max_epochs)
+    parser.add_argument("--patience", type=int, default=TrainConfig().patience)
+    parser.add_argument("--batch-size", type=int, default=TrainConfig().batch_size)
     parser.add_argument("--attempt", default="", help="label of this attempt for METRICS.md §5")
     parser.add_argument("--max-resniff", type=int, default=MAX_RESNIFF)
     parser.add_argument(
@@ -509,7 +523,13 @@ def main(argv: list[str] | None = None) -> int:
         help="cap on keys train rows (negatives subsampled, positives kept); kwargs untouched",
     )
     args = parser.parse_args(argv)
-    config = TrainConfig(lr=args.lr, l2=args.l2, max_epochs=args.epochs)
+    config = TrainConfig(
+        lr=args.lr,
+        l2=args.l2,
+        max_epochs=args.epochs,
+        patience=args.patience,
+        batch_size=args.batch_size,
+    )
     max_resniff = args.max_resniff
     train_seeds = TRAIN_SEEDS[: args.train_seeds]
 

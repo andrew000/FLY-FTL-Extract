@@ -22,18 +22,24 @@ sensorimotor processing», Nature 634, 210–219 (verified through Crossref, DOI
 | synapse weight | 0.275 mV | `w_syn = 0.275 mV` | 0.275 mV × `syn_scale` |
 | dt | 0.1 ms | brian2 `defaultclock.dt` = 0.1 ms | 0.1 ms |
 | input | Poisson `rate_max·odor`, rate_max ≈ 200 Hz | `PoissonInput` 150 Hz with weight `w_syn·f_poi` (f_poi = 250 → 68.75 mV, every event = a spike), refractoriness of these neurons 0 | PN = Bernoulli spikes with p = rate_max·odor·dt, rate_max = 200 Hz, no refractoriness; a typical odour 0.75 = 150 Hz |
-| trial duration | 50 ms + 10 ms of silence | `t_run = 1000 ms` | 50 + 10 ms (600 steps) |
+| trial duration | 50 ms + 10 ms of silence | `t_run = 1000 ms` | single-odour mode (Phase 3, tests): `t_stim` 100 + 10 ms (1100 steps); production — temporal coding: 10 puffs × `puff_ms` 20 ms + 10 ms of silence (2100 steps) |
+| odour presentation | one PN vector per trial | one PoissonInput per trial | **temporal code** (reviewer's decision after Phase 5): token window → 10 slots → 10 PN vectors, 20 ms puffs with no silence between them, the membrane is not reset between puffs, KC spikes are counted per puff (`Brain.simulate_sequence`) |
+| APL | active; outside 3–15 % active KCs — a weight-scale bug | an ordinary neuron | active; `apl_scale` = 0.3 on APL's output synapses (section 2: with the same scale for every synapse APL silences every puff after the first) |
 | integration | — | brian2 `method='linear'` (exact) | forward Euler with dt = 0.1 ms |
 | reset | — | `v = v_rst; g = 0` | the same: both `v` **and** `g` are zeroed |
 | refractoriness and `g` | — | `(unless refractory)` on dv and dg: both frozen, `on_pre: g += w` still fires | the same: `g` does not decay but accumulates input |
 | DAN | not current | ordinary neurons of the whole brain | neither receive nor give current (the edges are kept separately in the npz) |
 | PN as postsynaptic | — | integrate | do not integrate: PNs are input only (X→PN edges dropped) |
 | `syn_scale` | — | 1 (whole brain) | **a new free parameter**, calibrated (section 2) |
+| `apl_scale` | — | 1 (all synapses alike) | **a second free parameter** (deviation from PLAN: the reviewer asked to recalibrate only `syn_scale`), calibrated together with `syn_scale` (section 2) |
 
 Differences from CLAUDE.md worth knowing: (1) a 1.8 ms delay was added — «the current from the
 previous step» became «the current from step t − 18»; (2) reset zeroes `g` as well; (3) PNs
 do not integrate but spike directly (that is what Shiu does through f_poi = 250); (4)
-rate_max = 200 Hz stays from CLAUDE.md, and PLAN's «typical odour» (150 Hz) is odor = 0.75.
+rate_max = 200 Hz stays from CLAUDE.md, and PLAN's «typical odour» (150 Hz) is odor = 0.75;
+(5) after Phase 5 a trial is a sequence of puffs, and the scale of APL's output is calibrated
+separately (`apl_scale`), because an isolated APL with connectome synapse counts saturates
+under a shared scale.
 
 <!-- params:start -->
 ## 1a. Parameters (`BrainParams`)

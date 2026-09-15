@@ -1,0 +1,168 @@
+[
+  {
+    "file": "ignore_attrs/app\\main.py",
+    "candidates": [
+      {
+        "call_position": [
+          8,
+          5
+        ],
+        "text": "\"real-key\"",
+        "key_name": "real-key",
+        "teacher": true,
+        "margin": 23.5628662109375,
+        "sniffs": 6,
+        "kc_active": 0.09387755393981934
+      },
+      {
+        "call_position": [
+          10,
+          5
+        ],
+        "text": "i18n.nested.set_locale",
+        "key_name": "nested-set_locale",
+        "teacher": true,
+        "margin": -1.0752184391021729,
+        "sniffs": 6,
+        "kc_active": 0.09376202523708344
+      }
+    ]
+  },
+  {
+    "file": "prefix/app\\handler.py",
+    "candidates": [
+      {
+        "call_position": [
+          7,
+          9
+        ],
+        "text": "\"self-get\"",
+        "key_name": "self-get",
+        "teacher": true,
+        "margin": 8.807637214660645,
+        "sniffs": 6,
+        "kc_active": 0.11309202760457993
+      },
+      {
+        "call_position": [
+          8,
+          9
+        ],
+        "text": "self.i18n.self_attr.key",
+        "key_name": "self_attr-key",
+        "teacher": true,
+        "margin": 4.190530776977539,
+        "sniffs": 1,
+        "kc_active": 0.11644206196069717
+      },
+      {
+        "call_position": [
+          9,
+          9
+        ],
+        "text": "\"self-call\"",
+        "key_name": "self-call",
+        "teacher": true,
+        "margin": 16.899036407470703,
+        "sniffs": 6,
+        "kc_active": 0.09657297283411026
+      },
+      {
+        "call_position": [
+          10,
+          9
+        ],
+        "text": "self.other.get",
+        "key_name": "other-get",
+        "teacher": false,
+        "margin": -1.2665345668792725,
+        "sniffs": 6,
+        "kc_active": 0.09834424406290054
+      },
+      {
+        "call_position": [
+          10,
+          9
+        ],
+        "text": "\"not-a-key\"",
+        "key_name": "not-a-key",
+        "teacher": false,
+        "margin": 3.41154408454895,
+        "sniffs": 1,
+        "kc_active": 0.0736234113574028
+      },
+      {
+        "call_position": [
+          12,
+          9
+        ],
+        "text": "obj.self.i18n.get",
+        "key_name": "self-i18n-get",
+        "teacher": false,
+        "margin": -9.132777214050293,
+        "sniffs": 1,
+        "kc_active": 0.09561031311750412
+      },
+      {
+        "call_position": [
+          12,
+          9
+        ],
+        "text": "\"deep-root-is-obj\"",
+        "key_name": "deep-root-is-obj",
+        "teacher": false,
+        "margin": 11.134085655212402,
+        "sniffs": 6,
+        "kc_active": 0.09988448768854141
+      },
+      {
+        "call_position": [
+          13,
+          9
+        ],
+        "text": "\"self-is-not-a-key-itself\"",
+        "key_name": "self-is-not-a-key-itself",
+        "teacher": false,
+        "margin": 3.135559320449829,
+        "sniffs": 6,
+        "kc_active": 0.09541779011487961
+      },
+      {
+        "call_position": [
+          17,
+          9
+        ],
+        "text": "cls.i18n.cls_key",
+        "key_name": "cls_key",
+        "teacher": true,
+        "margin": 0.8982212543487549,
+        "sniffs": 6,
+        "kc_active": 0.08082403242588043
+      },
+      {
+        "call_position": [
+          18,
+          9
+        ],
+        "text": "\"cls-get\"",
+        "key_name": "cls-get",
+        "teacher": true,
+        "margin": 9.11838150024414,
+        "sniffs": 6,
+        "kc_active": 0.10377359390258789
+      },
+      {
+        "call_position": [
+          19,
+          9
+        ],
+        "text": "\"cls-l-name-call\"",
+        "key_name": "cls-l-name-call",
+        "teacher": true,
+        "margin": 14.346673011779785,
+        "sniffs": 6,
+        "kc_active": 0.09445513784885406
+      }
+    ]
+  }
+]

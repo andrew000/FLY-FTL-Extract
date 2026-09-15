@@ -114,15 +114,25 @@ p = rate_max·odor·dt. The weights are multiplied by `syn_scale` (calibrated, `
 because an isolated mushroom body without the rest of the brain needs a different scale than
 Shiu's whole brain.
 
-Input: PNs receive Poisson spikes at rate `rate_max · odor[i]` (rate_max ≈ 200 Hz) for
-`T_stim = 50 ms`, then 10 ms of silence. The «trial» state = the vector of KC spike counts
-over the window (int16) + MBON spikes (for the TUI). APL must be active: if the share of
-active KCs in a trial leaves 3–15 %, that is a bug in the weight scaling, not a reason to
-switch APL off.
+Input: PNs receive Poisson spikes at rate `rate_max · odor[i]` (rate_max ≈ 200 Hz).
+**Temporal coding** (reviewer's decision after Phase 5, `Brain.simulate_sequence`): a trial is
+a sequence of 10 puffs (one per window slot), each `puff_ms = 20 ms` with no silence between
+puffs, `T_silence = 10 ms` at the end; the membrane state is not reset between puffs (that is
+the memory of the preceding tokens). The «trial» state = KC spike counts **per puff**
+`(n_puffs, n_kc)` int16 + MBON spikes (for the TUI). The old `simulate()` (one vector for
+`T_stim = 100 ms`) stays for the Phase 3 tests with its own calibration. APL must be active:
+if the share of active KCs per non-empty puff leaves 3–15 %, that is a bug in the weight
+scaling, not a reason to switch APL off. Calibration has two parameters: `syn_scale` and
+`apl_scale` (a multiplier on APL's output synapses; with the same scale for every synapse the
+single APL fires at its refractory limit the whole time an odour is present and the KCs
+respond only to the first puff — no `syn_scale` changes that, `docs/BENCH.md` §2). Target:
+8–10 % KCs per puff, APL reduces activity ≥ 2×, a single PN spike alone does not light a KC.
 
 **Batching is mandatory**: the state has shape `(n_trials, n_neurons)`, the synaptic current
-is `spikes @ W` through `scipy.sparse.csr_matrix`. Target speed: ≥ 200 trials/s on a laptop
-CPU for ~5 000 neurons (≈ 600 steps × sparse matmul). Measure it, record it in
+is `spikes @ W` through `scipy.sparse.csr_matrix`. The threshold of ≥ 200 trials/s per
+process was lifted by the reviewer's decision after Phase 5 (a trial is now 2100 steps); what
+counts is the end-to-end speed of `scripts/train.py` over several processes (memory-bound:
+16 and 30 processes give the same, a smaller batch wins). Measure it, record it in
 `docs/BENCH.md`.
 
 Determinism: the PRNG is seeded from sha256(file contents + candidate index + encoder
@@ -139,15 +149,21 @@ names other than the known i18n names and ignore attributes → `<NAME>`; those 
 `<I18N>` / `<PREFIX>` / `<IGNORE>` / `<IGNORE_KW>` — that is the signal, and it does not depend
 on the concrete name, so `-k LF` smells the same as `i18n`; `get` and `_path` are constants
 of the original and stay literal; Python keywords and operators stay literal).
-Features → feature hashing (n-grams 1..3 with the position relative to the candidate) into a
-dimension = the number of PNs in the subgraph (124 cholinergic uniglomerular PNs of the right
-hemisphere). The vector is normalised into [0, 1] (`tanh` of the sum of weights in the
-bucket). The tokenizer yields a 12/6 window, but the `fly-odor-2` encoder encodes only 6
-tokens before and 3 after the focus and no position-independent n-grams: in 124 buckets the
-hash collides, and the proxy measurement (logistic regression on the odours themselves,
-`docs/METRICS.md`) showed an F1 ceiling of 0.95 for 12/6 and 0.973 for 6/3 — the same
-features in 1024 buckets give 0.997. The number of PNs is the main limit on the fly's
-accuracy.
+Features → feature hashing into a dimension = the number of PNs in the subgraph (124
+cholinergic uniglomerular PNs of the right hemisphere); the bucket value is `tanh` of the sum
+of weights, a vector in [0, 1). The tokenizer yields a 12/6 window, the encoder takes 6 tokens
+before and 3 after the focus.
+**Encoder `fly-odor-4` — temporal code** (reviewer's decision after Phase 5): the window is 10
+slots (6 / candidate / 3, the context right-aligned to the candidate), every slot → its own
+124-PN vector = one puff. Slot features: normalised token, token + signed distance, token
+type, bracket depth (derived lexically by stepping over brackets from the focus), bigram with
+the previous token; the candidate slot — its tokens with the index within the focus + kind /
+first_positional / in_kwargs / depth; 2 hashes per feature (~10 active PNs per puff); an empty
+slot (start of file) is a zero vector, a silent puff. The proxy (logistic regression on the
+odours themselves, test split grammar-3, `docs/METRICS.md` §6): fly-odor-3 (one vector,
+n-grams) 0.987 → slots 0.992 → slots + bigrams 0.997 → + 2 hashes 0.9985; 1024 buckets give
+the same 0.9985, i.e. 124 PNs are no longer the limit. The residue is `obj.self.i18n.get(…)`:
+the `.` at −7 is in the bigram of slot −6, but the linear proxy does not separate it.
 
 Important: `--i18n-keys`, `-p/--i18n-keys-prefix`, `--ignore-attributes`, `--ignore-kwargs`
 affect the **token normalisation**, not the decision. The decision is the fly's. That is,
@@ -169,6 +185,9 @@ first positional argument) is positive, the chain is negative. An attribute call
 (`i18n.a.b(...)`) → the chain is positive, a string inside is negative even when its text
 equals the key (`i18n.core.get("core-get")`). Kwargs of a positive call: placeable are those
 the teacher put into the message (`_path` and `--ignore-kwargs` are not).
+
+Readout under the temporal code: features `[spiked, log1p(count)]` per puff →
+2 × 10 × 2597 = 51 940 weights per class; the delta rule as before; resniff as before.
 
 Dataset: `scripts/make_dataset.py` generates ≥ 20 000 snippets from a grammar of random
 Python constructs (`i18n.get` calls, attribute chains of various lengths, `self.i18n`,

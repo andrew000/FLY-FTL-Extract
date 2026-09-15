@@ -47,7 +47,7 @@ from fly_ftl_extract.tokenizer.candidates import (
 
 REPO = Path(__file__).resolve().parent.parent
 DATASET_DIR = REPO / "fly_ftl_extract" / "data" / "dataset"
-GENERATOR_VERSION = "grammar-3"
+GENERATOR_VERSION = "grammar-4"
 DEFAULT_SNIPPETS = 20_000
 DEFAULT_SEED = 20240914
 SPLIT_FRACTIONS = (0.8, 0.1, 0.1)
@@ -55,6 +55,38 @@ NEGATIVE_RATIO = 3  # majority : minority
 SPLIT_NAMES = ("train", "val", "test")
 PREFIXED_BARE_CALL = 0.6  # share of bare calls written as self.L(...) / cls.LazyProxy(...)
 PREFIX_GET_CALL = 0.08
+MUTATION_SHARE = 0.3
+"""grammar-4 (auditor's decision after attempt 9): share of statements drawn from the
+mutation families below — one token class of a positive production changed, the label
+always from ``reference/``.  The two fixture files the attempt-9 fly got wrong
+(``i18n.nested.set_locale()`` is a key, ``self.other.get("x")`` is not) were constructs the
+grammar-3 corpus almost never produced."""
+FILE_START_MUTATION = 0.1
+"""Share of modules whose very first line is a mutation statement (no import header)."""
+MUTATION_FAMILIES = (
+    "ignore-L1",  # <I18N>.<IGNORE>()            — ignored (first attribute)
+    "ignore-L2-last",  # <I18N>.<NAME>.<IGNORE>() — a key: only the first attribute counts
+    "ignore-L2-first",  # <I18N>.<IGNORE>.<NAME>() — ignored
+    "ignore-L3",  # <I18N>.<NAME>.<NAME>.<IGNORE>() — a key
+    "prefix-i18n-get",  # <PREFIX>.<I18N>.get("x")        — key with -p, not without
+    "prefix-name-get",  # <PREFIX>.<NAME>.get("x")        — never a key
+    "name-prefix-i18n-get",  # <NAME>.<PREFIX>.<I18N>.get("x") — never a key
+    "prefix-prefix-i18n-get",  # <PREFIX>.<PREFIX>.<I18N>.get("x") — never a key
+    "prefix-i18n-attr",  # <PREFIX>.<I18N>.<NAME>()        — key with -p
+    "prefix-name-attr",  # <PREFIX>.<NAME>.<NAME>()        — never a key
+    "ignore-kw-first",  # <I18N>.get("x", <IGNORE_KW>=…, a=…)
+    "ignore-kw-middle",  # <I18N>.get("x", a=…, <IGNORE_KW>=…, b=…)
+    "ignore-kw-last",  # <I18N>.get("x", a=…, <IGNORE_KW>=…)
+    "ignore-kw-only",  # <I18N>.get("x", <IGNORE_KW>=…)
+)
+MUTATION_CONTEXTS = (
+    "ctx-plain",  # the usual statement wrappers
+    "ctx-return-list",  # return [expr, "s"]
+    "ctx-list",  # x = ["s", expr]
+    "ctx-dict",  # x = {"k": expr, "s": v}
+    "ctx-arg",  # other(ident, expr) / other(expr, "s")
+    "ctx-file-start",  # the module's first line
+)
 
 # ------------------------------------------------------------------- vocabulary
 
@@ -125,6 +157,8 @@ class Snippet:
     id: int
     source: str
     config: OptionConfig
+    families: tuple[str, ...] = ()
+    """grammar-4 mutation families and contexts the module contains (one tag per use)."""
 
 
 def random_config(rng: random.Random) -> OptionConfig:
@@ -167,6 +201,7 @@ class Grammar:
         self.in_async = False
         self.in_function = False
         self.in_method: str | None = None  # "self" / "cls" inside a class body
+        self.families: list[str] = []
 
     # -- atoms -------------------------------------------------------------------------
     def word(self) -> str:
@@ -362,6 +397,98 @@ class Grammar:
             return self.ignore_call()
         return self.lookalike_call()
 
+    # -- grammar-4 mutation families ---------------------------------------------------
+    def ignore_attr(self) -> str:
+        """A configured ignore attribute — or, 1 in 4, an ignore-looking name that this
+        snippet's options do *not* ignore (``-i core`` makes ``set_locale`` a key)."""
+        pool = self.config.ignore_attributes
+        if self.rng.random() < 0.25 or not pool:  # noqa: PLR2004
+            others = [
+                a for a in (*DEFAULT_IGNORE_ATTRIBUTES, *CUSTOM_IGNORE_ATTRS) if a not in pool
+            ]
+            return self.rng.choice(others) if others else self.ident()
+        return self.rng.choice(pool)
+
+    def ignore_kw(self) -> str:
+        """A configured ignore kwarg — or, without any, a name from the pool (then it is an
+        ordinary, placeable kwarg: the label comes from the teacher either way)."""
+        if self.config.ignore_kwargs and self.rng.random() < 0.8:  # noqa: PLR2004
+            return self.rng.choice(self.config.ignore_kwargs)
+        return self.rng.choice(IGNORE_KWARG_POOL)
+
+    def plain_kwargs(self, n: int) -> list[str]:
+        names = self.rng.sample(KWARG_NAMES, n)
+        return [f"{name}={self.value(1)}" for name in names]
+
+    def mutation(self) -> str:
+        """One expression from :data:`MUTATION_FAMILIES` (the family tag is recorded)."""
+        family = self.rng.choice(MUTATION_FAMILIES)
+        self.families.append(family)
+        i18n = self.rng.choice(self.config.i18n_keys)
+        name, name2 = self.ident(), self.ident()
+        prefix = self.rng.choice(PREFIX_POOL)
+        prefix2 = "cls" if prefix == "self" else "self"
+        args = ", ".join(self.kwargs(1, allow_stars=False)) if self.rng.random() < 0.5 else ""  # noqa: PLR2004
+        # the i18n root itself may sit behind a prefix (self.i18n) like anywhere else
+        root = f"{self.in_method}.{i18n}" if self.in_method and self.rng.random() < 0.4 else i18n  # noqa: PLR2004
+        ign = self.ignore_attr()
+        s = self.string()
+        if family == "ignore-L1":
+            return f"{root}.{ign}({args})"
+        if family == "ignore-L2-last":
+            return f"{root}.{name}.{ign}({args})"
+        if family == "ignore-L2-first":
+            return f"{root}.{ign}.{name}({args})"
+        if family == "ignore-L3":
+            return f"{root}.{name}.{name2}.{ign}({args})"
+        if family == "prefix-i18n-get":
+            return f"{prefix}.{i18n}.get({self.call_args(s, 1)})"
+        if family == "prefix-name-get":
+            return f"{prefix}.{name}.get({self.call_args(s, 1)})"
+        if family == "name-prefix-i18n-get":
+            return f"{name}.{prefix}.{i18n}.get({self.call_args(s, 1)})"
+        if family == "prefix-prefix-i18n-get":
+            return f"{prefix}.{prefix2}.{i18n}.get({self.call_args(s, 1)})"
+        if family == "prefix-i18n-attr":
+            return f"{prefix}.{i18n}.{name}({args})"
+        if family == "prefix-name-attr":
+            return f"{prefix}.{name}.{name2}({args})"
+        kw = f"{self.ignore_kw()}={self.value(1)}"
+        if family == "ignore-kw-first":
+            items = [kw, *self.plain_kwargs(self.rng.randint(1, 2))]
+        elif family == "ignore-kw-middle":
+            a, b = self.plain_kwargs(2)
+            items = [a, kw, b]
+        elif family == "ignore-kw-last":
+            items = [*self.plain_kwargs(self.rng.randint(1, 2)), kw]
+        else:  # ignore-kw-only
+            items = [kw]
+        return f"{root}.get({', '.join([s, *items])})"
+
+    def mutation_statement(self, context: str | None = None) -> list[str]:
+        """A mutation expression placed into one of :data:`MUTATION_CONTEXTS`."""
+        expr = self.mutation()
+        ctx = context or self.rng.choice(MUTATION_CONTEXTS[:-1])
+        if ctx == "ctx-return-list" and not self.in_function:
+            ctx = "ctx-list"
+        self.families.append(ctx)
+        if ctx == "ctx-plain":
+            return self.wrap(expr)
+        if ctx == "ctx-return-list":
+            return [f"return [{expr}, {self.string()}]"]
+        if ctx == "ctx-list":
+            return [f"{self.ident()} = [{self.string()}, {expr}]"]
+        if ctx == "ctx-dict":
+            return [
+                f"{self.ident()} = {{{self.string()}: {expr}, {self.string()}: {self.value(1)}}}"
+            ]
+        if ctx == "ctx-arg":
+            callee = self.rng.choice(PLAIN_CALLEES)
+            if self.rng.random() < 0.5:  # noqa: PLR2004
+                return [f"{callee}({self.ident()}, {expr})"]
+            return [f"{callee}({expr}, {self.string()})"]
+        return [expr]  # ctx-file-start: the bare expression on the first line
+
     # -- statements --------------------------------------------------------------------
     def wrap(self, expr: str) -> list[str]:
         r = self.rng.random()
@@ -424,6 +551,8 @@ class Grammar:
         return [f'{self.ident()} = f"{self.word()} {{{self.ident()}}} {self.word()}"']
 
     def statement(self) -> list[str]:
+        if self.rng.random() < MUTATION_SHARE:
+            return self.mutation_statement()
         r = self.rng.random()
         if r < 0.5:  # noqa: PLR2004
             return self.wrap(self.i18n_expr())
@@ -505,7 +634,10 @@ class Grammar:
         # (no context before the candidate) must be smelled too
         target = self.rng.randint(1, 4) if r < 0.08 else self.rng.randint(5, 40)  # noqa: PLR2004
         lines: list[str] = []
-        if r >= 0.08 and self.rng.random() < 0.55:  # noqa: PLR2004
+        if self.rng.random() < FILE_START_MUTATION:
+            # grammar-4: the construct on the very first line of the file
+            lines.extend(self.mutation_statement("ctx-file-start"))
+        elif r >= 0.08 and self.rng.random() < 0.55:  # noqa: PLR2004
             names = ", ".join(
                 sorted(
                     set(
@@ -541,13 +673,14 @@ def generate_snippets(n: int, seed: int) -> tuple[list[Snippet], int]:
     rejected = 0
     while len(out) < n:
         config = random_config(rng)
-        source = Grammar(rng, config).module()
+        grammar = Grammar(rng, config)
+        source = grammar.module()
         try:
             compile(source, "<snippet>", "exec", dont_inherit=True)
         except SyntaxError:
             rejected += 1
             continue
-        out.append(Snippet(len(out), source, config))
+        out.append(Snippet(len(out), source, config, tuple(grammar.families)))
     return out, rejected
 
 
@@ -627,6 +760,30 @@ def rows_of_snippet(
             for k, kw in enumerate(c.kwargs)
         )
     return keys, kwargs
+
+
+def family_shares(snippets: list[Snippet]) -> dict[str, dict[str, float | int]]:
+    """Per mutation family / context: occurrences, share of all occurrences, share of
+    snippets that contain it (docs/METRICS.md, grammar-4 section)."""
+    counts: dict[str, int] = dict.fromkeys((*MUTATION_FAMILIES, *MUTATION_CONTEXTS), 0)
+    in_snippets: dict[str, int] = dict.fromkeys(counts, 0)
+    for s in snippets:
+        for tag in s.families:
+            counts[tag] = counts.get(tag, 0) + 1
+        for tag in set(s.families):
+            in_snippets[tag] = in_snippets.get(tag, 0) + 1
+    total_fam = sum(counts[f] for f in MUTATION_FAMILIES) or 1
+    total_ctx = sum(counts[c] for c in MUTATION_CONTEXTS) or 1
+    out: dict[str, dict[str, float | int]] = {}
+    for tag, n in counts.items():
+        total = total_fam if tag in MUTATION_FAMILIES else total_ctx
+        out[tag] = {
+            "occurrences": n,
+            "share": n / total,
+            "snippets": in_snippets[tag],
+            "snippet_share": in_snippets[tag] / max(len(snippets), 1),
+        }
+    return out
 
 
 def balance(rows: list[Row], rng: np.random.Generator) -> list[Row]:
@@ -742,6 +899,7 @@ def main(argv: list[str] | None = None) -> int:
                         "split": SPLIT_NAMES[split_of[s.id]],
                         "source": s.source,
                         "config": asdict(s.config),
+                        "families": list(s.families),
                     },
                     ensure_ascii=False,
                 )
@@ -753,6 +911,7 @@ def main(argv: list[str] | None = None) -> int:
     }
     meta = {
         "generator_version": GENERATOR_VERSION,
+        "grammar4_families": family_shares(snippets),
         "encoder_version": ENCODER_VERSION,
         "seed": args.seed,
         "snippets": len(snippets),

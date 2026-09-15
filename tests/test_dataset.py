@@ -15,7 +15,10 @@ sys.path.insert(0, str(REPO / "scripts"))
 from _fixtures import FIXTURES  # noqa: E402
 from make_dataset import (  # noqa: E402
     DATASET_DIR,
+    MUTATION_CONTEXTS,
+    MUTATION_FAMILIES,
     balance_and_split,
+    family_shares,
     generate_snippets,
     rows_of_snippet,
 )
@@ -90,3 +93,22 @@ def test_balance_and_split_is_a_function_of_the_corpus_only() -> None:
     assert a[2] == b[2]
     assert set(a[2].values()) <= {0, 1, 2}
     assert len(a[2]) == len(snippets)
+
+
+def test_grammar4_families_are_all_present_and_labelled_by_the_teacher() -> None:
+    """Every mutation family and context occurs in a modest corpus, and each one yields
+    rows with labels of both classes across the corpus where the teacher says so."""
+    snippets, _ = generate_snippets(400, seed=21)
+    shares = family_shares(snippets)
+    for tag in (*MUTATION_FAMILIES, *MUTATION_CONTEXTS):
+        assert shares[tag]["occurrences"] > 0, tag
+    assert abs(sum(shares[f]["share"] for f in MUTATION_FAMILIES) - 1.0) < 1e-9
+    # the two constructs the attempt-9 fly got wrong must be common now
+    assert shares["ignore-L2-last"]["snippet_share"] > 0.05
+    assert shares["prefix-name-get"]["snippet_share"] > 0.05
+    labels_seen: set[bool] = set()
+    for s in snippets[:150]:
+        result = rows_of_snippet(s)
+        if result is not None:
+            labels_seen.update(r.label for r in result[0])
+    assert labels_seen == {True, False}

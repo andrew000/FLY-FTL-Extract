@@ -917,6 +917,35 @@ def temporal_section(
     return lines
 
 
+def grammar_section(dataset_meta: dict[str, object]) -> list[str]:
+    """§6b: the grammar-4 mutation families and their share of the corpus."""
+    fam = dataset_meta.get("grammar4_families")
+    if not isinstance(fam, dict):
+        return []
+    lines = [
+        "",
+        f"## 6b. Corpus `{dataset_meta['generator_version']}`: mutation families",
+        "",
+        (
+            "Reviewer's decision after attempt 9: for productions with a positive, mutations of one "
+            "token class are generated, the label always from `reference/` (`scripts/make_dataset.py`, `MUTATION_FAMILIES` / "
+            "`MUTATION_CONTEXTS`; 30 % of statements are mutations, 10 % of modules start with a mutation on the first "
+            "line). «share» — among all family occurrences (separately — among the contexts); «snippets» — "
+            "the share of corpus snippets where the family occurs at least once. There were no unexpected teacher labels: "
+            "everything agreed with docs/FORMAT.md §2 (an ignore attribute acts only at the first level; a prefix — only "
+            "when a `--i18n-keys` name follows it directly)."
+        ),
+        "",
+        "| family / context | occurrences | share | snippets |",
+        "|---|---:|---:|---:|",
+    ]
+    lines.extend(
+        f"| {tag} | {r['occurrences']} | {r['share']:.3f} | {r['snippet_share']:.3f} |"
+        for tag, r in fam.items()
+    )
+    return lines
+
+
 def deviations_section(brain: Brain, train_seeds: tuple[int, ...]) -> list[str]:
     """§7: what was decided against the auditor's brief / PLAN, and why (audit protocol
     item 4)."""
@@ -1141,6 +1170,7 @@ def write_doc(
         *attempts_table(),
         "<!-- attempts:end -->",
         *proxy_section(),
+        *grammar_section(dataset_meta),
         *temporal_section(results, brain, train_seeds, train_rows),
         *deviations_section(brain, train_seeds),
         *gate_section(results, fixtures),

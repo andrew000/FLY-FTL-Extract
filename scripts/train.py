@@ -414,18 +414,26 @@ def train_task(
     )
     timings: dict[str, float] = {}
     t0 = time.perf_counter()
-    # one seed at a time: the dense keys train states are ~6 GB per seed, so every seed is
-    # turned into CSR (SparseStates) and released before the next one is loaded
-    parts: list[SparseStates] = []
+    # one seed at a time: the dense keys train states are 6-8 GB per seed, so the CSR
+    # training matrix is built by SparseStates.from_loader (two passes over the cache,
+    # one dense seed in memory at a time); the brain runs during the first pass
     train_active: list[float] = []
     t_brain = 0.0
-    for s in train_seeds:
+
+    def load_seed(i: int) -> np.ndarray:
+        nonlocal t_brain
         t_seed = time.perf_counter()
-        counts_seed = cached_states(brain, table.odors[tr], s, f"{name} train seed {s}", cache)
+        counts_seed = cached_states(
+            brain, table.odors[tr], train_seeds[i], f"{name} train seed {train_seeds[i]}", cache
+        )
         t_brain += time.perf_counter() - t_seed
-        train_active.append(kc_active_per_puff(counts_seed, table.puff_active[tr]))
-        parts.append(SparseStates(counts_seed))
-        del counts_seed
+        if len(train_active) < len(train_seeds):
+            train_active.append(kc_active_per_puff(counts_seed, table.puff_active[tr]))
+        return counts_seed
+
+    t_csr = time.perf_counter()
+    sparse_tr = SparseStates.from_loader(load_seed, len(train_seeds))
+    t_csr = time.perf_counter() - t_csr - t_brain
     y_tr = np.tile(table.label[tr], len(train_seeds))
     t_seed = time.perf_counter()
     counts_va = cached_states(brain, table.odors[va], table.seed[va], f"{name} val", cache)
@@ -440,10 +448,10 @@ def train_task(
     print(f"{name}: KC active per non-empty puff {kc_active}", flush=True)
 
     t1 = time.perf_counter()
-    sparse_tr = SparseStates.concat(parts)
     print(
         f"{name}: train states as CSR: {len(sparse_tr)} rows, {len(sparse_tr.indices) / 1e6:.0f} M "
-        f"non-zeros ({time.perf_counter() - t0:.0f} s since the first seed)",
+        f"non-zeros ({t_csr:.0f} s of CSR building, {time.perf_counter() - t0:.0f} s since the "
+        "first seed)",
         flush=True,
     )
     logs: dict[str, TrainLog] = {}
@@ -767,13 +775,13 @@ def proxy_section() -> list[str]:
         lines += [
             "",
             (
-                "The residual errors of the best variant (`docs/proxy_errors/keys_4.json`): 13 of ~20 are "
-                '`obj.self.i18n.get("k", …)` (teacher: not a key, because the root is `obj`). The `.` token before '
-                "`<PREFIX>` sits at distance −7, i.e. outside the slots, but enters the bigram of slot −6 "
-                "(`. <PREFIX>`), so the information is in the odour; a linear readout over 124 "
-                "buckets with 2 hashes does not separate it (1024 buckets give the same F1 0.9985 — the limit is not the hash but "
-                "the linearity). This is the encoder's ceiling, which a brain with non-linear KCs can only preserve, not "
-                "raise."
+                "On the grammar-3 corpus the residual errors of the best variant were on 13 of ~20 — "
+                '`obj.self.i18n.get("k", …)` (teacher: not a key, because the root is `obj`); the `.` token before '
+                "`<PREFIX>` sits at distance −7, outside the slots, but enters the bigram of slot −6, and "
+                "1024 buckets gave the same F1 — the limit was not the hash but the near absence of such examples in "
+                "the corpus. On grammar-4 (mutation families, §6b) the same features give "
+                "test F1 0.9994; the residue is `docs/proxy_errors/keys_7.json`. The table rows other than "
+                "fly-odor-3 and fly-odor-5 were measured on the grammar-3 corpus."
             ),
         ]
     if PROXY_V1_JSON.exists():

@@ -139,6 +139,50 @@ class SparseStates:
         return self.n
 
     @classmethod
+    def from_loader(
+        cls, load: Callable[[int], np.ndarray], n_parts: int, chunk: int = 4096
+    ) -> SparseStates:
+        """Build from ``n_parts`` dense count arrays that are loaded one at a time.
+
+        Two passes over ``load(i)``: the first counts rows and non-zeros, the second fills
+        the preallocated CSR arrays.  Peak memory is therefore one dense part plus the
+        result — the six 6-8 GB seed arrays of a keys training set never coexist.
+        """
+        n_rows = 0
+        nnz = 0
+        n_states = 0
+        for i in range(n_parts):
+            counts = load(i)
+            n_states = int(np.prod(counts.shape[1:]))
+            n_rows += int(counts.shape[0])
+            nnz += int(np.count_nonzero(counts))
+            del counts
+        out = cls.__new__(cls)
+        out.n_states, out.n = n_states, n_rows
+        out.indptr = np.zeros(n_rows + 1, dtype=np.int64)
+        out.indices = np.empty(nnz, dtype=np.int32)
+        out.log1p = np.empty(nnz, dtype=np.float32)
+        row = pos = 0
+        for i in range(n_parts):
+            counts = load(i)
+            n = counts.shape[0]
+            for start in range(0, n, chunk):
+                block = np.asarray(counts[start : start + chunk]).reshape(-1, n_states)
+                rows, cols = np.nonzero(block)
+                k = len(cols)
+                out.indices[pos : pos + k] = cols
+                out.log1p[pos : pos + k] = np.log1p(block[rows, cols].astype(np.float32))
+                per_row = np.bincount(rows, minlength=len(block))
+                out.indptr[row + 1 : row + 1 + len(block)] = pos + np.cumsum(per_row)
+                row += len(block)
+                pos += k
+            del counts
+        if pos != nnz:
+            msg = f"loader returned different data on the second pass ({pos} != {nnz} non-zeros)"
+            raise ValueError(msg)
+        return out
+
+    @classmethod
     def concat(cls, parts: list[SparseStates]) -> SparseStates:
         """Stack several :class:`SparseStates` (same ``n_states``) into one.
 

@@ -174,3 +174,23 @@ def test_sparse_states_concat_matches_whole() -> None:
     idx = np.array([0, 29, 30, 69, 70, 89])
     a, b = joined.rows(idx), whole.rows(idx)
     assert (a[1] != b[1]).nnz == 0
+
+
+def test_sparse_states_from_loader_matches_whole() -> None:
+    rng = np.random.default_rng(11)
+    counts = (rng.random((70, 2, 9)) < 0.3).astype(np.uint8) * 3
+    parts = [counts[:20], counts[20:45], counts[45:]]
+    built = SparseStates.from_loader(lambda i: parts[i], 3, chunk=8)
+    whole = SparseStates(counts)
+    assert np.array_equal(built.indptr, whole.indptr)
+    assert np.array_equal(built.indices, whole.indices)
+    assert np.array_equal(built.log1p, whole.log1p)
+    assert len(built) == 70
+    calls = [0]
+
+    def flaky(i: int) -> np.ndarray:
+        calls[0] += 1
+        return parts[i] if calls[0] <= 3 else parts[i] * 0
+
+    with pytest.raises(ValueError, match="second pass"):
+        SparseStates.from_loader(flaky, 3)

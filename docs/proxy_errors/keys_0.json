@@ -1,302 +1,302 @@
 {
   "variant": "fly-odor-3: one vector, context 6/3, 3-grams",
   "categories": {
-    "FP after=, <NAME> before=. get (": 13,
-    "FP after=) ) before=( <NAME> (": 11,
-    "FN after=( <STR> before=( <NAME> ,": 8,
-    "FN after=) , before=. get (": 7,
-    "FP after=, <NAME> before=. <I18N> (": 6,
-    "FN after=( <STR> before=<NL> <NAME> =": 6,
-    "FP after=( <STR> before== lambda :": 6,
-    "FN after=) <NL> before=. get (": 5,
-    "FP after=( <FSTR> before=<NL> <NAME> =": 4,
-    "FP after=) ) before=. <I18N> (": 4,
-    "FP after=, _path before=. get (": 4,
-    "FN after=) ) before=. <I18N> (": 4,
-    "FN after=( <NAME> before=. <NAME> (": 4,
-    "FN after=( <STR> before=( lambda :": 4,
-    "FN after=( <STR> before=. <NAME> (": 4
+    "FP after=, <NAME> before=. get (": 140,
+    "FP after=, _path before=. get (": 29,
+    "FP after=) , before=. get (": 15,
+    "FP after=, <NAME> before=. <I18N> (": 15,
+    "FP after=) ] before=. get (": 14,
+    "FP after=, <IGNORE_KW> before=. get (": 14,
+    "FN after=( ) before=<NL> return [": 14,
+    "FN after=) <NL> before=. get (": 12,
+    "FP after=, * before=. get (": 10,
+    "FN after=( <STR> before=<NL> <NAME> =": 9,
+    "FN after=) <NL> before=<NL> <I18N> (": 9,
+    "FP after=, <NAME> before=, <NAME> (": 8,
+    "FP after=) <NL> before=. get (": 8,
+    "FP after=( ) before=( <NAME> ,": 8,
+    "FP after=( <NAME> before=<NL> <NAME> =": 7
   },
   "worst": [
     {
       "label": false,
-      "margin": 10.133329391479492,
-      "snippet": 5379,
-      "key_name": "i18n-balance-done-invite_pay",
-      "window": "<NAME> ( <NAME> ) : <NL> <IGNORE_KW> . <I18N> . <NAME> . <NAME> . <NAME> ( <IGNORE_KW> ="
+      "margin": 16.38601303100586,
+      "snippet": 5243,
+      "key_name": "LF-detail-title-summary_button",
+      "window": "<NL> <NAME> = ( lambda : <IGNORE_KW> . <I18N> . <NAME> . <NAME> . <NAME> ( _path ="
     },
     {
       "label": false,
-      "margin": 8.144388198852539,
-      "snippet": 12737,
-      "key_name": "LazyProxy-invite-list-text_menu",
-      "window": ": <NL> <NAME> = lambda : <IGNORE_KW> . <I18N> . <NAME> . <NAME> . <NAME> ( <IGNORE_KW> ="
+      "margin": 10.33018684387207,
+      "snippet": 16332,
+      "key_name": "LazyFilter-date-failed_welcome",
+      "window": "<STR> ) , <STR> ] <NL> <IGNORE_KW> . <I18N> . <NAME> . <NAME> ( <NAME> ="
     },
     {
       "label": false,
-      "margin": 5.460218906402588,
-      "snippet": 16867,
-      "key_name": "i18n-send",
-      "window": "<NL> <NAME> = ( lambda : <IGNORE_KW> . <I18N> . <NAME> ( _path ="
+      "margin": 10.173675537109375,
+      "snippet": 6379,
+      "key_name": "translator-wallet_date",
+      "window": "<NL> <NAME> = ( lambda : <IGNORE_KW> . <I18N> . <NAME> ( <NAME> ="
     },
     {
       "label": false,
-      "margin": 5.2547125816345215,
-      "snippet": 18985,
-      "key_name": "i18n-pay-text_warning-help-get",
-      "window": "<NAME> = <NAME> <NL> <NAME> = <IGNORE_KW> . <I18N> . <NAME> . <NAME> . <NAME> . get ( <STR> ,"
+      "margin": 9.519636154174805,
+      "snippet": 6497,
+      "key_name": "i18n-title-rank-level_list",
+      "window": "<NL> <NAME> = ( lambda : <IGNORE_KW> . <I18N> . <NAME> . <NAME> . <NAME> ( <NAME> ="
     },
     {
       "label": false,
-      "margin": 4.292257785797119,
-      "snippet": 12652,
-      "key_name": "L-main_rank-get",
-      "window": "= <NAME> . <NAME> <NL> return <IGNORE_KW> . <I18N> . <NAME> . get ( <STR> ,"
+      "margin": 6.0259575843811035,
+      "snippet": 7318,
+      "key_name": "edit.menu.group_8",
+      "window": "<PREFIX> . <I18N> . get ( <STR> ) <NL> <PREFIX>"
     },
     {
       "label": false,
-      "margin": 3.8617491722106934,
-      "snippet": 1129,
+      "margin": 5.714404582977295,
+      "snippet": 17438,
+      "key_name": "total",
+      "window": "<NAME> ( <NAME> , <PREFIX> ( <STR> ) ) <NL>"
+    },
+    {
+      "label": false,
+      "margin": 5.47797155380249,
+      "snippet": 14671,
       "key_name": null,
-      "window": ", <STR> , <NAME> ] <NL> <PREFIX> . <I18N> ( <STR> ,"
+      "window": "} <FSTR_MID> <FSTR_END> <NL> <NAME> = <I18N> ( <NAME> )"
     },
     {
       "label": false,
-      "margin": 3.8617491722106934,
-      "snippet": 10784,
+      "margin": 5.444888591766357,
+      "snippet": 2464,
+      "key_name": "set_context",
+      "window": ") ) <NL> await <NAME> ( <PREFIX> . <I18N> . <IGNORE> ( ) )"
+    },
+    {
+      "label": true,
+      "margin": -5.129385948181152,
+      "snippet": 13702,
+      "key_name": "next-prev",
+      "window": "<FSTR_END> , ) <NL> <I18N> ( <STR> ) . <NAME>"
+    },
+    {
+      "label": false,
+      "margin": 5.121152400970459,
+      "snippet": 4826,
       "key_name": null,
-      "window": ", <STR> , <NAME> ] <NL> <PREFIX> . <I18N> ( <STR> ,"
+      "window": ") ) <NL> await <NAME> ( <I18N> ( <NAME> )"
     },
     {
       "label": false,
-      "margin": 3.6633687019348145,
-      "snippet": 19228,
-      "key_name": "i18n-set_locale",
-      "window": ". <NAME> ( ) <NL> return <IGNORE_KW> . <I18N> . <NAME> ( <NAME> ="
-    },
-    {
-      "label": true,
-      "margin": -3.5988857746124268,
-      "snippet": 1524,
-      "key_name": "date_time-limit_value",
-      "window": ", ** <NAME> ) ) <NL> <PREFIX> . <I18N> . <NAME> . <NAME> ( <STR> ,"
-    },
-    {
-      "label": false,
-      "margin": 3.4925875663757324,
-      "snippet": 8787,
-      "key_name": "invite",
-      "window": "<PREFIX> . <I18N> . get ( <STR> , _path ="
-    },
-    {
-      "label": false,
-      "margin": 3.4925875663757324,
-      "snippet": 2370,
-      "key_name": "pay",
-      "window": "<PREFIX> . <I18N> . get ( <STR> , _path ="
-    },
-    {
-      "label": false,
-      "margin": 3.478184223175049,
-      "snippet": 12027,
-      "key_name": "confirm-admin",
-      "window": "<NAME> . <I18N> . get ( <STR> <STR> , ** <NAME>"
-    },
-    {
-      "label": true,
-      "margin": -3.254384994506836,
-      "snippet": 6744,
-      "key_name": "prev_name",
-      "window": ", <NAME> = <NUM> ) <NL> <PREFIX> . <I18N> . <NAME> ( <NAME> ="
-    },
-    {
-      "label": false,
-      "margin": 3.004056453704834,
-      "snippet": 3537,
-      "key_name": "menu.page",
-      "window": "<NAME> ( <NAME> ( <NAME> ( <STR> ) ) )"
-    },
-    {
-      "label": false,
-      "margin": 3.004056453704834,
-      "snippet": 13688,
-      "key_name": "item",
-      "window": "<NAME> ( <NAME> ( <NAME> ( <STR> ) ) )"
-    },
-    {
-      "label": false,
-      "margin": 3.004056453704834,
-      "snippet": 14304,
-      "key_name": "done",
-      "window": "<NAME> ( <NAME> ( <NAME> ( <STR> ) ) )"
-    },
-    {
-      "label": false,
-      "margin": 3.004056453704834,
-      "snippet": 16957,
-      "key_name": "rank-photo",
-      "window": "<NAME> ( <NAME> ( <NAME> ( <STR> ) ) )"
-    },
-    {
-      "label": false,
-      "margin": 3.004056453704834,
-      "snippet": 4844,
-      "key_name": "welcome",
-      "window": "<NAME> ( <NAME> ( <NAME> ( <STR> ) ) )"
-    },
-    {
-      "label": false,
-      "margin": 3.004056453704834,
-      "snippet": 1671,
-      "key_name": "task-delete-limit",
-      "window": "<NAME> ( <NAME> ( <NAME> ( <STR> ) ) )"
-    },
-    {
-      "label": false,
-      "margin": 3.004056453704834,
-      "snippet": 17418,
-      "key_name": "edit",
-      "window": "<NAME> ( <NAME> ( <NAME> ( <STR> ) ) )"
-    },
-    {
-      "label": false,
-      "margin": 2.9642882347106934,
-      "snippet": 9802,
-      "key_name": "rank_menu_rank",
-      "window": "<PREFIX> . <I18N> . get ( <STR> , <NAME> ="
-    },
-    {
-      "label": false,
-      "margin": 2.9642882347106934,
-      "snippet": 11738,
-      "key_name": "done_hello",
-      "window": "<PREFIX> . <I18N> . get ( <STR> , <NAME> ="
-    },
-    {
-      "label": false,
-      "margin": 2.9642882347106934,
-      "snippet": 4906,
-      "key_name": "done_photo_success",
-      "window": "<PREFIX> . <I18N> . get ( <STR> , <NAME> ="
-    },
-    {
-      "label": true,
-      "margin": -2.9507460594177246,
-      "snippet": 2032,
-      "key_name": "score-success_confirm",
-      "window": "( <STR> , <NUM> ) <NL> <PREFIX> . <I18N> . <NAME> . <NAME> ( <NAME> ="
-    },
-    {
-      "label": false,
-      "margin": 2.8863916397094727,
-      "snippet": 10893,
-      "key_name": "title",
-      "window": "<PREFIX> . <I18N> . get ( <STR> , <NAME> ="
-    },
-    {
-      "label": false,
-      "margin": 2.8863916397094727,
-      "snippet": 15816,
-      "key_name": "main.back.user_7",
-      "window": "<PREFIX> . <I18N> . get ( <STR> , <NAME> ="
-    },
-    {
-      "label": false,
-      "margin": 2.8863916397094727,
-      "snippet": 18711,
-      "key_name": "failed",
-      "window": "<PREFIX> . <I18N> . get ( <STR> , <NAME> ="
-    },
-    {
-      "label": false,
-      "margin": 2.8863916397094727,
-      "snippet": 1468,
-      "key_name": "balance",
-      "window": "<PREFIX> . <I18N> . get ( <STR> , <NAME> ="
-    },
-    {
-      "label": false,
-      "margin": 2.8863916397094727,
-      "snippet": 10385,
-      "key_name": "lang.success",
-      "window": "<PREFIX> . <I18N> . get ( <STR> , <NAME> ="
-    },
-    {
-      "label": false,
-      "margin": 2.8662071228027344,
-      "snippet": 18363,
-      "key_name": "chat.success",
-      "window": "<PREFIX> . <I18N> . get ( <STR> , <IGNORE_KW> ="
-    },
-    {
-      "label": false,
-      "margin": 2.8662071228027344,
-      "snippet": 13286,
-      "key_name": "value",
-      "window": "<PREFIX> . <I18N> . get ( <STR> , <IGNORE_KW> ="
-    },
-    {
-      "label": false,
-      "margin": 2.808467388153076,
-      "snippet": 5800,
-      "key_name": "price-user",
-      "window": "<PREFIX> . <I18N> . get ( <STR> <STR> , <NAME> ="
-    },
-    {
-      "label": false,
-      "margin": 2.782304286956787,
-      "snippet": 14542,
-      "key_name": "main_9",
-      "window": "<NAME> = <PREFIX> . get ( <STR> , * <NAME>"
-    },
-    {
-      "label": true,
-      "margin": -2.754394054412842,
-      "snippet": 2020,
-      "key_name": "set_locale",
-      "window": "<STR> , ) <NL> <NAME> = <I18N> . <NAME> ( <STR> )"
-    },
-    {
-      "label": false,
-      "margin": 2.7027993202209473,
-      "snippet": 13587,
-      "key_name": "plural-bonus_user",
-      "window": ", <STR> , <NAME> ] <NL> <NAME> . <NAME> . <NAME> ( <NAME> ="
-    },
-    {
-      "label": false,
-      "margin": 2.624997615814209,
-      "snippet": 16253,
+      "margin": 4.939181804656982,
+      "snippet": 10023,
       "key_name": null,
-      "window": "get ( <NAME> , <NAME> = <PREFIX> . <I18N> . get ( <FSTR> <FSTR_MID>"
+      "window": ") ) ) <NL> <NAME> = <I18N> ( <NAME> )"
     },
     {
       "label": true,
-      "margin": -2.6096959114074707,
-      "snippet": 2118,
-      "key_name": "pay-list-group",
-      "window": "<STR> , ) <NL> <I18N> ( <STR> ) . <NAME>"
+      "margin": -4.833367824554443,
+      "snippet": 7322,
+      "key_name": "back_back-get",
+      "window": "= <STR> <NL> await <NAME> ( <PREFIX> . <I18N> . <NAME> . get ( <STR> ,"
     },
     {
       "label": false,
-      "margin": 2.3824710845947266,
-      "snippet": 14289,
-      "key_name": "name_9",
-      "window": "<NAME> ( <NAME> , <NAME> ( <STR> ) ) <NL>"
+      "margin": 4.738514423370361,
+      "snippet": 3957,
+      "key_name": "LazyProxy-note_load-save_balance-back_wallet",
+      "window": "<NAME> ) : <NL> <STR> <NL> <NAME> . <I18N> . <NAME> . <NAME> . <NAME> ( <NAME> ="
     },
     {
       "label": false,
-      "margin": 2.3824710845947266,
-      "snippet": 17288,
-      "key_name": "item-note-start",
-      "window": "<NAME> ( <NAME> , <NAME> ( <STR> ) ) <NL>"
+      "margin": 4.738514423370361,
+      "snippet": 7965,
+      "key_name": "LazyFilter-profile-label-card_group",
+      "window": "<NAME> ) : <NL> <STR> <NL> <NAME> . <I18N> . <NAME> . <NAME> . <NAME> ( <NAME> ="
     },
     {
       "label": false,
-      "margin": 2.3720741271972656,
-      "snippet": 16090,
-      "key_name": "I18nFormat-summary_title-limit-value-status_level",
-      "window": ") <NL> <NAME> = <STR> <NL> <IGNORE_KW> . <I18N> . <NAME> . <NAME> . <NAME> . <NAME> ( <STR> )"
+      "margin": 4.735778331756592,
+      "snippet": 17247,
+      "key_name": "settings_edit-message",
+      "window": "( ) <NL> await <NAME> ( <PREFIX> . <NAME> . <NAME> ( ) )"
+    },
+    {
+      "label": false,
+      "margin": 4.729614734649658,
+      "snippet": 9708,
+      "key_name": "I18nFormat-save_success-limit_cancel-bind",
+      "window": "<STR> ) ) <NL> return [ <NAME> . <I18N> . <NAME> . <NAME> . <IGNORE> ( ) ,"
+    },
+    {
+      "label": false,
+      "margin": 4.5757832527160645,
+      "snippet": 11007,
+      "key_name": "i18n-pay_error-photo-set_locale",
+      "window": "] = <NUM> <NL> return [ <NAME> . <I18N> . <NAME> . <NAME> . <IGNORE> ( _path ="
+    },
+    {
+      "label": true,
+      "margin": -4.462860107421875,
+      "snippet": 10872,
+      "key_name": "limit_name",
+      "window": "<NAME> ( <NUM> ) ) <NL> <PREFIX> . <I18N> . <NAME> ( ) <NL>"
+    },
+    {
+      "label": true,
+      "margin": -4.210366249084473,
+      "snippet": 3890,
+      "key_name": "back_count",
+      "window": "<STR> , ) <NL> <NAME> ( <PREFIX> . <I18N> . <NAME> ( ) ,"
+    },
+    {
+      "label": true,
+      "margin": -4.17388916015625,
+      "snippet": 872,
+      "key_name": "detail",
+      "window": "raise <NAME> ( <STR> ) <NL> <PREFIX> . <I18N> . <NAME> ( ) <NL>"
+    },
+    {
+      "label": false,
+      "margin": 4.170515537261963,
+      "snippet": 3274,
+      "key_name": "label_delete-value_info",
+      "window": ") , <STR> ] <NL> return <PREFIX> . <NAME> . <NAME> ( _path ="
+    },
+    {
+      "label": true,
+      "margin": -4.0186567306518555,
+      "snippet": 5092,
+      "key_name": "done-hello",
+      "window": ", <NAME> = <NUM> ) <NL> <PREFIX> . <I18N> . <NAME> . <NAME> ( <NAME> ="
+    },
+    {
+      "label": false,
+      "margin": 4.012095928192139,
+      "snippet": 12211,
+      "key_name": "error-group_list",
+      "window": ") <NL> <NAME> ( <NAME> , <PREFIX> . <NAME> . <NAME> ( <NAME> ="
+    },
+    {
+      "label": false,
+      "margin": 4.012095928192139,
+      "snippet": 3907,
+      "key_name": "name-ok_settings",
+      "window": ") <NL> <NAME> ( <NAME> , <PREFIX> . <NAME> . <NAME> ( <NAME> ="
+    },
+    {
+      "label": false,
+      "margin": 4.009585857391357,
+      "snippet": 18405,
+      "key_name": "LazyFilter-get",
+      "window": "<NAME> ( <NAME> ) : <NL> <IGNORE_KW> . <I18N> . get ( <STR> <STR>"
+    },
+    {
+      "label": true,
+      "margin": -3.938239574432373,
+      "snippet": 18564,
+      "key_name": "success-welcome-profile",
+      "window": "} <NL> <NAME> = <I18N> ( <STR> ) <NL> assert"
+    },
+    {
+      "label": false,
+      "margin": 3.861525058746338,
+      "snippet": 16094,
+      "key_name": "info_photo-count_total",
+      "window": "] <NL> <NAME> ( <NAME> , <PREFIX> . <NAME> . <NAME> ( ) )"
+    },
+    {
+      "label": false,
+      "margin": 3.7556309700012207,
+      "snippet": 4529,
+      "key_name": "settings-pay",
+      "window": "<NL> return <NAME> . get ( <STR> <STR> , ** <NAME>"
+    },
+    {
+      "label": true,
+      "margin": -3.680697441101074,
+      "snippet": 2980,
+      "key_name": "rank_limit-get",
+      "window": "<NL> await <NAME> . <NAME> ( <PREFIX> . <I18N> . <NAME> . get ( <STR> ,"
+    },
+    {
+      "label": true,
+      "margin": -3.680697441101074,
+      "snippet": 17168,
+      "key_name": "list_settings-get",
+      "window": "<NL> await <NAME> . <NAME> ( <PREFIX> . <I18N> . <NAME> . get ( <STR> ,"
+    },
+    {
+      "label": true,
+      "margin": -3.6762313842773438,
+      "snippet": 17590,
+      "key_name": "score_save",
+      "window": "<NAME> , ) <NL> return [ <PREFIX> . <I18N> . <NAME> ( ) ,"
+    },
+    {
+      "label": true,
+      "margin": -3.644522190093994,
+      "snippet": 3288,
+      "key_name": "title_bonus",
+      "window": ". get ( <STR> ) <NL> <PREFIX> . <I18N> . <NAME> ( ) ."
+    },
+    {
+      "label": false,
+      "margin": 3.537665843963623,
+      "snippet": 10649,
+      "key_name": "page_send-profile",
+      "window": ") : <NL> await <NAME> ( <PREFIX> . <NAME> . <NAME> ( <NAME> ="
+    },
+    {
+      "label": false,
+      "margin": 3.506714344024658,
+      "snippet": 15486,
+      "key_name": "label-currency_start",
+      "window": "<NL> <NAME> = [ <STR> , <PREFIX> . <NAME> . <NAME> ( <IGNORE_KW> ="
+    },
+    {
+      "label": true,
+      "margin": -3.4453704357147217,
+      "snippet": 15080,
+      "key_name": "set_context",
+      "window": ", <I18N> ) : <NL> return <I18N> . <NAME> ( <STR> )"
+    },
+    {
+      "label": false,
+      "margin": 3.4326071739196777,
+      "snippet": 17582,
+      "key_name": "balance_edit_total",
+      "window": ". <NAME> <NL> return <NAME> ( <STR> , <IGNORE_KW> ="
+    },
+    {
+      "label": false,
+      "margin": 3.392859935760498,
+      "snippet": 9164,
+      "key_name": "score-info",
+      "window": "<PREFIX> . <I18N> . get ( <STR> , ** <NAME>"
+    },
+    {
+      "label": false,
+      "margin": 3.369149684906006,
+      "snippet": 18297,
+      "key_name": "next-card_done",
+      "window": ") <NL> <NAME> ( <NAME> , <PREFIX> . <NAME> . <NAME> ( ) )"
+    },
+    {
+      "label": false,
+      "margin": 3.3591742515563965,
+      "snippet": 9277,
+      "key_name": "back-limit",
+      "window": "<NAME> ( <NAME> ( <NAME> ( <STR> ) ) )"
+    },
+    {
+      "label": false,
+      "margin": 3.3591742515563965,
+      "snippet": 1556,
+      "key_name": "detail_group",
+      "window": "<NAME> ( <NAME> ( <NAME> ( <STR> ) ) )"
     }
   ]
 }

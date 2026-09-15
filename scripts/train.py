@@ -34,7 +34,7 @@ from typing import Any
 
 import numpy as np
 
-from fly_ftl_extract.brain import DEFAULT_PARAMS, Brain, load
+from fly_ftl_extract.brain import DEFAULT_PARAMS, Brain, BrainParams, load
 from fly_ftl_extract.dopamine import (
     FEATURE_MODES,
     FeatureMode,
@@ -101,22 +101,27 @@ class Table:
 
 
 WORKERS = max(1, (os.cpu_count() or 2) - 2)
-_WORKER_BRAIN: Brain | None = None
+_WORKER_BRAINS: dict[BrainParams, Brain] = {}
 
 
-def _worker_brain() -> Brain:
-    """One brain per worker process (the connectome is loaded once per process)."""
-    global _WORKER_BRAIN  # noqa: PLW0603
-    if _WORKER_BRAIN is None:
-        _WORKER_BRAIN = Brain(load(), DEFAULT_PARAMS)
-    return _WORKER_BRAIN
+def _worker_brain(params: BrainParams) -> Brain:
+    """One brain per (worker process, parameter set); the connectome is loaded once."""
+    brain = _WORKER_BRAINS.get(params)
+    if brain is None:
+        brain = _WORKER_BRAINS[params] = Brain(load(), params)
+    return brain
 
 
-def _simulate_chunk(odors: np.ndarray, seeds: np.ndarray | int, batch: int = BATCH) -> np.ndarray:
+def _simulate_chunk(
+    odors: np.ndarray,
+    seeds: np.ndarray | int,
+    batch: int = BATCH,
+    params: BrainParams = DEFAULT_PARAMS,
+) -> np.ndarray:
     """Per-puff KC counts (uint8) of a chunk that is a whole number of batches (so results
     do not depend on how the work was split across processes: every batch sees the same
     odours and, in single-seed mode, the same random stream)."""
-    brain = _worker_brain()
+    brain = _worker_brain(params)
     counts = np.zeros((len(odors), odors.shape[1], brain.n_kc), dtype=np.uint8)
     for start in range(0, len(odors), batch):
         sl = slice(start, start + batch)
@@ -139,7 +144,7 @@ def simulate_all(
     chunk = batch * CHUNK_BATCHES
     starts = list(range(0, len(odors), chunk))
     if len(starts) <= 1 or workers == 1:
-        counts = _simulate_chunk(odors, seeds, batch)
+        counts = _simulate_chunk(odors, seeds, batch, brain.params)
     else:
         parts = [
             (odors[a : a + chunk], seeds if isinstance(seeds, int) else seeds[a : a + chunk])
@@ -152,6 +157,7 @@ def simulate_all(
                     [o for o, _ in parts],
                     [sd for _, sd in parts],
                     [batch] * len(parts),
+                    [brain.params] * len(parts),
                 )
             )
         counts = np.concatenate(results)
@@ -438,6 +444,14 @@ def train_task(
     candidates: dict[str, Readout] = {}
     for mode in modes:
         assert mode in FEATURE_MODES
+
+        def report(e: dict[str, float], m: str = mode) -> None:
+            print(
+                f"    {name}/{m} epoch {int(e['epoch'])}: loss {e['loss']:.4f} "
+                f"val F1 {e['val_f1']:.4f}",
+                flush=True,
+            )
+
         readout, log = train_readout(
             sparse_tr,
             y_tr,
@@ -445,10 +459,7 @@ def train_task(
             table.label[va],
             mode=mode,
             config=config,
-            on_epoch=lambda e, m=mode: print(
-                f"    {name}/{m} epoch {int(e['epoch'])}: loss {e['loss']:.4f} val F1 {e['val_f1']:.4f}",
-                flush=True,
-            ),
+            on_epoch=report,
         )
         logs[mode] = log
         candidates[mode] = readout

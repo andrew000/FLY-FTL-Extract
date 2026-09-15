@@ -10,7 +10,7 @@
         "text": "\"real-key\"",
         "key_name": "real-key",
         "teacher": true,
-        "margin": 23.5628662109375,
+        "margin": 18.40517234802246,
         "sniffs": 6,
         "kc_active": 0.09387755393981934
       },
@@ -22,7 +22,7 @@
         "text": "i18n.nested.set_locale",
         "key_name": "nested-set_locale",
         "teacher": true,
-        "margin": -1.0752184391021729,
+        "margin": -2.011870861053467,
         "sniffs": 6,
         "kc_active": 0.09376202523708344
       }
@@ -39,7 +39,7 @@
         "text": "\"self-get\"",
         "key_name": "self-get",
         "teacher": true,
-        "margin": 8.807637214660645,
+        "margin": 5.312376976013184,
         "sniffs": 6,
         "kc_active": 0.11309202760457993
       },
@@ -51,7 +51,7 @@
         "text": "self.i18n.self_attr.key",
         "key_name": "self_attr-key",
         "teacher": true,
-        "margin": 4.190530776977539,
+        "margin": 4.092948913574219,
         "sniffs": 1,
         "kc_active": 0.11644206196069717
       },
@@ -63,7 +63,7 @@
         "text": "\"self-call\"",
         "key_name": "self-call",
         "teacher": true,
-        "margin": 16.899036407470703,
+        "margin": 14.125680923461914,
         "sniffs": 6,
         "kc_active": 0.09657297283411026
       },
@@ -75,7 +75,7 @@
         "text": "self.other.get",
         "key_name": "other-get",
         "teacher": false,
-        "margin": -1.2665345668792725,
+        "margin": -3.7059264183044434,
         "sniffs": 6,
         "kc_active": 0.09834424406290054
       },
@@ -87,7 +87,7 @@
         "text": "\"not-a-key\"",
         "key_name": "not-a-key",
         "teacher": false,
-        "margin": 3.41154408454895,
+        "margin": 3.124119997024536,
         "sniffs": 1,
         "kc_active": 0.0736234113574028
       },
@@ -99,7 +99,7 @@
         "text": "obj.self.i18n.get",
         "key_name": "self-i18n-get",
         "teacher": false,
-        "margin": -9.132777214050293,
+        "margin": -8.562143325805664,
         "sniffs": 1,
         "kc_active": 0.09561031311750412
       },
@@ -111,7 +111,7 @@
         "text": "\"deep-root-is-obj\"",
         "key_name": "deep-root-is-obj",
         "teacher": false,
-        "margin": 11.134085655212402,
+        "margin": 10.718302726745605,
         "sniffs": 6,
         "kc_active": 0.09988448768854141
       },
@@ -123,7 +123,7 @@
         "text": "\"self-is-not-a-key-itself\"",
         "key_name": "self-is-not-a-key-itself",
         "teacher": false,
-        "margin": 3.135559320449829,
+        "margin": 1.7639561891555786,
         "sniffs": 6,
         "kc_active": 0.09541779011487961
       },
@@ -135,7 +135,7 @@
         "text": "cls.i18n.cls_key",
         "key_name": "cls_key",
         "teacher": true,
-        "margin": 0.8982212543487549,
+        "margin": -0.890474796295166,
         "sniffs": 6,
         "kc_active": 0.08082403242588043
       },
@@ -147,7 +147,7 @@
         "text": "\"cls-get\"",
         "key_name": "cls-get",
         "teacher": true,
-        "margin": 9.11838150024414,
+        "margin": 7.874934196472168,
         "sniffs": 6,
         "kc_active": 0.10377359390258789
       },
@@ -159,7 +159,7 @@
         "text": "\"cls-l-name-call\"",
         "key_name": "cls-l-name-call",
         "teacher": true,
-        "margin": 14.346673011779785,
+        "margin": 11.311666488647461,
         "sniffs": 6,
         "kc_active": 0.09445513784885406
       }

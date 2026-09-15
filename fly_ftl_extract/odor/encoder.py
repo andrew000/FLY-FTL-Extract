@@ -48,7 +48,7 @@ import numpy as np
 from fly_ftl_extract.ftl.model import GET_ATTR, PATH_KWARG, ExtractOptions
 from fly_ftl_extract.tokenizer.candidates import Tok, Window
 
-ENCODER_VERSION = "fly-odor-4"
+ENCODER_VERSION = "fly-odor-5"
 """Salt of the feature hash.  Bump on *any* change of the normalisation, the feature set,
 the weights, the slot layout or the bucket count: trained MBON weights are only valid for
 one version."""
@@ -79,6 +79,13 @@ class EncoderParams:
     """Add ``(previous token, token)`` to every context slot.  Proxy: without bigrams the
     slot code tops at F1 0.9921 (0.9930 even with 1024 buckets), with them 0.9973–0.9985 —
     the limit was the linear readout's lack of pair interactions, not the hash."""
+    feature_weight: float = 2.0
+    """Weight a feature adds to its bucket before ``tanh``: a lone feature lights its PN at
+    ``tanh(2) = 0.96`` of ``rate_max`` (fly-odor-4 used 1.0 → 0.76, i.e. ~3 PN spikes per
+    20 ms puff).  fly-odor-5: the per-puff Kenyon-cell code was too noisy for the readout
+    (same-candidate Jaccard 0.34, val F1 plateau 0.96, docs/METRICS.md §7); more spikes
+    per active PN make a KC's threshold crossing reproducible, and a present feature
+    driving its PN near the maximal rate is the natural reading of a binary feature."""
     # --- fly-odor-3 knobs, used by :func:`ngram_features` only -------------------------
     max_ngram: int = 3
     """Longest positional n-gram (fly-odor-3)."""
@@ -226,15 +233,16 @@ def slot_features(
         tok: Tok, prev: Tok | None, distance: int, depth: int
     ) -> list[tuple[str, float]]:
         text = normalize_token(tok, options)
+        w = params.feature_weight
         out = [
-            (f"tok:{text}", 1.0),
-            (f"tok@{distance}:{text}", 1.0),
-            (f"type@{distance}:{tok.type}", 1.0),
-            (f"depth@{distance}:{depth}", 1.0),
+            (f"tok:{text}", w),
+            (f"tok@{distance}:{text}", w),
+            (f"type@{distance}:{tok.type}", w),
+            (f"depth@{distance}:{depth}", w),
         ]
         if params.bigrams:
             prev_text = normalize_token(prev, options) if prev is not None else "<BOF>"
-            out.append((f"bi@{distance}:{prev_text}\x1f{text}", 1.0))
+            out.append((f"bi@{distance}:{prev_text}\x1f{text}", w))
         return out
 
     n_before = len(before)
@@ -246,15 +254,16 @@ def slot_features(
         slots[focus_slot - n_before + i] = context_slot(tok, prev, i - n_before, depths_before[i])
 
     focus = window.focus
+    w = params.feature_weight
     focus_features: list[tuple[str, float]] = [
-        (f"focus:{i}:{normalize_token(tok, options)}", 1.0) for i, tok in enumerate(focus)
+        (f"focus:{i}:{normalize_token(tok, options)}", w) for i, tok in enumerate(focus)
     ]
     focus_features += [
-        (f"focus_len:{len(focus)}", 1.0),
-        (f"kind:{window.focus_kind}", 1.0),
-        (f"first_positional:{int(window.first_positional)}", 1.0),
-        (f"in_kwargs:{int(window.in_kwargs)}", 1.0),
-        (f"depth:{min(max(window.depth, 0), params.max_depth)}", 1.0),
+        (f"focus_len:{len(focus)}", w),
+        (f"kind:{window.focus_kind}", w),
+        (f"first_positional:{int(window.first_positional)}", w),
+        (f"in_kwargs:{int(window.in_kwargs)}", w),
+        (f"depth:{min(max(window.depth, 0), params.max_depth)}", w),
     ]
     slots[focus_slot] = focus_features
 

@@ -1,6 +1,6 @@
 {
   "generator_version": "grammar-3",
-  "encoder_version": "fly-odor-4",
+  "encoder_version": "fly-odor-5",
   "seed": 20240914,
   "snippets": 20000,
   "table": "keys",
@@ -122,7 +122,7 @@
       "seconds": 37.77821330000006
     },
     {
-      "name": "fly-odor-4: slots + bigrams, 2 hashes",
+      "name": "fly-odor-4: slots + bigrams, 2 hashes, feature weight 1 (PN 0.76)",
       "temporal": true,
       "n_pn": 124,
       "dims": 1240,
@@ -198,6 +198,32 @@
       },
       "encode_s": 88.45832449999943,
       "seconds": 144.6960672999994
+    },
+    {
+      "name": "fly-odor-5: slots + bigrams, 2 hashes, feature weight 2 (PN 0.96)",
+      "temporal": true,
+      "n_pn": 124,
+      "dims": 1240,
+      "salt": "fly-odor-5",
+      "params": {
+        "context_before": 6,
+        "context_after": 3,
+        "hashes_per_feature": 2,
+        "bigrams": true
+      },
+      "active_pn_per_puff": 10.111185334528821,
+      "val_f1": 0.9991370631382138,
+      "test": {
+        "precision": 0.9970493185330898,
+        "recall": 0.9995774052683477,
+        "f1": 0.9983117613956106,
+        "tp": 7096,
+        "fp": 21,
+        "fn": 3,
+        "tn": 21345
+      },
+      "encode_s": 49.402738099999624,
+      "seconds": 63.654878199999075
     }
   ]
 }

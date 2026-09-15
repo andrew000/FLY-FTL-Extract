@@ -68,7 +68,9 @@ PROXY_JSON = REPO / "docs" / "encoder_proxy.json"
 PROXY_V1_JSON = REPO / "docs" / "encoder_proxy_v1.json"
 CALIBRATION_JSON = REPO / "docs" / "calibration.json"
 BENCH_JSON = REPO / "docs" / "bench_sequence.json"
-TRAIN_SEEDS = (101, 102, 103)  # up to three sniffs of every training odour
+LEVERS_JSON = REPO / "docs" / "lever_harness.json"
+TRAIN_SEEDS = (101, 102, 103, 104, 105, 106)  # sniffs of every training odour
+DEFAULT_TRAIN_SEEDS = 3
 MAX_RESNIFF = 5
 RESNIFF_FRACTION = 0.10
 BATCH = 64
@@ -411,33 +413,36 @@ def train_task(
     )
     timings: dict[str, float] = {}
     t0 = time.perf_counter()
-    # filled seed by seed instead of np.concatenate: the keys train states are ~6 GB per
-    # seed and a concatenation would hold two copies at once
-    n_tr, n_slots = len(tr), table.odors.shape[1]
-    counts_tr = np.empty((n_tr * len(train_seeds), n_slots, brain.n_kc), dtype=np.uint8)
-    for i, s in enumerate(train_seeds):
-        counts_tr[i * n_tr : (i + 1) * n_tr] = cached_states(
-            brain, table.odors[tr], s, f"{name} train seed {s}", cache
-        )
+    # one seed at a time: the dense keys train states are ~6 GB per seed, so every seed is
+    # turned into CSR (SparseStates) and released before the next one is loaded
+    parts: list[SparseStates] = []
+    train_active: list[float] = []
+    t_brain = 0.0
+    for s in train_seeds:
+        t_seed = time.perf_counter()
+        counts_seed = cached_states(brain, table.odors[tr], s, f"{name} train seed {s}", cache)
+        t_brain += time.perf_counter() - t_seed
+        train_active.append(kc_active_per_puff(counts_seed, table.puff_active[tr]))
+        parts.append(SparseStates(counts_seed))
+        del counts_seed
     y_tr = np.tile(table.label[tr], len(train_seeds))
+    t_seed = time.perf_counter()
     counts_va = cached_states(brain, table.odors[va], table.seed[va], f"{name} val", cache)
     counts_te = cached_states(brain, table.odors[te], table.seed[te], f"{name} test", cache)
-    timings["brain_s"] = time.perf_counter() - t0
+    t_brain += time.perf_counter() - t_seed
+    timings["brain_s"] = t_brain
     kc_active = {
-        "train": kc_active_per_puff(
-            counts_tr, np.tile(table.puff_active[tr], (len(train_seeds), 1))
-        ),
+        "train": float(np.mean(train_active)),
         "val": kc_active_per_puff(counts_va, table.puff_active[va]),
         "test": kc_active_per_puff(counts_te, table.puff_active[te]),
     }
     print(f"{name}: KC active per non-empty puff {kc_active}", flush=True)
 
     t1 = time.perf_counter()
-    sparse_tr = SparseStates(counts_tr)
-    del counts_tr  # ~18 GB dense for keys; the CSR form is what training reads
+    sparse_tr = SparseStates.concat(parts)
     print(
         f"{name}: train states as CSR: {len(sparse_tr)} rows, {len(sparse_tr.indices) / 1e6:.0f} M "
-        f"non-zeros ({time.perf_counter() - t1:.0f} s)",
+        f"non-zeros ({time.perf_counter() - t0:.0f} s since the first seed)",
         flush=True,
     )
     logs: dict[str, TrainLog] = {}
@@ -525,7 +530,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--attempt", default="", help="label of this attempt for METRICS.md §5")
     parser.add_argument("--max-resniff", type=int, default=MAX_RESNIFF)
     parser.add_argument(
-        "--train-seeds", type=int, default=len(TRAIN_SEEDS), help="augmentation seeds (1-3)"
+        "--train-seeds",
+        type=int,
+        default=DEFAULT_TRAIN_SEEDS,
+        help=f"augmentation seeds (1-{len(TRAIN_SEEDS)})",
     )
     parser.add_argument(
         "--train-rows",
@@ -750,7 +758,7 @@ def proxy_section() -> list[str]:
         ]
         for r in data["rows"]:
             t = r["test"]
-            mark = " **←**" if r["name"].startswith("fly-odor-4") else ""
+            mark = " **←**" if r["name"].startswith(ENCODER_VERSION) else ""
             lines.append(
                 f"| {r['name']}{mark} | {r['dims']} | {r['n_pn']} | {r['active_pn_per_puff']:.1f} "
                 f"| {r['val_f1']:.4f} | {t['precision']:.4f} | {t['recall']:.4f} | {t['f1']:.4f} |"
@@ -852,6 +860,32 @@ def temporal_section(
         f"| {r.kc_active['test']:.3f} |"
         for r in results.values()
     )
+    if LEVERS_JSON.exists():
+        lev = json.loads(LEVERS_JSON.read_text(encoding="utf-8"))
+        lines += [
+            "",
+            "### Levers against trial noise (`scripts/readout_levers.py`)",
+            "",
+            (
+                "After attempts 7–8 the readout plateaued at val F1 0.96: the same candidate with another seed "
+                "gives a different decision in 3 % of cases, the mean of 2 / 3 trials — 0.984 / 0.988, and train odours with "
+                "an unseen seed — the same 0.963 vs 0.986 with a seen one, i.e. the limit is the noise of the per-puff KC code "
+                "(Jaccard of the same candidate 0.34), not generalisation to new odours. A small harness "
+                f"({lev['rows'][0]['n_train']} train rows × seeds, {lev['rows'][0]['n_val']} val, "
+                "odours "
+                + str(lev.get("encoder_version", ""))
+                + "; `drive` multiplies the odour value — "
+                "what `feature_weight` 2 does):"
+            ),
+            "",
+            "| setting | puff, ms | apl_scale | drive | seeds | KC / puff | val F1 | 2 trials |",
+            "|---|---:|---:|---:|---:|---:|---:|---:|",
+        ]
+        lines.extend(
+            f"| {r['name']} | {r['puff_ms']:.0f} | {r['apl_scale']} | {r['drive']} | {r['seeds']} "
+            f"| {r['kc_active_per_puff']:.3f} | {r['val_f1']:.4f} | {r['val_f1_two_sniffs']:.4f} |"
+            for r in lev["rows"]
+        )
     lines += ["", "### Speed", ""]
     if BENCH_JSON.exists():
         bench = json.loads(BENCH_JSON.read_text(encoding="utf-8"))

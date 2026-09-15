@@ -138,6 +138,40 @@ class SparseStates:
     def __len__(self) -> int:
         return self.n
 
+    @classmethod
+    def concat(cls, parts: list[SparseStates]) -> SparseStates:
+        """Stack several :class:`SparseStates` (same ``n_states``) into one.
+
+        The result is preallocated and the parts are released one by one, so the peak
+        memory is the result plus the largest part — not twice the total.  ``parts`` is
+        emptied.
+        """
+        if not parts:
+            msg = "nothing to concatenate"
+            raise ValueError(msg)
+        n_states = parts[0].n_states
+        if any(p.n_states != n_states for p in parts):
+            msg = "all parts must have the same number of KC states"
+            raise ValueError(msg)
+        n = sum(p.n for p in parts)
+        nnz = sum(len(p.indices) for p in parts)
+        out = cls.__new__(cls)
+        out.n_states, out.n = n_states, n
+        out.indptr = np.zeros(n + 1, dtype=np.int64)
+        out.indices = np.empty(nnz, dtype=np.int32)
+        out.log1p = np.empty(nnz, dtype=np.float32)
+        row, pos = 0, 0
+        while parts:
+            part = parts.pop(0)
+            k = len(part.indices)
+            out.indices[pos : pos + k] = part.indices
+            out.log1p[pos : pos + k] = part.log1p
+            out.indptr[row + 1 : row + 1 + part.n] = part.indptr[1:] + pos
+            row += part.n
+            pos += k
+            del part
+        return out
+
     def rows(self, idx: np.ndarray) -> tuple[sp.csr_matrix, sp.csr_matrix]:
         """``(pattern, log1p)`` CSR matrices of the selected trials (same sparsity)."""
         starts, ends = self.indptr[idx], self.indptr[idx + 1]

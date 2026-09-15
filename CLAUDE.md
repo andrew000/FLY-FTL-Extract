@@ -116,17 +116,20 @@ Shiu's whole brain.
 
 Input: PNs receive Poisson spikes at rate `rate_max · odor[i]` (rate_max ≈ 200 Hz).
 **Temporal coding** (reviewer's decision after Phase 5, `Brain.simulate_sequence`): a trial is
-a sequence of 10 puffs (one per window slot), each `puff_ms = 20 ms` with no silence between
+a sequence of 10 puffs (one per window slot), each `puff_ms` long with no silence between
 puffs, `T_silence = 10 ms` at the end; the membrane state is not reset between puffs (that is
-the memory of the preceding tokens). The «trial» state = KC spike counts **per puff**
-`(n_puffs, n_kc)` int16 + MBON spikes (for the TUI). The old `simulate()` (one vector for
-`T_stim = 100 ms`) stays for the Phase 3 tests with its own calibration. APL must be active:
-if the share of active KCs per non-empty puff leaves 3–15 %, that is a bug in the weight
-scaling, not a reason to switch APL off. Calibration has two parameters: `syn_scale` and
-`apl_scale` (a multiplier on APL's output synapses; with the same scale for every synapse the
-single APL fires at its refractory limit the whole time an odour is present and the KCs
-respond only to the first puff — no `syn_scale` changes that, `docs/BENCH.md` §2). Target:
-8–10 % KCs per puff, APL reduces activity ≥ 2×, a single PN spike alone does not light a KC.
+the memory of the preceding tokens). The reviewer asked for 20 ms; at 20 ms the per-puff KC
+code is not reproducible (Jaccard of the same candidate 0.34, readout plateau 0.96, attempts
+7–8), hence `puff_ms = 40` (rationale in the docstring and METRICS.md §7). The «trial» state =
+KC spike counts **per puff** `(n_puffs, n_kc)` int16 + MBON spikes (for the TUI). The old
+`simulate()` (one vector for `T_stim = 100 ms`) stays for the Phase 3 tests with its own
+calibration. APL must be active: if the share of active KCs per non-empty puff leaves
+3–15 %, that is a bug in the weight scaling, not a reason to switch APL off. Calibration has
+two parameters: `syn_scale` and `apl_scale` (a multiplier on APL's output synapses; with the
+same scale for every synapse the single APL fires at its refractory limit the whole time an
+odour is present and the KCs respond only to the first puff — no `syn_scale` changes that,
+`docs/BENCH.md` §2). Target: 8–10 % KCs per puff, APL reduces activity ≥ 2×, a single PN
+spike alone does not light a KC.
 
 **Batching is mandatory**: the state has shape `(n_trials, n_neurons)`, the synaptic current
 is `spikes @ W` through `scipy.sparse.csr_matrix`. The threshold of ≥ 200 trials/s per
@@ -159,11 +162,13 @@ slots (6 / candidate / 3, the context right-aligned to the candidate), every slo
 type, bracket depth (derived lexically by stepping over brackets from the focus), bigram with
 the previous token; the candidate slot — its tokens with the index within the focus + kind /
 first_positional / in_kwargs / depth; 2 hashes per feature (~10 active PNs per puff); an empty
-slot (start of file) is a zero vector, a silent puff. The proxy (logistic regression on the
-odours themselves, test split grammar-3, `docs/METRICS.md` §6): fly-odor-3 (one vector,
-n-grams) 0.987 → slots 0.992 → slots + bigrams 0.997 → + 2 hashes 0.9985; 1024 buckets give
-the same 0.9985, i.e. 124 PNs are no longer the limit. The residue is `obj.self.i18n.get(…)`:
-the `.` at −7 is in the bigram of slot −6, but the linear proxy does not separate it.
+slot (start of file) is a zero vector, a silent puff. `fly-odor-5` = the same with feature
+weight 2 (a lone feature drives its PN to tanh(2) = 0.96 rate_max instead of 0.76): more PN
+spikes per puff — a more reproducible KC code. The proxy (logistic regression on the odours
+themselves, test split grammar-3, `docs/METRICS.md` §6): fly-odor-3 (one vector, n-grams)
+0.987 → slots 0.992 → slots + bigrams 0.997 → + 2 hashes 0.9985; 1024 buckets give the same
+0.9985, i.e. 124 PNs are no longer the limit. The residue is `obj.self.i18n.get(…)`: the `.`
+at −7 is in the bigram of slot −6, but the linear proxy does not separate it.
 
 Important: `--i18n-keys`, `-p/--i18n-keys-prefix`, `--ignore-attributes`, `--ignore-kwargs`
 affect the **token normalisation**, not the decision. The decision is the fly's. That is,

@@ -395,9 +395,9 @@ def test_sequence_validation(brain: Brain) -> None:
 
 def test_sequence_params_are_whole_steps() -> None:
     p = DEFAULT_PARAMS
-    assert p.puff_ms == 20.0  # auditor's decision after Phase 5
-    assert p.puff_steps == 200
-    assert p.sequence_steps(10) == 2100
+    assert p.puff_ms == 40.0  # 20 ms (auditor) was too noisy per puff: docs/METRICS.md §7
+    assert p.puff_steps == 400
+    assert p.sequence_steps(10) == 4100
     with pytest.raises(ValueError, match="whole number"):
         _ = BrainParams(puff_ms=20.05).puff_steps
 

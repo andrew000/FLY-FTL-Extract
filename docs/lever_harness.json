@@ -1,0 +1,11 @@
+{
+  "encoder_version": "fly-odor-4",
+  "note": "40000 keys train rows x seeds sniffs, 10000 val rows, CSR readout lr 0.005, <= 40 epochs; drive multiplies the stored fly-odor-4 odour values (1.27 ~ tanh(2)/tanh(1), i.e. what feature_weight 2 does)",
+  "rows": [
+    {"name": "base_p20_a0.3_s10_x3", "puff_ms": 20.0, "syn_scale": 10.0, "apl_scale": 0.3, "drive": 1.0, "seeds": 3, "n_train": 40000, "n_val": 10000, "kc_active_per_puff": 0.093, "val_f1": 0.9415, "best_epoch": 39, "epochs": 40, "val_f1_two_sniffs": 0.9622, "brain_s": 91, "train_s": 227},
+    {"name": "p30_a0.4_s10_x3", "puff_ms": 30.0, "syn_scale": 10.0, "apl_scale": 0.4, "drive": 1.0, "seeds": 3, "n_train": 40000, "n_val": 10000, "kc_active_per_puff": 0.096, "val_f1": 0.9574, "best_epoch": 39, "epochs": 40, "val_f1_two_sniffs": 0.9746, "brain_s": 128, "train_s": 228},
+    {"name": "p30_drive1.27_a0.5_s10_x3", "puff_ms": 30.0, "syn_scale": 10.0, "apl_scale": 0.5, "drive": 1.27, "seeds": 3, "n_train": 40000, "n_val": 10000, "kc_active_per_puff": 0.088, "val_f1": 0.9649, "best_epoch": 39, "epochs": 40, "val_f1_two_sniffs": 0.9785, "brain_s": 130, "train_s": 171},
+    {"name": "p20_a0.3_s10_x6", "puff_ms": 20.0, "syn_scale": 10.0, "apl_scale": 0.3, "drive": 1.0, "seeds": 6, "n_train": 40000, "n_val": 10000, "kc_active_per_puff": 0.093, "val_f1": 0.9557, "best_epoch": 38, "epochs": 40, "val_f1_two_sniffs": 0.9709, "brain_s": 169, "train_s": 263},
+    {"name": "p40_a0.5_s10_x3", "puff_ms": 40.0, "syn_scale": 10.0, "apl_scale": 0.5, "drive": 1.0, "seeds": 3, "n_train": 40000, "n_val": 10000, "kc_active_per_puff": 0.081, "val_f1": 0.9631, "best_epoch": 39, "epochs": 40, "val_f1_two_sniffs": 0.9804, "brain_s": 161, "train_s": 190}
+  ]
+}

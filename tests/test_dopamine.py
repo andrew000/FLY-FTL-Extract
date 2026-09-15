@@ -158,3 +158,19 @@ def test_train_readout_sparse_equals_dense() -> None:
     )
     assert log_d.best_val_f1 == pytest.approx(log_s.best_val_f1, abs=1e-6)
     assert np.allclose(dense.w, sparse_r.w, atol=1e-4)
+
+
+def test_sparse_states_concat_matches_whole() -> None:
+    rng = np.random.default_rng(9)
+    counts = (rng.random((90, 3, 8)) < 0.2).astype(np.uint8) * 2
+    whole = SparseStates(counts)
+    parts = [SparseStates(counts[:30]), SparseStates(counts[30:70]), SparseStates(counts[70:])]
+    joined = SparseStates.concat(parts)
+    assert parts == []
+    assert len(joined) == 90
+    assert np.array_equal(joined.indptr, whole.indptr)
+    assert np.array_equal(joined.indices, whole.indices)
+    assert np.array_equal(joined.log1p, whole.log1p)
+    idx = np.array([0, 29, 30, 69, 70, 89])
+    a, b = joined.rows(idx), whole.rows(idx)
+    assert (a[1] != b[1]).nnz == 0

@@ -60,13 +60,13 @@ OUT_JSON = REPO / "docs" / "calibration.json"
 OUT_DOC = REPO / "docs" / "BENCH.md"
 
 SCALES = (2.0, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0)
-APL_SCALES = (1.0, 0.5, 0.3, 0.2, 0.15, 0.1, 0.05)
+APL_SCALES = (1.0, 0.7, 0.5, 0.4, 0.3, 0.2)
 SINGLE_SCALE_SWEEP = (1.0, 2.0, 4.0, 8.0, 12.0, 16.0, 20.0, 32.0, 40.0)  # apl_scale = 1
 ACTIVE_PN_THRESHOLD = 0.1
 TARGET_WITH_APL = (0.08, 0.10)
 MIN_APL_RATIO = 2.0
 MAX_ACTIVE_KC_MEDIAN_HZ = 50.0
-PUFF_SWEEP_MS = (10.0, 20.0, 30.0)
+PUFF_SWEEP_MS = (20.0, 30.0, 40.0, 50.0)
 JACCARD_THRESHOLD = 0.5
 PAIR_SAMPLE = 3000
 
@@ -483,7 +483,7 @@ def write_doc(
             f"| {r['jaccard_same_candidate_union']:.3f} | {r['jaccard_different_candidates']:.3f} "
             f"| {r['kc_max_rate_hz']:.0f} |"
         )
-    chosen_row = next(r for r in rel if r["puff_ms"] == current.puff_ms)
+    chosen_row = min(rel, key=lambda r: abs(r["puff_ms"] - current.puff_ms))
     same_gap = chosen_row["jaccard_same_candidate"] - JACCARD_THRESHOLD
     diff_gap = JACCARD_THRESHOLD - chosen_row["jaccard_different_candidates"]
     lines += [
@@ -529,7 +529,7 @@ def main() -> int:
     slots = slot_profile(cx, chosen, puffs)
     claw = claws(cx, chosen, puffs)
     current = BrainParams()
-    chosen_rel = next(r for r in rel if r["puff_ms"] == current.puff_ms)
+    chosen_rel = min(rel, key=lambda r: abs(r["puff_ms"] - current.puff_ms))
     payload = {
         "syn_scale": chosen.syn_scale,
         "apl_scale": chosen.apl_scale,

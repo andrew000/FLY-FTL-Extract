@@ -66,23 +66,33 @@ class Variant:
     """``True``: slot vectors concatenated (fly-odor-4); ``False``: fly-odor-3 n-grams."""
 
 
-SLOTS = enc.EncoderParams(bigrams=False, hashes_per_feature=1)
+W1 = {"feature_weight": 1.0}
+SLOTS = enc.EncoderParams(bigrams=False, hashes_per_feature=1, **W1)
 VARIANTS = (
     Variant(
         "fly-odor-3: one vector, context 6/3, 3-grams",
-        enc.EncoderParams(),
+        enc.EncoderParams(**W1),
         salt="fly-odor-3",
         temporal=False,
     ),
     Variant("slots 6/1/3, token+role features, 1 hash", SLOTS),
     Variant(
         "slots, token+role, 2 hashes per feature",
-        enc.EncoderParams(bigrams=False, hashes_per_feature=2),
+        enc.EncoderParams(bigrams=False, hashes_per_feature=2, **W1),
     ),
-    Variant("slots + bigrams, 1 hash", enc.EncoderParams(bigrams=True, hashes_per_feature=1)),
-    Variant("fly-odor-4: slots + bigrams, 2 hashes", enc.EncoderParams()),
+    Variant("slots + bigrams, 1 hash", enc.EncoderParams(bigrams=True, hashes_per_feature=1, **W1)),
+    Variant(
+        "fly-odor-4: slots + bigrams, 2 hashes, feature weight 1 (PN 0.76)",
+        enc.EncoderParams(**W1),
+        salt="fly-odor-4",
+    ),
     Variant("slots, token+role, 1024 buckets (ceiling)", SLOTS, n_pn=1024),
-    Variant("slots + bigrams, 2 hashes, 1024 buckets (ceiling)", enc.EncoderParams(), n_pn=1024),
+    Variant(
+        "slots + bigrams, 2 hashes, 1024 buckets (ceiling)", enc.EncoderParams(**W1), n_pn=1024
+    ),
+    Variant(
+        "fly-odor-5: slots + bigrams, 2 hashes, feature weight 2 (PN 0.96)", enc.EncoderParams()
+    ),
 )
 
 

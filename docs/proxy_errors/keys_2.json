@@ -1,0 +1,302 @@
+{
+  "variant": "slots, token+role, 2 hashes per feature",
+  "categories": {
+    "FP after=, <NAME> before=. get (": 14,
+    "FP after=( <NAME> before=( <NAME> ,": 6,
+    "FN after=( <STR> before=<NL> <NAME> =": 5,
+    "FN after=( <STR> before=( <NAME> ,": 5,
+    "FP after=( <STR> before=, <I18N> <NL>": 4,
+    "FP after=( <STR> before=<NL> <NAME> =": 3,
+    "FP after=, _path before=. get (": 3,
+    "FN after=( <NAME> before=<NL> <NAME> =": 3,
+    "FN after=( <STR> before=) : <NL>": 2,
+    "FP after=( <NAME> before=<NL> <NAME> =": 2,
+    "FN after=( <STR> before=. <NAME> <NL>": 2,
+    "FP after=( <NAME> before=, <I18N> <NL>": 2,
+    "FN after=( <NAME> before=( <NAME> ,": 2,
+    "FP after=( <STR> before=) : <NL>": 2,
+    "FP after=, <IGNORE_KW> before=. get (": 2
+  },
+  "worst": [
+    {
+      "label": false,
+      "margin": 7.937145233154297,
+      "snippet": 3376,
+      "key_name": null,
+      "window": "<NAME> , <I18N> , <I18N> <NL> <PREFIX> . <I18N> . get ( <NAME> ="
+    },
+    {
+      "label": false,
+      "margin": 5.150434494018555,
+      "snippet": 7586,
+      "key_name": "setup-page_date-wallet",
+      "window": "<I18N> , <I18N> , <I18N> <NL> <I18N> . <IGNORE> . <NAME> . <NAME> ( <NAME> ="
+    },
+    {
+      "label": false,
+      "margin": 4.652357578277588,
+      "snippet": 8390,
+      "key_name": "start_8",
+      "window": "<NL> await <NAME> ( <PREFIX> ( <STR> , <NAME> ="
+    },
+    {
+      "label": true,
+      "margin": -4.469925880432129,
+      "snippet": 13841,
+      "key_name": "done-load-value",
+      "window": "<NAME> . <NAME> , ) <NL> <PREFIX> . <I18N> . <NAME> . <NAME> . <NAME> ( ) <NL>"
+    },
+    {
+      "label": false,
+      "margin": 4.1357622146606445,
+      "snippet": 5800,
+      "key_name": "price-user",
+      "window": "<PREFIX> . <I18N> . get ( <STR> <STR> , <NAME> ="
+    },
+    {
+      "label": false,
+      "margin": 3.769721031188965,
+      "snippet": 13286,
+      "key_name": "value",
+      "window": "<PREFIX> . <I18N> . get ( <STR> , <IGNORE_KW> ="
+    },
+    {
+      "label": false,
+      "margin": 3.769721031188965,
+      "snippet": 18363,
+      "key_name": "chat.success",
+      "window": "<PREFIX> . <I18N> . get ( <STR> , <IGNORE_KW> ="
+    },
+    {
+      "label": false,
+      "margin": 3.726411819458008,
+      "snippet": 4906,
+      "key_name": "done_photo_success",
+      "window": "<PREFIX> . <I18N> . get ( <STR> , <NAME> ="
+    },
+    {
+      "label": false,
+      "margin": 3.726411819458008,
+      "snippet": 11738,
+      "key_name": "done_hello",
+      "window": "<PREFIX> . <I18N> . get ( <STR> , <NAME> ="
+    },
+    {
+      "label": false,
+      "margin": 3.726411819458008,
+      "snippet": 9802,
+      "key_name": "rank_menu_rank",
+      "window": "<PREFIX> . <I18N> . get ( <STR> , <NAME> ="
+    },
+    {
+      "label": false,
+      "margin": 3.6385374069213867,
+      "snippet": 8787,
+      "key_name": "invite",
+      "window": "<PREFIX> . <I18N> . get ( <STR> , _path ="
+    },
+    {
+      "label": false,
+      "margin": 3.6385374069213867,
+      "snippet": 2370,
+      "key_name": "pay",
+      "window": "<PREFIX> . <I18N> . get ( <STR> , _path ="
+    },
+    {
+      "label": false,
+      "margin": 3.6199965476989746,
+      "snippet": 15816,
+      "key_name": "main.back.user_7",
+      "window": "<PREFIX> . <I18N> . get ( <STR> , <NAME> ="
+    },
+    {
+      "label": false,
+      "margin": 3.6199965476989746,
+      "snippet": 10893,
+      "key_name": "title",
+      "window": "<PREFIX> . <I18N> . get ( <STR> , <NAME> ="
+    },
+    {
+      "label": false,
+      "margin": 3.6199965476989746,
+      "snippet": 1468,
+      "key_name": "balance",
+      "window": "<PREFIX> . <I18N> . get ( <STR> , <NAME> ="
+    },
+    {
+      "label": false,
+      "margin": 3.6199965476989746,
+      "snippet": 10385,
+      "key_name": "lang.success",
+      "window": "<PREFIX> . <I18N> . get ( <STR> , <NAME> ="
+    },
+    {
+      "label": false,
+      "margin": 3.6199965476989746,
+      "snippet": 18711,
+      "key_name": "failed",
+      "window": "<PREFIX> . <I18N> . get ( <STR> , <NAME> ="
+    },
+    {
+      "label": false,
+      "margin": 3.4816884994506836,
+      "snippet": 2031,
+      "key_name": "hello-retry-ok-reply",
+      "window": "<I18N> , <I18N> <NL> <NAME> = <NAME> . <NAME> . <NAME> . <NAME> . <NAME> ( <NAME> ="
+    },
+    {
+      "label": false,
+      "margin": 3.424893856048584,
+      "snippet": 12113,
+      "key_name": "i18n-text-user-error_menu-bonus_task",
+      "window": ", <NAME> ) : <NL> return <IGNORE_KW> . <I18N> . <NAME> . <NAME> . <NAME> . <NAME> ( ) <NL>"
+    },
+    {
+      "label": true,
+      "margin": -3.3669841289520264,
+      "snippet": 9802,
+      "key_name": "time-main_amount-profile_confirm",
+      "window": "<NAME> . <NAME> ) ) <NL> <PREFIX> . <I18N> . <NAME> . <NAME> . <NAME> ( _path ="
+    },
+    {
+      "label": false,
+      "margin": 3.316187858581543,
+      "snippet": 6153,
+      "key_name": "settings_profile-save-result_detail",
+      "window": "<PREFIX> ) : <NL> <NAME> = <NAME> . <NAME> . <NAME> . <NAME> ( ) <NL>"
+    },
+    {
+      "label": false,
+      "margin": 2.8253719806671143,
+      "snippet": 2564,
+      "key_name": null,
+      "window": ") <NL> <NAME> ( <STR> , <PREFIX> . <I18N> . get ( * <NAME>"
+    },
+    {
+      "label": false,
+      "margin": 2.765918731689453,
+      "snippet": 12120,
+      "key_name": null,
+      "window": "<NAME> , <I18N> , <I18N> <NL> <I18N> ( <STR> ,"
+    },
+    {
+      "label": false,
+      "margin": 2.6204941272735596,
+      "snippet": 18665,
+      "key_name": "amount-status_label-label_currency",
+      "window": "<PREFIX> ) : <NL> <NAME> = <NAME> . <NAME> . <NAME> . <NAME> ( <NAME> ="
+    },
+    {
+      "label": false,
+      "margin": 2.3772730827331543,
+      "snippet": 979,
+      "key_name": null,
+      "window": "<I18N> , <I18N> , <I18N> <NL> <I18N> ( <STR> )"
+    },
+    {
+      "label": true,
+      "margin": -2.3040266036987305,
+      "snippet": 8851,
+      "key_name": "load-photo-reply",
+      "window": "<NAME> . <NAME> <NL> <NAME> = <PREFIX> . <I18N> . <NAME> . <NAME> . <NAME> ( <NAME> ="
+    },
+    {
+      "label": false,
+      "margin": 2.2351083755493164,
+      "snippet": 19595,
+      "key_name": "tr-name_summary",
+      "window": "<I18N> , <I18N> <NL> <NAME> = <IGNORE_KW> . <I18N> . <NAME> ( <IGNORE_KW> ="
+    },
+    {
+      "label": true,
+      "margin": -2.218043804168701,
+      "snippet": 10054,
+      "key_name": "set_locale",
+      "window": "<NAME> . <NAME> } <NL> return <I18N> . <NAME> ( <STR> )"
+    },
+    {
+      "label": true,
+      "margin": -2.159057140350342,
+      "snippet": 18506,
+      "key_name": "delete_list-limit",
+      "window": "<NAME> . <NAME> ( <NAME> , <PREFIX> . <I18N> . <NAME> . <NAME> ( <STR> ,"
+    },
+    {
+      "label": true,
+      "margin": -1.908268690109253,
+      "snippet": 16459,
+      "key_name": "confirm-get",
+      "window": "<I18N> . <NAME> ( ) <NL> <I18N> . <NAME> . get ( <STR> ,"
+    },
+    {
+      "label": false,
+      "margin": 1.8504846096038818,
+      "snippet": 4680,
+      "key_name": "welcome_result-hello-delete_prev-help",
+      "window": "<NAME> <NL> <NAME> ( <NAME> , <NAME> . <NAME> . <NAME> . <NAME> . <NAME> ( <NAME> ="
+    },
+    {
+      "label": false,
+      "margin": 1.8221211433410645,
+      "snippet": 10344,
+      "key_name": "level-save-bonus_welcome-prev_reply",
+      "window": ") <NL> <NAME> ( <NAME> , <NAME> . <NAME> . <NAME> . <NAME> . <NAME> ( <NAME> ="
+    },
+    {
+      "label": false,
+      "margin": 1.5994024276733398,
+      "snippet": 9894,
+      "key_name": "bonus-summary_limit-invite-text",
+      "window": "<NAME> ) ) ( ) <NL> <NAME> . <NAME> . <NAME> . <NAME> . <NAME> ( <IGNORE_KW> ="
+    },
+    {
+      "label": false,
+      "margin": 1.4703960418701172,
+      "snippet": 18053,
+      "key_name": "done_note-currency-limit_pay",
+      "window": ") <NL> <NAME> ( <NAME> , <NAME> . <NAME> . <NAME> . <NAME> ( _path ="
+    },
+    {
+      "label": false,
+      "margin": 1.4518554210662842,
+      "snippet": 9516,
+      "key_name": "label-warning-summary_label",
+      "window": ") <NL> <NAME> ( <NAME> , <NAME> . <NAME> . <NAME> . <NAME> ( <NAME> ="
+    },
+    {
+      "label": true,
+      "margin": -1.4487054347991943,
+      "snippet": 12364,
+      "key_name": "start_cancel",
+      "window": "<NAME> . <NAME> ) <NL> return <I18N> . <NAME> ( ** <NAME>"
+    },
+    {
+      "label": false,
+      "margin": 1.438422441482544,
+      "snippet": 8861,
+      "key_name": "note-help-balance",
+      "window": "lambda : <PREFIX> . get ( <STR> , <NAME> ="
+    },
+    {
+      "label": false,
+      "margin": 1.438422441482544,
+      "snippet": 15065,
+      "key_name": "confirm.done",
+      "window": "lambda : <PREFIX> . get ( <STR> , <NAME> ="
+    },
+    {
+      "label": false,
+      "margin": 1.3650202751159668,
+      "snippet": 15163,
+      "key_name": null,
+      "window": "<NAME> , <I18N> , <I18N> <NL> <I18N> . get ( <STR> ,"
+    },
+    {
+      "label": false,
+      "margin": 1.3138022422790527,
+      "snippet": 5939,
+      "key_name": null,
+      "window": "<I18N> , <I18N> <NL> <NAME> = <PREFIX> . <I18N> . get ( <STR> )"
+    }
+  ]
+}

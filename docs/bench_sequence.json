@@ -1,0 +1,72 @@
+{
+  "n_steps": 2100,
+  "n_puffs": 10,
+  "puff_ms": 20.0,
+  "syn_scale": 10.0,
+  "apl_scale": 0.3,
+  "single": [
+    {
+      "batch": 64,
+      "seconds": 0.4936233999997057,
+      "trials_per_s": 129.65349697773271,
+      "ms_per_step": 0.23505876190462177
+    },
+    {
+      "batch": 128,
+      "seconds": 0.7825221999992209,
+      "trials_per_s": 163.5736340772536,
+      "ms_per_step": 0.37262961904724806
+    },
+    {
+      "batch": 256,
+      "seconds": 1.3603062000001955,
+      "trials_per_s": 188.19292303450737,
+      "ms_per_step": 0.6477648571429503
+    }
+  ],
+  "parallel": [
+    {
+      "workers": 16,
+      "batch": 64,
+      "seconds": 6.104727600000842,
+      "trials_per_s": 1341.9108167903953
+    },
+    {
+      "workers": 16,
+      "batch": 128,
+      "seconds": 9.16017119999924,
+      "trials_per_s": 894.3064295567619
+    },
+    {
+      "workers": 16,
+      "batch": 256,
+      "seconds": 13.481098700000075,
+      "trials_per_s": 607.6656051780078
+    },
+    {
+      "workers": 30,
+      "batch": 64,
+      "seconds": 6.127425299999231,
+      "trials_per_s": 1336.9400031691987
+    },
+    {
+      "workers": 30,
+      "batch": 128,
+      "seconds": 8.838166599998658,
+      "trials_per_s": 926.8890676943388
+    },
+    {
+      "workers": 30,
+      "batch": 256,
+      "seconds": 13.355963600000905,
+      "trials_per_s": 613.3589642307385
+    }
+  ],
+  "cache": {
+    "trials": 16384,
+    "seconds": 17.738133700000617,
+    "trials_per_s": 923.6597421745349,
+    "uint8_gb": 0.42549248,
+    "npz_mb": 43.12926
+  }
+}

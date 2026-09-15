@@ -2,12 +2,15 @@
 
 For each fixture (first run of ``args.json``) every parsable Python file is tokenized into
 candidates; a candidate is *positive* when ``reference/`` reports a key at the same call
-position with the same key name.  Then:
+position with the same key name.  Since ``fly-odor-4`` a candidate's odour is a *sequence*
+of puffs (one PN vector per slot of the 6 / focus / 3 window).  Then:
 
-* distribution of active PNs (odour > 0.1) and odour mass per candidate;
-* Kenyon-cell patterns of every odour (two seeds) and the Jaccard of the active-KC sets for
-  (a) the same candidate with different seeds, (b) positive/negative pairs,
-  (c) positive/positive pairs from different files;
+* distribution of active PNs per puff and of silent slots per candidate;
+* per-puff Kenyon-cell patterns of every sequence (two seeds, ``Brain.simulate_sequence``)
+  and the Jaccard of the active (puff, KC) sets for (a) the same candidate with different
+  seeds, (b) positive/negative pairs, (c) positive/positive pairs from different files,
+  (d) negative/negative pairs;
+* the same numbers for the encoder variants the proxy compared (docs/METRICS.md §6);
 * a human-readable dump of the first candidates of fixture ``basic``.
 """
 
@@ -27,6 +30,7 @@ from fly_ftl_extract.odor.encoder import (
     EncoderParams,
     encode_many,
     normalize_window,
+    slot_features,
 )
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -40,18 +44,16 @@ DUMP_COUNT = 20
 MAX_PAIRS = 3000
 SEEDS = (1, 2)
 SWEEP = (
-    EncoderParams(max_ngram=3, distance_tau=6.0, bag_weight=0.5),
-    EncoderParams(max_ngram=3, distance_tau=6.0, bag_weight=0.0),
-    EncoderParams(max_ngram=3, distance_tau=3.0, bag_weight=0.5),
-    EncoderParams(max_ngram=3, distance_tau=3.0, bag_weight=0.0),
-    EncoderParams(max_ngram=2, distance_tau=6.0, bag_weight=0.5),
-    EncoderParams(max_ngram=2, distance_tau=3.0, bag_weight=0.0),
-    EncoderParams(max_ngram=1, distance_tau=6.0, bag_weight=0.0),
+    EncoderParams(bigrams=True, hashes_per_feature=2),  # fly-odor-4
+    EncoderParams(bigrams=True, hashes_per_feature=1),
+    EncoderParams(bigrams=False, hashes_per_feature=2),
+    EncoderParams(bigrams=False, hashes_per_feature=1),
 )
 
 
 def jaccard_pairs(a: np.ndarray, b: np.ndarray) -> np.ndarray:
-    x, y = a > 0, b > 0
+    """Jaccard of the active sets per row; trailing dimensions (puff, KC) are flattened."""
+    x, y = (a > 0).reshape(a.shape[0], -1), (b > 0).reshape(b.shape[0], -1)
     return (x & y).sum(1) / np.maximum((x | y).sum(1), 1)
 
 
@@ -65,21 +67,18 @@ def histogram(values: np.ndarray, edges: list[int]) -> list[tuple[str, int]]:
 @dataclass(frozen=True)
 class Measure:
     params: EncoderParams
-    active_pn: float
-    mass: float
-    kc_active: float
+    active_pn_per_puff: float
+    kc_active_per_puff: float
     j_same: float
     j_pos_neg: float
     j_pos_pos: float
     j_neg_neg: float
 
 
-def measure(
-    items: list[Labeled], brain: Brain, params: EncoderParams, rng_seed: int = 0
-) -> tuple[Measure, np.ndarray, dict[int, np.ndarray]]:
-    """Odours, KC patterns and the four Jaccard numbers for one encoder setting."""
+def encode_items(items: list[Labeled], params: EncoderParams) -> np.ndarray:
+    """``(n, n_slots, n_pn)`` puff sequences, encoded fixture by fixture with its options."""
     options_by_fixture = {it.file.fixture: it.file.options for it in items}
-    odors = np.concatenate(
+    return np.concatenate(
         [
             encode_many(
                 [it.candidate.window for it in items if it.file.fixture == fx], opts, params=params
@@ -87,9 +86,17 @@ def measure(
             for fx, opts in options_by_fixture.items()
         ]
     )
+
+
+def measure(
+    items: list[Labeled], brain: Brain, params: EncoderParams, rng_seed: int = 0
+) -> tuple[Measure, np.ndarray, dict[int, np.ndarray]]:
+    """Puffs, per-puff KC patterns and the four Jaccard numbers for one encoder setting."""
+    puffs = encode_items(items, params)
     positive = np.array([it.positive for it in items])
     files = np.array([f"{it.file.fixture}/{it.file.path}" for it in items])
-    kc = {s: brain.simulate(odors, seed=s).kc_counts for s in SEEDS}
+    results = {s: brain.simulate_sequence(puffs, seed=s) for s in SEEDS}
+    kc = {s: r.kc_counts for s, r in results.items()}
     rng = np.random.default_rng(rng_seed)
     pos_idx = [int(i) for i in np.flatnonzero(positive)]
     neg_idx = [int(i) for i in np.flatnonzero(~positive)]
@@ -106,17 +113,17 @@ def measure(
     )
     nn = sample([(a, b) for i, a in enumerate(neg_idx) for b in neg_idx[i + 1 :]])
     k1 = kc[SEEDS[0]]
+    non_empty = puffs.any(axis=2)
     m = Measure(
         params=params,
-        active_pn=float((odors > ACTIVE_THRESHOLD).sum(axis=1).mean()),
-        mass=float(odors.sum(axis=1).mean()),
-        kc_active=float((k1 > 0).mean()),
+        active_pn_per_puff=float((puffs > ACTIVE_THRESHOLD).sum(axis=2)[non_empty].mean()),
+        kc_active_per_puff=results[SEEDS[0]].kc_active_fraction_non_empty,
         j_same=float(jaccard_pairs(k1, kc[SEEDS[1]]).mean()),
         j_pos_neg=float(jaccard_pairs(k1[pn[:, 0]], k1[pn[:, 1]]).mean()),
         j_pos_pos=float(jaccard_pairs(k1[pp[:, 0]], k1[pp[:, 1]]).mean()),
         j_neg_neg=float(jaccard_pairs(k1[nn[:, 0]], k1[nn[:, 1]]).mean()),
     )
-    return m, odors, kc
+    return m, puffs, kc
 
 
 def main() -> int:
@@ -124,37 +131,35 @@ def main() -> int:
     # keep items grouped by fixture: the odour matrix is built fixture by fixture
     order = {fx: i for i, fx in enumerate(dict.fromkeys(it.file.fixture for it in items))}
     items = sorted(items, key=lambda it: order[it.file.fixture])
-    sweep = [measure(items, Brain(load(), DEFAULT_PARAMS), p)[0] for p in SWEEP]
+    brain = Brain(load(), DEFAULT_PARAMS)
+    sweep = [measure(items, brain, p)[0] for p in SWEEP]
     for m in sweep:
         print(
-            f"ngram {m.params.max_ngram} tau {m.params.distance_tau} bag {m.params.bag_weight}: "
-            f"PN {m.active_pn:.1f} mass {m.mass:.1f} KC {m.kc_active:.3f} "
+            f"bigrams {m.params.bigrams} hashes {m.params.hashes_per_feature}: "
+            f"PN/puff {m.active_pn_per_puff:.1f} KC/puff {m.kc_active_per_puff:.3f} "
             f"J same {m.j_same:.3f} pos/neg {m.j_pos_neg:.3f} pos/pos {m.j_pos_pos:.3f} "
             f"neg/neg {m.j_neg_neg:.3f}",
             flush=True,
         )
-    options_by_fixture = {it.file.fixture: it.file.options for it in items}
-    odors = np.concatenate(
-        [
-            encode_many([it.candidate.window for it in items if it.file.fixture == fx], opts)
-            for fx, opts in options_by_fixture.items()
-        ]
-    )
+    _current, puffs, kc = measure(items, brain, DEFAULT_ENCODER)
     positive = np.array([it.positive for it in items])
-    files = np.array([f"{it.file.fixture}/{it.file.path}" for it in items])
-    active = (odors > ACTIVE_THRESHOLD).sum(axis=1)
-    mass = odors.sum(axis=1)
-
-    cx = load()
-    brain = Brain(cx, DEFAULT_PARAMS)
-    results = {s: brain.simulate(odors, seed=s) for s in SEEDS}
-    kc = {s: r.kc_counts for s, r in results.items()}
-    frac = {s: float(r.kc_active_fraction.mean()) for s, r in results.items()}
+    non_empty = puffs.any(axis=2)
+    active = (puffs > ACTIVE_THRESHOLD).sum(axis=2)  # (n, n_slots)
+    silent_slots = (~non_empty).sum(axis=1)
+    focus = DEFAULT_ENCODER.context_before
+    results = {s: brain.simulate_sequence(puffs, seed=s) for s in SEEDS}
+    frac = {s: r.kc_active_fraction_non_empty for s, r in results.items()}
+    per_slot_kc = [
+        float(results[SEEDS[0]].kc_active_fraction[non_empty[:, k], k].mean())
+        for k in range(puffs.shape[1])
+    ]
+    per_slot_pn = [float(active[non_empty[:, k], k].mean()) for k in range(puffs.shape[1])]
 
     rng = np.random.default_rng(0)
     same = jaccard_pairs(kc[SEEDS[0]], kc[SEEDS[1]])
     pos_idx = np.flatnonzero(positive)
     neg_idx = np.flatnonzero(~positive)
+    files = np.array([f"{it.file.fixture}/{it.file.path}" for it in items])
     pn_pairs = np.array([(p, n) for p in pos_idx for n in neg_idx])
     if len(pn_pairs) > MAX_PAIRS:
         pn_pairs = pn_pairs[rng.choice(len(pn_pairs), MAX_PAIRS, replace=False)]
@@ -175,11 +180,8 @@ def main() -> int:
         return f"{v.mean():.3f} (median {np.median(v):.3f}, min {v.min():.3f}, max {v.max():.3f})"
 
     print(f"candidates {len(items)}, positives {int(positive.sum())}")
-    print(
-        f"active PN: mean {active.mean():.1f}, median {np.median(active):.0f}, min {active.min()}, max {active.max()}"
-    )
-    print(f"odor mass: mean {mass.mean():.2f}")
-    print(f"KC active fraction: {frac}")
+    print(f"active PN per non-empty puff: mean {active[non_empty].mean():.1f}")
+    print(f"KC active per puff: {frac}")
     print(f"(a) same candidate, seeds {SEEDS}: J {stats(same)}")
     print(f"(b) positive/negative: J {stats(pos_neg)}")
     print(f"(c) positive/positive, different files: J {stats(pos_pos)}")
@@ -193,15 +195,18 @@ def main() -> int:
         kwargs = ", ".join(
             f"{k.name}={k.path_value!r}" if k.path_value is not None else k.name for k in c.kwargs
         )
+        slots = slot_features(c.window, it.file.options)
+        per_slot = " ".join(f"[{len(s)}]" if s else "[·]" for s in slots)
         dump_lines.append(
             f"{c.line}:{c.column} {c.kind:<6} {'POS' if it.positive else 'neg'} "
             f"key={c.key_name!r} kwargs=[{kwargs}]{' **' if c.kwargs_unknown else ''}\n"
-            f"    {seq}"
+            f"    {seq}\n"
+            f"    features per slot: {per_slot}"
         )
-    edges = [0, 10, 20, 30, 40, 50, 60, 80, 100, 125]
-    hist = histogram(active, edges)
+    edges = [0, 4, 8, 10, 12, 14, 16, 20, 30, 125]
+    hist = histogram(active[non_empty], edges)
     per_kind = {
-        kind: active[np.array([it.candidate.kind == kind for it in items])]
+        kind: active[np.array([it.candidate.kind == kind for it in items])][:, focus]
         for kind in ("string", "chain")
     }
 
@@ -210,8 +215,10 @@ def main() -> int:
         "",
         f"Generated by `scripts/odor_report.py`. Encoder `{ENCODER_VERSION}` ({DEFAULT_ENCODER}),",
         (
-            f"brain `BrainParams` at the defaults (T_stim {DEFAULT_PARAMS.t_stim:.0f} ms, syn_scale "
-            f"{DEFAULT_PARAMS.syn_scale}). Candidates — from every fixture (the first run of each `args.json`),"
+            f"brain `BrainParams` at the defaults (puff {DEFAULT_PARAMS.puff_ms:.0f} ms × "
+            f"{puffs.shape[1]} puffs + {DEFAULT_PARAMS.t_silence:.0f} ms of silence, syn_scale "
+            f"{DEFAULT_PARAMS.syn_scale}, apl_scale {DEFAULT_PARAMS.apl_scale}). Candidates — from every fixture "
+            "(the first run of each `args.json`),"
         ),
         "positive = the labelling rule from `reference/labels.py` (exactly one positive per teacher occurrence).",
         "",
@@ -225,30 +232,44 @@ def main() -> int:
             f"- By kind: string {int(sum(it.candidate.kind == 'string' for it in items))}, "
             f"chain {int(sum(it.candidate.kind == 'chain' for it in items))}."
         ),
-        "",
-        "## 2. How many PNs one odour activates",
-        "",
         (
-            f"An active PN = odor > {ACTIVE_THRESHOLD}. Mean {active.mean():.1f} of 124 "
-            f"({active.mean() / 124:.0%}), median {np.median(active):.0f}, min {active.min()}, max {active.max()}; "
-            f"string candidates {per_kind['string'].mean():.1f}, chain candidates {per_kind['chain'].mean():.1f}. "
-            f"Mean odour mass (the vector sum) {mass.mean():.2f}, positives {mass[positive].mean():.2f}, "
-            f"negatives {mass[~positive].mean():.2f}."
+            f"- Silent slots (a candidate close to the start of the file): in {int((silent_slots > 0).sum())} "
+            f"candidates, on average {silent_slots.mean():.2f} of {puffs.shape[1]} slots."
         ),
         "",
-        "| active PNs | candidates |",
+        "## 2. How many PNs one puff activates",
+        "",
+        (
+            f"An active PN = odor > {ACTIVE_THRESHOLD}. One puff is one window slot: on average "
+            f"{active[non_empty].mean():.1f} of 124 ({active[non_empty].mean() / 124:.0%}) in a non-empty "
+            f"puff; the candidate slot: string {per_kind['string'].mean():.1f}, chain "
+            f"{per_kind['chain'].mean():.1f} (a chain hashes each of its tokens, hence denser)."
+        ),
+        "",
+        "| active PNs in the puff | puffs |",
         "|---:|---:|",
     ]
     lines.extend(f"| {rng_} | {n} |" for rng_, n in hist)
     lines += [
         "",
+        "| slot | active PN | KC active / puff (seed 1) |",
+        "|---:|---:|---:|",
+    ]
+    lines.extend(
+        f"| {k - focus:+d} | {per_slot_pn[k]:.1f} | {per_slot_kc[k]:.3f} |"
+        for k in range(puffs.shape[1])
+    )
+    lines += [
+        "",
         "## 3. KC patterns",
         "",
-        f"Simulation of all {len(items)} odours with two seeds. The share of active KCs: "
+        f"Simulation of all {len(items)} sequences with two seeds. The share of active KCs per non-empty puff: "
         + ", ".join(f"seed {s}: {v:.3f}" for s, v in frac.items())
-        + " (the calibration on these very odours aimed at 0.08–0.10).",
+        + " (the calibration on these very sequences aimed at 0.08–0.10, docs/BENCH.md §2).",
         "",
-        "| pairs | n | Jaccard of active KCs: mean (median, min, max) |",
+        "Jaccard is computed over the sets of active (puff, KC), i.e. the token order is part of the code.",
+        "",
+        "| pairs | n | Jaccard of active (puff, KC): mean (median, min, max) |",
         "|---|---:|---|",
         f"| (a) the same candidate, seed {SEEDS[0]} vs {SEEDS[1]} | {len(same)} | {stats(same)} |",
         f"| (b) positive / negative (the same seed) | {len(pos_neg)} | {stats(pos_neg)} |",
@@ -258,15 +279,16 @@ def main() -> int:
         "### Encoder levers (the same candidate set, seed 1 vs 2)",
         "",
         (
-            "The n-gram density (`max_ngram`, `bag_weight` — the weight of position-independent n-grams) and "
-            "the distance weights (`distance_tau`). The first row is the current parameters."
+            "Bigrams (`bigrams`: the pair «previous token, token» is added to every slot) and the number "
+            "of hashes per feature (`hashes_per_feature`). The first row is the current parameters; for the proxy ceiling "
+            "of every variant see docs/METRICS.md §6."
         ),
         "",
-        "| max_ngram | distance_tau | bag_weight | active PN | mass | KC active | J (a) same | J (b) pos/neg | J (c) pos/pos | J (d) neg/neg |",
-        "|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+        "| bigrams | hashes | active PN / puff | KC active / puff | J (a) same | J (b) pos/neg | J (c) pos/pos | J (d) neg/neg |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|",
         *(
-            f"| {m.params.max_ngram} | {m.params.distance_tau} | {m.params.bag_weight} | {m.active_pn:.1f} "
-            f"| {m.mass:.1f} | {m.kc_active:.3f} | {m.j_same:.3f} | {m.j_pos_neg:.3f} | {m.j_pos_pos:.3f} "
+            f"| {m.params.bigrams} | {m.params.hashes_per_feature} | {m.active_pn_per_puff:.1f} "
+            f"| {m.kc_active_per_puff:.3f} | {m.j_same:.3f} | {m.j_pos_neg:.3f} | {m.j_pos_pos:.3f} "
             f"| {m.j_neg_neg:.3f} |"
             for m in sweep
         ),
@@ -274,8 +296,9 @@ def main() -> int:
         f"## 4. Candidate dump of the `basic` fixture (app/handlers/start.py, first {DUMP_COUNT})",
         "",
         (
-            "Format: `line:column kind POS/neg key=… kwargs=[…]` and the normalised window "
-            "(12 tokens before, focus, 6 after)."
+            "Format: `line:column kind POS/neg key=… kwargs=[…]`, the normalised window "
+            "(6 tokens before, focus, 3 after — what goes into the slots) and the number of features in each "
+            "of the 10 slots (`[·]` — a silent puff)."
         ),
         "",
         "```",

@@ -1,11 +1,18 @@
-"""Dopamine training: odours → mushroom body → KC states → two linear MBON readouts.
+"""Dopamine training: odour sequences → mushroom body → per-puff KC states → MBON readouts.
 
-Reads ``data/dataset/{keys,kwargs}.npz`` (from ``scripts/make_dataset.py``), simulates the
-brain (train rows with ``TRAIN_SEEDS`` seeds each as augmentation, val/test rows with their
-production seeds), trains a readout per feature mode with the delta rule, keeps the mode
-with the best validation F1, chooses the resniff threshold θ on val (≤ 10 % resniffs),
-evaluates on test with and without resniff, runs the whole fly on the golden fixtures, and
-writes ``data/mbon_weights.npz`` and ``docs/METRICS.md``.
+Reads ``data/dataset/{keys,kwargs}.npz`` (from ``scripts/make_dataset.py``; every row is a
+sequence of ``n_slots`` puffs), simulates the brain in the temporal mode
+(``Brain.simulate_sequence``; train rows with ``TRAIN_SEEDS`` seeds each as augmentation,
+val/test rows with their production seeds), trains a readout per feature mode with the
+delta rule over the per-puff features ``[spiked, log1p(count)]`` (auditor's decision after
+Phase 5: only ``both`` by default), keeps the mode with the best validation F1, chooses the
+resniff threshold θ on val (≤ 10 % resniffs), evaluates on test with and without resniff,
+runs the whole fly on the golden fixtures, and writes ``data/mbon_weights.npz`` and
+``docs/METRICS.md``.
+
+Brain time budget (auditor): ≤ 2 hours for the whole run.  ``--train-rows`` subsamples the
+*negatives* of the keys train split (all positives stay) and ``--train-seeds`` limits the
+augmentation; both are recorded in the metrics and the doc.  Val and test are never cut.
 
 KC states are cached under ``.cache/brain_states/`` (keyed by brain hash, encoder version
 and the odours) so that training experiments do not re-run the brain.
@@ -23,6 +30,7 @@ import time
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -56,11 +64,19 @@ CACHE_DIR = REPO / ".cache" / "brain_states"
 OUT_DOC = REPO / "docs" / "METRICS.md"
 ATTEMPTS = REPO / "docs" / "attempts.jsonl"
 PROXY_JSON = REPO / "docs" / "encoder_proxy.json"
-TRAIN_SEEDS = (101, 102, 103)  # three sniffs of every training odour
-MAX_RESNIFF = 3
+PROXY_V1_JSON = REPO / "docs" / "encoder_proxy_v1.json"
+CALIBRATION_JSON = REPO / "docs" / "calibration.json"
+BENCH_JSON = REPO / "docs" / "bench_sequence.json"
+TRAIN_SEEDS = (101, 102, 103)  # up to three sniffs of every training odour
+MAX_RESNIFF = 5
 RESNIFF_FRACTION = 0.10
-BATCH = 256
+BATCH = 64
+"""Trials per brain batch.  Smaller than the Phase 3 single-process optimum (256): with 16
+worker processes the throughput is memory-bound and the smaller working set wins —
+1340 trials/s at 64 vs 900 at 128 and 610 at 256 (``scripts/bench.py``, docs/BENCH.md §3a)."""
+CHUNK_BATCHES = 8
 WORST = 10
+DEFAULT_MODES: tuple[str, ...] = ("both",)
 
 
 class Table:
@@ -69,7 +85,7 @@ class Table:
     def __init__(self, name: str, dataset_dir: Path) -> None:
         self.name = name
         with np.load(dataset_dir / f"{name}.npz") as z:
-            self.odors = z["odors"]
+            self.odors = z["odors"]  # (rows, n_slots, n_pn)
             self.label = z["label"]
             self.split = z["split"]
             self.seed = z["seed"]
@@ -77,6 +93,7 @@ class Table:
             self.index = z["index"]
         with (dataset_dir / f"{name}.jsonl").open(encoding="utf-8") as fh:
             self.meta = [json.loads(line) for line in fh]
+        self.puff_active = self.odors.any(axis=2)  # (rows, n_slots)
 
     def rows(self, split: int) -> np.ndarray:
         return np.flatnonzero(self.split == split)
@@ -94,42 +111,55 @@ def _worker_brain() -> Brain:
     return _WORKER_BRAIN
 
 
-def _simulate_chunk(odors: np.ndarray, seeds: np.ndarray | int) -> np.ndarray:
-    """KC counts of a chunk that is a whole number of batches (so results do not depend
-    on how the work was split across processes: every batch sees the same odours and,
-    in single-seed mode, the same random stream)."""
+def _simulate_chunk(odors: np.ndarray, seeds: np.ndarray | int, batch: int = BATCH) -> np.ndarray:
+    """Per-puff KC counts (uint8) of a chunk that is a whole number of batches (so results
+    do not depend on how the work was split across processes: every batch sees the same
+    odours and, in single-seed mode, the same random stream)."""
     brain = _worker_brain()
-    counts = np.zeros((len(odors), brain.n_kc), dtype=np.uint8)
-    for start in range(0, len(odors), BATCH):
-        sl = slice(start, start + BATCH)
+    counts = np.zeros((len(odors), odors.shape[1], brain.n_kc), dtype=np.uint8)
+    for start in range(0, len(odors), batch):
+        sl = slice(start, start + batch)
         seed = seeds if isinstance(seeds, int) else seeds[sl]
-        counts[sl] = np.minimum(brain.simulate(odors[sl], seed).kc_counts, 255)
+        counts[sl] = np.minimum(brain.simulate_sequence(odors[sl], seed).kc_counts, 255)
     return counts
 
 
 def simulate_all(
-    brain: Brain, odors: np.ndarray, seeds: np.ndarray | int, label: str
+    brain: Brain,
+    odors: np.ndarray,
+    seeds: np.ndarray | int,
+    label: str,
+    *,
+    batch: int = BATCH,
+    workers: int = WORKERS,
 ) -> np.ndarray:
-    """KC spike counts (uint8) of every odour, batched over ``WORKERS`` processes."""
+    """Per-puff KC spike counts (uint8) of every sequence, batched over ``workers`` processes."""
     t0 = time.perf_counter()
-    chunk = BATCH * 8
+    chunk = batch * CHUNK_BATCHES
     starts = list(range(0, len(odors), chunk))
-    if len(starts) <= 1 or WORKERS == 1:
-        counts = _simulate_chunk(odors, seeds)
+    if len(starts) <= 1 or workers == 1:
+        counts = _simulate_chunk(odors, seeds, batch)
     else:
         parts = [
             (odors[a : a + chunk], seeds if isinstance(seeds, int) else seeds[a : a + chunk])
             for a in starts
         ]
-        with ProcessPoolExecutor(max_workers=WORKERS) as pool:
+        with ProcessPoolExecutor(max_workers=workers) as pool:
             results = list(
-                pool.map(_simulate_chunk, [o for o, _ in parts], [sd for _, sd in parts])
+                pool.map(
+                    _simulate_chunk,
+                    [o for o, _ in parts],
+                    [sd for _, sd in parts],
+                    [batch] * len(parts),
+                )
             )
         counts = np.concatenate(results)
-    assert counts.shape == (len(odors), brain.n_kc)
+    assert counts.shape == (len(odors), odors.shape[1], brain.n_kc)
     rate = len(odors) / max(time.perf_counter() - t0, 1e-9)
     print(
-        f"  {label}: {len(odors)} trials, {rate:.0f} trials/s over {WORKERS} processes", flush=True
+        f"  {label}: {len(odors)} trials, {rate:.0f} trials/s over {workers} processes "
+        f"(batch {batch})",
+        flush=True,
     )
     return counts
 
@@ -151,8 +181,20 @@ def cached_states(
         with np.load(path) as z:
             return np.asarray(z["counts"])
     counts = simulate_all(brain, odors, seeds, label)
+    t0 = time.perf_counter()
     np.savez_compressed(path, counts=counts)
+    print(
+        f"  {label}: cached {counts.nbytes / 1e9:.2f} GB -> {path.stat().st_size / 1e6:.0f} MB "
+        f"in {time.perf_counter() - t0:.0f} s",
+        flush=True,
+    )
     return counts
+
+
+def kc_active_per_puff(counts: np.ndarray, puff_active: np.ndarray) -> float:
+    """Mean share of active KC over the puffs that carried an odour."""
+    active = (counts > 0).mean(axis=2, dtype=np.float32)  # (rows, n_slots)
+    return float(active[puff_active].mean()) if puff_active.any() else 0.0
 
 
 @dataclass
@@ -178,7 +220,7 @@ def evaluate(
     """Test scores without and with resniff, the resniff fraction and the worst examples."""
     test = table.rows(2)
     y = table.label[test]
-    margin1 = readout.margin(counts_test)
+    margin1 = readout.margin_batched(counts_test)
     plain = score(margin1 > 0, y)
     unsure = np.flatnonzero(np.abs(margin1) < theta)
     margins = np.zeros((len(test), 1 + max_resniff), dtype=np.float32)
@@ -192,7 +234,7 @@ def evaluate(
         counts = cached_states(
             brain, table.odors[test][unsure], seeds, f"{table.name} test resniff {sniff}", cache_dir
         )
-        margins[unsure, sniff] = readout.margin(counts)
+        margins[unsure, sniff] = readout.margin_batched(counts)
     summed = vote(margins)
     with_resniff = score(summed > 0, y)
     wrong = np.flatnonzero((summed > 0) != y)
@@ -218,12 +260,16 @@ class FixturesResult:
     files_ok: int
     mismatches: list[str]
     seconds: float
+    margins: list[dict[str, object]]
+    """Per mismatching file: the verdicts (position, key, margin, sniffs) of every
+    candidate the fly or the teacher named — what the auditor asked to see."""
 
 
 def fixtures_check(weights: MbonWeights) -> FixturesResult:
     """Run the whole fly on every fixture file; compare with the teacher."""
     files_ok, files_total = 0, 0
     mismatches: list[str] = []
+    margins: list[dict[str, object]] = []
     t0 = time.perf_counter()
     for name in fixture_names():
         judge: Judge | None = None
@@ -255,7 +301,27 @@ def fixtures_check(weights: MbonWeights) -> FixturesResult:
                     f"{name}/{f.path}: missing {sorted(expected - got)!r}, "
                     f"extra {sorted(got - expected)!r}"
                 )
-    return FixturesResult(files_total, files_ok, mismatches, time.perf_counter() - t0)
+                wanted = {k[0] for k in expected} | {k[0] for k in got}
+                margins.append(
+                    {
+                        "file": f"{name}/{f.path}",
+                        "candidates": [
+                            {
+                                "call_position": c.call_position,
+                                "text": c.text,
+                                "key_name": c.key_name,
+                                "teacher": (c.call_position, c.key_name)
+                                in {(k[0], k[1]) for k in expected},
+                                "margin": v.margin,
+                                "sniffs": v.sniffs,
+                                "kc_active": v.kc_active_fraction,
+                            }
+                            for c, v in zip(judged.candidates, judged.verdicts, strict=True)
+                            if v is not None and c.call_position in wanted
+                        ],
+                    }
+                )
+    return FixturesResult(files_total, files_ok, mismatches, time.perf_counter() - t0, margins)
 
 
 def md_scores(s: Scores) -> str:
@@ -297,8 +363,23 @@ class TaskResult:
                 for m, log in self.logs.items()
             },
             "rows": self.rows,
-            "kc_active_fraction": self.kc_active,
+            "kc_active_per_puff": self.kc_active,
         }
+
+
+def subsample_train(
+    table: Table, train_rows: int | None, rng: np.random.Generator
+) -> tuple[np.ndarray, int]:
+    """Train row indices: all positives, negatives subsampled so that the total is
+    ``train_rows`` (``None`` = everything).  Returns ``(rows, negatives dropped)``."""
+    tr = table.rows(0)
+    if train_rows is None or len(tr) <= train_rows:
+        return tr, 0
+    pos = tr[table.label[tr]]
+    neg = tr[~table.label[tr]]
+    keep_neg = max(train_rows - len(pos), 0)
+    kept = np.sort(np.concatenate([pos, rng.choice(neg, keep_neg, replace=False)]))
+    return kept, len(neg) - keep_neg
 
 
 def train_task(
@@ -310,27 +391,39 @@ def train_task(
     modes: list[str],
     config: TrainConfig,
     max_resniff: int = MAX_RESNIFF,
+    train_seeds: tuple[int, ...] = TRAIN_SEEDS,
+    train_rows: int | None = None,
 ) -> tuple[TaskResult, dict[str, float]]:
     table = Table(name, dataset)
-    tr, va, te = table.rows(0), table.rows(1), table.rows(2)
+    tr, dropped = subsample_train(table, train_rows, np.random.default_rng(config.seed))
+    va, te = table.rows(1), table.rows(2)
+    print(
+        f"{name}: train rows {len(tr)} ({int(table.label[tr].sum())} positive, "
+        f"{dropped} negatives dropped) × {len(train_seeds)} seeds; val {len(va)}, test {len(te)}",
+        flush=True,
+    )
     timings: dict[str, float] = {}
     t0 = time.perf_counter()
-    counts_tr = np.concatenate(
-        [
-            cached_states(brain, table.odors[tr], s, f"{name} train seed {s}", cache)
-            for s in TRAIN_SEEDS
-        ]
-    )
-    y_tr = np.tile(table.label[tr], len(TRAIN_SEEDS))
+    # filled seed by seed instead of np.concatenate: the keys train states are ~6 GB per
+    # seed and a concatenation would hold two copies at once
+    n_tr, n_slots = len(tr), table.odors.shape[1]
+    counts_tr = np.empty((n_tr * len(train_seeds), n_slots, brain.n_kc), dtype=np.uint8)
+    for i, s in enumerate(train_seeds):
+        counts_tr[i * n_tr : (i + 1) * n_tr] = cached_states(
+            brain, table.odors[tr], s, f"{name} train seed {s}", cache
+        )
+    y_tr = np.tile(table.label[tr], len(train_seeds))
     counts_va = cached_states(brain, table.odors[va], table.seed[va], f"{name} val", cache)
     counts_te = cached_states(brain, table.odors[te], table.seed[te], f"{name} test", cache)
     timings["brain_s"] = time.perf_counter() - t0
     kc_active = {
-        "train": float((counts_tr > 0).mean()),
-        "val": float((counts_va > 0).mean()),
-        "test": float((counts_te > 0).mean()),
+        "train": kc_active_per_puff(
+            counts_tr, np.tile(table.puff_active[tr], (len(train_seeds), 1))
+        ),
+        "val": kc_active_per_puff(counts_va, table.puff_active[va]),
+        "test": kc_active_per_puff(counts_te, table.puff_active[te]),
     }
-    print(f"{name}: KC active fraction {kc_active}", flush=True)
+    print(f"{name}: KC active per non-empty puff {kc_active}", flush=True)
 
     t1 = time.perf_counter()
     logs: dict[str, TrainLog] = {}
@@ -349,13 +442,14 @@ def train_task(
         candidates[mode] = readout
         print(
             f"  {name}/{mode}: best val F1 {log.best_val_f1:.4f} at epoch {log.best_epoch} "
-            f"({len(log.epochs)} epochs)",
+            f"({len(log.epochs)} epochs, {time.perf_counter() - t1:.0f} s)",
             flush=True,
         )
     best_mode = max(modes, key=lambda m: logs[m].best_val_f1)
     readout = candidates[best_mode]
     timings["train_s"] = time.perf_counter() - t1
-    theta = resniff_threshold(readout.margin(counts_va), RESNIFF_FRACTION)
+    val_margin = readout.margin_batched(counts_va)
+    theta = resniff_threshold(val_margin, RESNIFF_FRACTION)
     evaluation = evaluate(
         brain,
         table,
@@ -365,7 +459,7 @@ def train_task(
         cache_dir=cache,
         max_resniff=max_resniff,
     )
-    val_scores = score(readout.margin(counts_va) > 0, table.label[va])
+    val_scores = score(val_margin > 0, table.label[va])
     print(
         f"  {name}: mode {best_mode}, θ {theta:.4f}; test {md_scores(evaluation.plain)}; "
         f"with resniff {md_scores(evaluation.resniffed)} "
@@ -381,7 +475,9 @@ def train_task(
         evaluation=evaluation,
         logs=logs,
         rows={
+            "train_split": len(table.rows(0)),
             "train": len(tr),
+            "train_negatives_dropped": dropped,
             "train_with_sniffs": len(y_tr),
             "val": len(va),
             "test": len(te),
@@ -397,15 +493,25 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dataset", type=Path, default=DATASET_DIR)
     parser.add_argument("--cache", type=Path, default=CACHE_DIR)
     parser.add_argument("--out", type=Path, default=weights_path())
-    parser.add_argument("--modes", nargs="+", default=list(FEATURE_MODES))
+    parser.add_argument("--modes", nargs="+", default=list(DEFAULT_MODES))
     parser.add_argument("--lr", type=float, default=TrainConfig().lr)
     parser.add_argument("--l2", type=float, default=TrainConfig().l2)
     parser.add_argument("--epochs", type=int, default=TrainConfig().max_epochs)
     parser.add_argument("--attempt", default="", help="label of this attempt for METRICS.md §5")
     parser.add_argument("--max-resniff", type=int, default=MAX_RESNIFF)
+    parser.add_argument(
+        "--train-seeds", type=int, default=len(TRAIN_SEEDS), help="augmentation seeds (1-3)"
+    )
+    parser.add_argument(
+        "--train-rows",
+        type=int,
+        default=None,
+        help="cap on keys train rows (negatives subsampled, positives kept); kwargs untouched",
+    )
     args = parser.parse_args(argv)
     config = TrainConfig(lr=args.lr, l2=args.l2, max_epochs=args.epochs)
     max_resniff = args.max_resniff
+    train_seeds = TRAIN_SEEDS[: args.train_seeds]
 
     t_start = time.perf_counter()
     dataset_meta = json.loads((args.dataset / "meta.json").read_text(encoding="utf-8"))
@@ -417,7 +523,12 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
     brain = Brain(load(), DEFAULT_PARAMS)
-    print(f"brain {brain.hash}, encoder {ENCODER_VERSION}", flush=True)
+    print(
+        f"brain {brain.hash} (syn_scale {brain.params.syn_scale}, apl_scale "
+        f"{brain.params.apl_scale}, puff {brain.params.puff_ms} ms), encoder {ENCODER_VERSION}, "
+        f"{WORKERS} workers",
+        flush=True,
+    )
 
     results: dict[str, TaskResult] = {}
     timings: dict[str, float] = {}
@@ -430,6 +541,8 @@ def main(argv: list[str] | None = None) -> int:
             modes=args.modes,
             config=config,
             max_resniff=max_resniff,
+            train_seeds=train_seeds,
+            train_rows=args.train_rows if name == "keys" else None,
         )
         results[name] = result
         timings.update({f"{name}_{k}": v for k, v in task_timings.items()})
@@ -437,8 +550,10 @@ def main(argv: list[str] | None = None) -> int:
     metrics: dict[str, object] = {
         "encoder_version": ENCODER_VERSION,
         "brain_hash": brain.hash,
+        "brain_params": asdict(brain.params),
         "train_config": asdict(config),
-        "train_seeds": TRAIN_SEEDS,
+        "train_seeds": train_seeds,
+        "train_rows_cap": args.train_rows,
         "max_resniff": max_resniff,
         "resniff_fraction_target": RESNIFF_FRACTION,
         "dataset": {
@@ -462,6 +577,7 @@ def main(argv: list[str] | None = None) -> int:
         "files_total": fixtures.files_total,
         "files_ok": fixtures.files_ok,
         "seconds": fixtures.seconds,
+        "mismatches": fixtures.mismatches,
     }
     weights = dataclasses.replace(weights, metrics=metrics)
     args.out.parent.mkdir(parents=True, exist_ok=True)
@@ -474,6 +590,8 @@ def main(argv: list[str] | None = None) -> int:
         config=config,
         dataset_meta=dataset_meta,
         weights_resniff=max_resniff,
+        train_seeds=train_seeds,
+        train_rows=args.train_rows,
     )
     print(
         f"fixtures: {fixtures.files_ok}/{fixtures.files_total} files match the teacher",
@@ -481,15 +599,23 @@ def main(argv: list[str] | None = None) -> int:
     )
     for m in fixtures.mismatches:
         print("  MISMATCH " + m)
+    if fixtures.margins:
+        (REPO / "docs" / "fixture_mismatches.json").write_text(
+            json.dumps(fixtures.margins, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
     write_doc(
         results=results,
-        brain_hash=brain.hash,
+        brain=brain,
         fixtures=fixtures,
         timings=timings,
         dataset_meta=dataset_meta,
         out=args.out,
         config=config,
         max_resniff=max_resniff,
+        train_seeds=train_seeds,
+        train_rows=args.train_rows,
     )
     print(f"wrote {args.out} ({args.out.stat().st_size} bytes) and {OUT_DOC}")
     return 0
@@ -503,6 +629,8 @@ def record_attempt(
     config: TrainConfig,
     dataset_meta: dict[str, object],
     weights_resniff: int = MAX_RESNIFF,
+    train_seeds: tuple[int, ...] = TRAIN_SEEDS,
+    train_rows: int | None = None,
 ) -> None:
     """Append one row to docs/attempts.jsonl (what changed -> what came out)."""
     keys, kwargs = results["keys"].evaluation, results["kwargs"].evaluation
@@ -513,6 +641,9 @@ def record_attempt(
         "snippets": dataset_meta["snippets"],
         "train_config": asdict(config),
         "max_resniff": weights_resniff,
+        "train_seeds": list(train_seeds),
+        "train_rows": results["keys"].rows["train"],
+        "train_rows_cap": train_rows,
         "modes": {k: v.mode for k, v in results.items()},
         "keys_plain": [keys.plain.precision, keys.plain.recall],
         "keys_resniff": [keys.resniffed.precision, keys.resniffed.recall],
@@ -542,63 +673,215 @@ def attempts_table() -> list[str]:
         f"| {r['fixtures'][0]}/{r['fixtures'][1]} |"
         for i, r in enumerate(rows, 1)
     )
+    by_encoder: dict[str, tuple[int, dict[str, Any]]] = {}
+    for i, r in enumerate(rows, 1):
+        by_encoder[str(r["encoder_version"])] = (i, r)  # the last attempt of every encoder
+    if "fly-odor-3" in by_encoder and "fly-odor-4" in by_encoder:
+        (i3, r3), (i4, r4) = by_encoder["fly-odor-3"], by_encoder["fly-odor-4"]
+        lines += [
+            "",
+            (
+                "**fly-odor-3 vs fly-odor-4** (the last attempts of each encoder, "
+                f"no. {i3} and no. {i4}): keys without resniff "
+                f"{r3['keys_plain'][0]:.4f} / {r3['keys_plain'][1]:.4f} → "
+                f"{r4['keys_plain'][0]:.4f} / {r4['keys_plain'][1]:.4f}; with resniff "
+                f"{r3['keys_resniff'][0]:.4f} / {r3['keys_resniff'][1]:.4f} → "
+                f"{r4['keys_resniff'][0]:.4f} / {r4['keys_resniff'][1]:.4f}; fixtures "
+                f"{r3['fixtures'][0]}/{r3['fixtures'][1]} → {r4['fixtures'][0]}/{r4['fixtures'][1]}."
+            ),
+        ]
     return lines
 
 
 def proxy_section() -> list[str]:
     """METRICS.md §6 from docs/encoder_proxy.json (scripts/encoder_proxy.py)."""
-    if not PROXY_JSON.exists():
-        return []
-    data = json.loads(PROXY_JSON.read_text(encoding="utf-8"))
+    lines: list[str] = []
+    if PROXY_JSON.exists():
+        data = json.loads(PROXY_JSON.read_text(encoding="utf-8"))
+        lines += [
+            "",
+            "## 6. Encoder proxy: separability of the odours themselves (no brain)",
+            "",
+            (
+                f"`scripts/encoder_proxy.py`: logistic regression (the same `dan_update`, lr "
+                f"{data['probe']['lr']}, L2 {data['probe']['l2']}, early stopping on val F1) on the odours "
+                f"of the `{data['generator_version']}` dataset seed {data['seed']} — the same corpus, balance and "
+                f"80/10/10 split as in `make_dataset.py` (train {data['train_rows']}, val "
+                f"{data['val_rows']}, test {data['test_rows']} rows, {data['test_positive']} positive in "
+                "test). For the temporal encoder the features are the concatenation of the slot vectors (10 × 124), for "
+                "fly-odor-3 its single vector. This is an upper bound for any readout after the noisy "
+                "brain: information destroyed by the hash cannot come back. The reviewer's target: test F1 ≥ 0.996 before "
+                "the brain is run."
+            ),
+            "",
+            "| encoder variant | dims | buckets (PN) | active PN / puff | val F1 | test P | test R | test F1 |",
+            "|---|---:|---:|---:|---:|---:|---:|---:|",
+        ]
+        for r in data["rows"]:
+            t = r["test"]
+            mark = " **←**" if r["name"].startswith("fly-odor-4") else ""
+            lines.append(
+                f"| {r['name']}{mark} | {r['dims']} | {r['n_pn']} | {r['active_pn_per_puff']:.1f} "
+                f"| {r['val_f1']:.4f} | {t['precision']:.4f} | {t['recall']:.4f} | {t['f1']:.4f} |"
+            )
+        lines += [
+            "",
+            (
+                "The residual errors of the best variant (`docs/proxy_errors/keys_4.json`): 13 of ~20 are "
+                '`obj.self.i18n.get("k", …)` (teacher: not a key, because the root is `obj`). The `.` token before '
+                "`<PREFIX>` sits at distance −7, i.e. outside the slots, but enters the bigram of slot −6 "
+                "(`. <PREFIX>`), so the information is in the odour; a linear readout over 124 "
+                "buckets with 2 hashes does not separate it (1024 buckets give the same F1 0.9985 — the limit is not the hash but "
+                "the linearity). This is the encoder's ceiling, which a brain with non-linear KCs can only preserve, not "
+                "raise."
+            ),
+        ]
+    if PROXY_V1_JSON.exists():
+        data = json.loads(PROXY_V1_JSON.read_text(encoding="utf-8"))
+        lines += [
+            "",
+            "### 6a. Historical proxy (fly-odor-1…3, one vector per window)",
+            "",
+            (
+                f"The first version of the proxy: {data['probe_rows']} candidates from {data['snippets']} separate snippets "
+                f"(seed {data['seed']}, balance 1:3, val {data['val_rows']} rows by snippet), val F1 only. "
+                "It showed that in 124 buckets one vector collides (the same features in 1024 buckets — 0.997), "
+                "and led to temporal coding."
+            ),
+            "",
+            "| encoder variant | buckets (PN) | active PN | val F1 |",
+            "|---|---:|---:|---:|",
+        ]
+        lines.extend(
+            f"| {r['name']}{' (top-' + str(r['top_k']) + ')' if r['top_k'] else ''} | {r['n_pn']} "
+            f"| {r['active_pn']:.1f} | {r['val_f1']:.4f} |"
+            for r in data["rows"]
+        )
+    return lines
+
+
+def temporal_section(
+    results: dict[str, TaskResult],
+    brain: Brain,
+    train_seeds: tuple[int, ...],
+    train_rows: int | None,
+) -> list[str]:
+    """METRICS.md §7: the temporal code — proxy, sparsity per puff, speed, result."""
+    p = brain.params
     lines = [
         "",
-        "## 6. Encoder proxy: separability of the odours themselves (no brain)",
+        "## 7. Temporal coding (reviewer's decision after Phase 5)",
         "",
         (
-            f"`scripts/encoder_proxy.py`: logistic regression (the same `dan_update`) on the 124-dimensional "
-            f"odours of {data['probe_rows']} candidates from {data['snippets']} separate snippets "
-            f"(seed {data['seed']}, balance 1:3, val {data['val_rows']} rows by snippet). This is an upper bound "
-            "for any readout after the noisy brain: information destroyed by the hash cannot come back."
+            f"Window 6 / candidate / 3 → 10 slots, every slot its own 124-PN vector (encoder "
+            f"`{ENCODER_VERSION}`: token + role — signed distance, type, bracket depth, bigram with "
+            "the previous token; 2 hashes per feature; an empty slot is a zero vector). The brain receives the slots "
+            f"one after another, {p.puff_ms:.0f} ms each with no silence between puffs (`Brain.simulate_sequence`), "
+            f"{p.t_silence:.0f} ms of silence at the end; the membrane state is not reset between puffs. Readout features "
+            f"— `[spiked, log1p(count)]` per puff: 2 × 10 × {brain.n_kc} = "
+            f"{2 * 10 * brain.n_kc}."
         ),
         "",
-        "| encoder variant | buckets (PN) | active PN | val F1 |",
-        "|---|---:|---:|---:|",
+        "### Proxy",
+        "",
     ]
+    if PROXY_JSON.exists():
+        data = json.loads(PROXY_JSON.read_text(encoding="utf-8"))
+        rows = {r["name"]: r for r in data["rows"]}
+        v3 = next((r for n, r in rows.items() if n.startswith("fly-odor-3")), None)
+        v4 = next((r for n, r in rows.items() if n.startswith("fly-odor-4")), None)
+        if v3 and v4:
+            lines.append(
+                f"Logistic regression on the odours themselves, test split grammar-3: fly-odor-3 F1 "
+                f"{v3['test']['f1']:.4f} → fly-odor-4 F1 {v4['test']['f1']:.4f} "
+                f"(P {v4['test']['precision']:.4f}, R {v4['test']['recall']:.4f}); the target ≥ 0.996 — "
+                f"{'met' if v4['test']['f1'] >= 0.996 else '**not met**'}. The full table is in §6."  # noqa: PLR2004
+            )
+    lines += ["", "### Sparsity per puff", ""]
+    if CALIBRATION_JSON.exists():
+        cal = json.loads(CALIBRATION_JSON.read_text(encoding="utf-8"))
+        chosen = cal.get("chosen", {})
+        lines.append(
+            f"Calibration on the real fixture candidates (`scripts/calibrate.py`, docs/BENCH.md §2): "
+            f"syn_scale = {cal['syn_scale']}, apl_scale = {cal.get('apl_scale', 1.0)} → "
+            f"{chosen.get('kc_active_per_puff', float('nan')):.3f} active KCs per non-empty puff "
+            f"({chosen.get('kc_active_no_apl', float('nan')):.3f} without APL); APL "
+            f"{chosen.get('apl_spikes_per_puff', float('nan')):.1f} spikes per puff. With a single `syn_scale` "
+            "(apl_scale = 1) the per-puff activity never exceeded 1.6 % — APL fired at its refractory "
+            "limit and silenced everything after the first puff; hence the second calibrated parameter "
+            "(a deviation from PLAN, see BENCH.md §2)."
+        )
+    lines.append("")
+    lines.append("On the dataset (brain, production seed for val/test):")
+    lines.append("")
+    lines.append("| task | train | val | test |")
+    lines.append("|---|---:|---:|---:|")
     lines.extend(
-        f"| {r['name']}{' (top-' + str(r['top_k']) + ')' if r['top_k'] else ''} | {r['n_pn']} "
-        f"| {r['active_pn']:.1f} | {r['val_f1']:.4f} |"
-        for r in data["rows"]
+        f"| {r.name} | {r.kc_active['train']:.3f} | {r.kc_active['val']:.3f} "
+        f"| {r.kc_active['test']:.3f} |"
+        for r in results.values()
     )
+    lines += ["", "### Speed", ""]
+    if BENCH_JSON.exists():
+        bench = json.loads(BENCH_JSON.read_text(encoding="utf-8"))
+        lines.append(
+            f"`scripts/bench.py` (docs/BENCH.md §3): one process {bench['single'][0]['trials_per_s']:.0f} "
+            f"trials/s at batch {bench['single'][0]['batch']}; "
+            + "; ".join(
+                f"{r['workers']} processes × batch {r['batch']}: {r['trials_per_s']:.0f} trials/s"
+                for r in bench["parallel"]
+            )
+            + f". A trial = {bench['n_steps']} steps. The 200 trials/s threshold was lifted by the reviewer's decision."
+        )
+    lines += ["", "### What was cut for the brain budget (≤ 2 h)", ""]
+    keys = results["keys"].rows
+    lines.append(
+        f"Train keys: {keys['train']} rows of {keys['train_split']} in the split "
+        f"({keys['train_negatives_dropped']} negatives subsampled, all positives kept), "
+        f"× {len(train_seeds)} seed{'s' if len(train_seeds) > 1 else ''} ({', '.join(map(str, train_seeds))})"
+        + (f"; cap --train-rows {train_rows}" if train_rows else "; no cap")
+        + ". Val/test untouched. Kwargs train not cut."
+    )
+    lines += ["", "### Result", ""]
+    for r in results.values():
+        lines.append(
+            f"- {r.name}: test without resniff {md_scores(r.evaluation.plain)}; with resniff "
+            f"{md_scores(r.evaluation.resniffed)} (resniff {r.evaluation.resniff_fraction:.1%}, θ {r.theta:.3f})."
+        )
     return lines
 
 
 def write_doc(
     *,
     results: dict[str, TaskResult],
-    brain_hash: str,
+    brain: Brain,
     fixtures: FixturesResult,
     timings: dict[str, float],
     dataset_meta: dict[str, object],
     out: Path,
     config: TrainConfig,
     max_resniff: int = MAX_RESNIFF,
+    train_seeds: tuple[int, ...] = TRAIN_SEEDS,
+    train_rows: int | None = None,
 ) -> None:
     ds_timing = dataset_meta["timing_s"]
     assert isinstance(ds_timing, dict)
     counts = dataset_meta["balanced_counts"]
     assert isinstance(counts, dict)
+    p = brain.params
     lines = [
         "# Readout metrics (Phase 5)",
         "",
         (
-            f"Generated by `scripts/train.py`. Encoder `{ENCODER_VERSION}`, brain `{brain_hash}` "
-            f"(`BrainParams` at the defaults), dataset `{dataset_meta['generator_version']}` "
+            f"Generated by `scripts/train.py`. Encoder `{ENCODER_VERSION}`, brain `{brain.hash}` "
+            f"(`BrainParams`: syn_scale {p.syn_scale}, apl_scale {p.apl_scale}, puff {p.puff_ms:.0f} ms, "
+            f"temporal coding — §7), dataset `{dataset_meta['generator_version']}` "
             f"seed {dataset_meta['seed']}: {dataset_meta['snippets']} snippets, the keys table "
             f"{counts['keys']['rows']} rows ({counts['keys']['positive']} positive), kwargs "
             f"{counts['kwargs']['rows']} ({counts['kwargs']['positive']} placeable); split by "
             f"snippet 80/10/10. Training: delta rule (`dan_update`), lr {config.lr}, L2 "
             f"{config.l2}, batch {config.batch_size}, ≤ {config.max_epochs} epochs, early stopping "
-            f"on val F1 (patience {config.patience}); train rows with {len(TRAIN_SEEDS)} seeds "
+            f"on val F1 (patience {config.patience}); train rows with {len(train_seeds)} seeds "
             "each, val/test with the production seed."
         ),
         "",
@@ -646,7 +929,7 @@ def write_doc(
             )
     lines += [
         "",
-        "### Share of active KCs on the dataset",
+        "### Share of active KCs per non-empty puff on the dataset",
         "",
         "| task | train | val | test |",
         "|---|---:|---:|---:|",
@@ -669,6 +952,21 @@ def write_doc(
     ]
     if fixtures.mismatches:
         lines += ["", "Differences:", "", *(f"- {m}" for m in fixtures.mismatches)]
+        lines += [
+            "",
+            "Margins of the candidates in the files with differences (`docs/fixture_mismatches.json`):",
+            "",
+        ]
+        for entry in fixtures.margins:
+            lines.append(f"- {entry['file']}")
+            cands = entry["candidates"]
+            assert isinstance(cands, list)
+            lines.extend(
+                f"  - {c['call_position']} `{c['text']}` key={c['key_name']!r}: teacher "
+                f"{'yes' if c['teacher'] else 'no'}, margin {c['margin']:+.3f}, trials {c['sniffs']}, "
+                f"KC active {c['kc_active']:.3f}"
+                for c in cands
+            )
     lines += [
         "",
         "## 3. The 10 worst test examples (with resniff, the largest |margin| on the wrong side)",
@@ -694,7 +992,7 @@ def write_doc(
         "|---|---:|",
         f"| make_dataset: generation | {ds_timing['generate']:.1f} |",
         f"| make_dataset: labelling + encoding | {ds_timing['label_and_encode']:.1f} |",
-        f"| brain keys (train ×{len(TRAIN_SEEDS)} + val + test) | {timings['keys_brain_s']:.1f} |",
+        f"| brain keys (train ×{len(train_seeds)} + val + test) | {timings['keys_brain_s']:.1f} |",
         f"| brain kwargs | {timings['kwargs_brain_s']:.1f} |",
         f"| train keys (all modes) | {timings['keys_train_s']:.1f} |",
         f"| train kwargs | {timings['kwargs_train_s']:.1f} |",
@@ -709,6 +1007,7 @@ def write_doc(
         *attempts_table(),
         "<!-- attempts:end -->",
         *proxy_section(),
+        *temporal_section(results, brain, train_seeds, train_rows),
     ]
     OUT_DOC.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
 

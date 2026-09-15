@@ -1,39 +1,57 @@
 """Encoder proxy: how separable is ``is_key`` on the odours *themselves*?
 
-A logistic regression on the 124-dim odour vectors (no brain) is an upper bound for what
-any readout can get after the noisy mushroom body: information the hash destroyed cannot
-come back.  It runs in seconds per encoder variant, so it is the tool for choosing encoder
-levers (window, n-gram density, bag n-grams, top-k PN) and for showing what the number of
-PN buckets does.  Results → ``docs/encoder_proxy.json`` (rendered in ``docs/METRICS.md``).
+A logistic regression on the odour vectors (no brain) is an upper bound for what any
+readout can get after the noisy mushroom body: information the hash destroyed cannot come
+back.  It runs in a minute per encoder variant, so it is the tool for choosing encoder
+levers *before* the brain is run (auditor's order after Phase 5: the brain is not run until
+the proxy reaches F1 ≥ 0.996 on the test split).
+
+Corpus and split are exactly those of ``scripts/make_dataset.py`` (same generator, seed,
+balancing and 80/10/10 permutation, via ``balance_and_split``), so the proxy's test split
+*is* the dataset's test split.  For the temporal encoder (``fly-odor-4``) the proxy features
+are the concatenation of the slot vectors (``n_slots × n_pn``); for the ``fly-odor-3``
+baseline they are its single 124-vector.  Results → ``docs/encoder_proxy.json`` (rendered
+in ``docs/METRICS.md`` §6); the worst test errors of every variant → ``docs/proxy_errors/``.
 """
 
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import sys
 import time
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 
-from fly_ftl_extract.dopamine import Readout, dan_update, score
+from fly_ftl_extract.dopamine import Readout, Scores, dan_update, score
 from fly_ftl_extract.ftl.model import ExtractOptions
 from fly_ftl_extract.odor import encoder as enc
-from fly_ftl_extract.reference.extractor import key_occurrences
-from fly_ftl_extract.reference.labels import label_candidates
-from fly_ftl_extract.tokenizer.candidates import Window, iter_candidates
+from fly_ftl_extract.tokenizer.candidates import Window
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from make_dataset import generate_snippets
+from make_dataset import (
+    DEFAULT_SEED,
+    DEFAULT_SNIPPETS,
+    GENERATOR_VERSION,
+    Row,
+    balance_and_split,
+    generate_snippets,
+    rows_of_snippet,
+)
 
 REPO = Path(__file__).resolve().parent.parent
 OUT_JSON = REPO / "docs" / "encoder_proxy.json"
-NEGATIVE_RATIO = 3
-VAL_EVERY = 5  # snippet id % 5 == 0 -> validation
+ERRORS_DIR = REPO / "docs" / "proxy_errors"
 ACTIVE = 0.1
+EPOCHS = 40
+PATIENCE = 6
+LR = 0.5
+L2 = 1e-5
+BATCH = 512
+WORST = 40
 
 
 @dataclass(frozen=True)
@@ -44,148 +62,234 @@ class Variant:
     params: enc.EncoderParams
     n_pn: int = enc.N_PN_DEFAULT
     salt: str = enc.ENCODER_VERSION
-    top_k: int = 0
+    temporal: bool = True
+    """``True``: slot vectors concatenated (fly-odor-4); ``False``: fly-odor-3 n-grams."""
 
 
+SLOTS = enc.EncoderParams(bigrams=False, hashes_per_feature=1)
 VARIANTS = (
     Variant(
-        "fly-odor-1: context 12/6, 3-grams, bag 0.5",
-        enc.EncoderParams(context_before=12, context_after=6, bag_weight=0.5),
+        "fly-odor-3: one vector, context 6/3, 3-grams",
+        enc.EncoderParams(),
+        salt="fly-odor-3",
+        temporal=False,
     ),
+    Variant("slots 6/1/3, token+role features, 1 hash", SLOTS),
     Variant(
-        "12/6 without bag", enc.EncoderParams(context_before=12, context_after=6, bag_weight=0.0)
+        "slots, token+role, 2 hashes per feature",
+        enc.EncoderParams(bigrams=False, hashes_per_feature=2),
     ),
-    Variant(
-        "12/6, 2-grams, without bag",
-        enc.EncoderParams(context_before=12, context_after=6, max_ngram=2, bag_weight=0.0),
-    ),
-    Variant("6/3, bag 0.5", enc.EncoderParams(context_before=6, context_after=3, bag_weight=0.5)),
-    Variant("fly-odor-2: context 6/3, without bag", enc.EncoderParams()),
-    Variant("6/3, tau 2, without bag", enc.EncoderParams(distance_tau=2.0)),
-    Variant("4/2, without bag", enc.EncoderParams(context_before=4, context_after=2)),
-    Variant(
-        "3/2, 2-grams, without bag",
-        enc.EncoderParams(context_before=3, context_after=2, max_ngram=2),
-    ),
-    Variant(
-        "fly-odor-1 + top-40 PN",
-        enc.EncoderParams(context_before=12, context_after=6, bag_weight=0.5),
-        top_k=40,
-    ),
-    Variant("fly-odor-2 + top-40 PN", enc.EncoderParams(), top_k=40),
-    Variant("fly-odor-2, salt salt-a", enc.EncoderParams(), salt="salt-a"),
-    Variant("fly-odor-2, salt salt-b", enc.EncoderParams(), salt="salt-b"),
-    Variant("fly-odor-2, 160 buckets", enc.EncoderParams(), n_pn=160),
-    Variant("fly-odor-2, 256 buckets", enc.EncoderParams(), n_pn=256),
-    Variant("fly-odor-2, 1024 buckets", enc.EncoderParams(), n_pn=1024),
-    Variant(
-        "fly-odor-1, 1024 buckets",
-        enc.EncoderParams(context_before=12, context_after=6, bag_weight=0.5),
-        n_pn=1024,
-    ),
+    Variant("slots + bigrams, 1 hash", enc.EncoderParams(bigrams=True, hashes_per_feature=1)),
+    Variant("fly-odor-4: slots + bigrams, 2 hashes", enc.EncoderParams()),
+    Variant("slots, token+role, 1024 buckets (ceiling)", SLOTS, n_pn=1024),
+    Variant("slots + bigrams, 2 hashes, 1024 buckets (ceiling)", enc.EncoderParams(), n_pn=1024),
 )
 
 
-def encode(window: Window, options: ExtractOptions, variant: Variant) -> np.ndarray:
-    vec = np.zeros(variant.n_pn)
-    for feature, weight in enc.features(window, options, variant.params):
-        digest = hashlib.blake2b(
-            feature.encode("utf-8"), digest_size=8, salt=variant.salt.encode("ascii")[:16]
-        ).digest()
-        vec[int.from_bytes(digest, "little") % variant.n_pn] += weight
-    out = np.tanh(vec).astype(np.float32)
-    if variant.top_k and variant.top_k < variant.n_pn:
-        drop = np.argpartition(-out, variant.top_k)[variant.top_k :]
-        out[drop] = 0.0
-    return out
+def encode_rows(rows: list[Row], variant: Variant) -> np.ndarray:
+    """Proxy feature matrix of rows whose ``odor`` holds ``(window, options)``."""
+    out = []
+    for r in rows:
+        window, options = r.odor
+        assert isinstance(window, Window)
+        assert isinstance(options, ExtractOptions)
+        if variant.temporal:
+            vec = enc.encode(window, options, variant.n_pn, variant.params, salt=variant.salt)
+            out.append(vec.reshape(-1))
+        else:
+            out.append(
+                enc.hash_features(
+                    enc.ngram_features(window, options, variant.params),
+                    variant.n_pn,
+                    salt=variant.salt,
+                )
+            )
+    return np.stack(out)
 
 
-def probe(
-    x_tr: np.ndarray, y_tr: np.ndarray, x_va: np.ndarray, y_va: np.ndarray, epochs: int = 40
-) -> float:
-    """Best validation F1 of a logistic regression trained with the delta rule."""
+def probe(  # noqa: PLR0917
+    x_tr: np.ndarray,
+    y_tr: np.ndarray,
+    x_va: np.ndarray,
+    y_va: np.ndarray,
+    x_te: np.ndarray,
+    y_te: np.ndarray,
+) -> tuple[float, Scores, np.ndarray]:
+    """Logistic regression (delta rule), early stopping on val F1; test scores and margins
+    of the best epoch."""
     rng = np.random.default_rng(0)
     readout = Readout(np.zeros(x_tr.shape[1], np.float32), 0.0, "binary")
-    best = 0.0
+    best_f1, best_w, best_b, since = -1.0, readout.w.copy(), 0.0, 0
     y = y_tr.astype(np.float32)
-    for _ in range(epochs):
+    for _ in range(EPOCHS):
         order = rng.permutation(len(x_tr))
-        for s in range(0, len(order), 512):
-            idx = order[s : s + 512]
-            dan_update(readout, x_tr[idx], y[idx], lr=0.5, l2=1e-5)
-        best = max(best, score(readout.margin_from_features(x_va) > 0, y_va).f1)
-    return best
+        for s in range(0, len(order), BATCH):
+            idx = order[s : s + BATCH]
+            dan_update(readout, x_tr[idx], y[idx], lr=LR, l2=L2)
+        f1 = score(readout.margin_from_features(x_va) > 0, y_va).f1
+        if f1 > best_f1:
+            best_f1, best_w, best_b, since = f1, readout.w.copy(), readout.b, 0
+        else:
+            since += 1
+            if since >= PATIENCE:
+                break
+    best = Readout(best_w, best_b, "binary")
+    margins = best.margin_from_features(x_te)
+    return best_f1, score(margins > 0, y_te), margins
+
+
+def window_text(row: Row) -> str:
+    window, options = row.odor
+    return " ".join(t for t, _ in enc.normalize_window(window, options))
+
+
+def worst_errors(rows: list[Row], margins: np.ndarray, y: np.ndarray) -> list[dict[str, object]]:
+    wrong = np.flatnonzero((margins > 0) != y)
+    order = wrong[np.argsort(-np.abs(margins[wrong]))][:WORST]
+    return [
+        {
+            "label": bool(y[i]),
+            "margin": float(margins[i]),
+            "snippet": rows[i].snippet,
+            "key_name": rows[i].meta.get("key_name"),
+            "window": window_text(rows[i]),
+        }
+        for i in order
+    ]
+
+
+def error_categories(rows: list[Row], margins: np.ndarray, y: np.ndarray) -> dict[str, int]:
+    """Coarse buckets of the test errors: what stands right after / before the focus."""
+    cats: Counter[str] = Counter()
+    for i in np.flatnonzero((margins > 0) != y):
+        window, options = rows[i].odor
+        seq = enc.normalize_window(window, options)
+        after = [t for t, p in seq if p >= len(window.focus)]
+        before = [t for t, p in seq if p < 0]
+        side = "FP" if margins[i] > 0 else "FN"
+        cats[
+            f"{side} after={' '.join(after[:2]) or '<eof>'} before={' '.join(before[-3:]) or '<bof>'}"
+        ] += 1
+    return dict(cats.most_common(15))
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--snippets", type=int, default=3000)
-    parser.add_argument("--seed", type=int, default=777)
+    parser.add_argument("--snippets", type=int, default=DEFAULT_SNIPPETS)
+    parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    parser.add_argument("--table", choices=("keys", "kwargs"), default="keys")
+    parser.add_argument("--only", type=int, nargs="*", help="indices of VARIANTS to run")
     args = parser.parse_args(argv)
+
+    t0 = time.perf_counter()
     snippets, _ = generate_snippets(args.snippets, args.seed)
-    windows: list[tuple[Window, ExtractOptions]] = []
-    labels: list[bool] = []
-    sids: list[int] = []
+
+    def keep_windows(windows: list[Window], options: ExtractOptions) -> np.ndarray:
+        arr = np.empty(len(windows), dtype=object)
+        for i, w in enumerate(windows):
+            arr[i] = (w, options)
+        return arr
+
+    key_rows: list[Row] = []
+    kwarg_rows: list[Row] = []
     for s in snippets:
-        options = s.config.options()
-        cands = list(iter_candidates(s.source, options))
-        lab, _ = label_candidates(cands, key_occurrences("s.py", s.source, options))
-        windows.extend((c.window, options) for c in cands)
-        labels.extend(lab)
-        sids.extend([s.id] * len(cands))
-    y = np.array(labels)
-    sid = np.array(sids)
-    rng = np.random.default_rng(1)
-    pos, neg = np.flatnonzero(y), np.flatnonzero(~y)
-    keep = np.sort(
-        np.concatenate(
-            [pos, rng.choice(neg, min(len(neg), NEGATIVE_RATIO * len(pos)), replace=False)]
-        )
+        result = rows_of_snippet(s, encode=keep_windows)
+        if result is None:
+            continue
+        key_rows.extend(result[0])
+        kwarg_rows.extend(result[1])
+    key_rows, kwarg_rows, split_of = balance_and_split(
+        key_rows, kwarg_rows, len(snippets), args.seed
     )
-    val = (sid[keep] % VAL_EVERY) == 0
-    yk = y[keep]
+    rows = key_rows if args.table == "keys" else kwarg_rows
+    split = np.array([split_of[r.snippet] for r in rows])
+    y = np.array([r.label for r in rows])
+    tr, va, te = (np.flatnonzero(split == k) for k in range(3))
     print(
-        f"{len(windows)} candidates, {len(pos)} positive; probe rows {len(keep)}, val {int(val.sum())}",
+        f"{GENERATOR_VERSION} seed {args.seed}: {args.table} rows {len(rows)} "
+        f"({int(y.sum())} positive); train {len(tr)}, val {len(va)}, test {len(te)} "
+        f"({time.perf_counter() - t0:.0f} s)",
         flush=True,
     )
-    rows = []
-    for v in VARIANTS:
-        t0 = time.perf_counter()
-        x = np.stack([encode(windows[i][0], windows[i][1], v) for i in keep])
-        f1 = probe(x[~val], yk[~val], x[val], yk[val])
-        rows.append(
-            {
-                "name": v.name,
-                "n_pn": v.n_pn,
-                "top_k": v.top_k,
-                "salt": v.salt,
-                "params": {
-                    k: getattr(v.params, k)
-                    for k in (
-                        "max_ngram",
-                        "distance_tau",
-                        "bag_weight",
-                        "context_before",
-                        "context_after",
-                    )
-                },
-                "active_pn": float((x > ACTIVE).sum(axis=1).mean()),
-                "mass": float(x.sum(axis=1).mean()),
-                "val_f1": f1,
-            }
+    test_rows = [rows[i] for i in te]
+
+    results: list[dict[str, object]] = []
+    ERRORS_DIR.mkdir(parents=True, exist_ok=True)
+    chosen = args.only or range(len(VARIANTS))
+    for vi in chosen:
+        v = VARIANTS[vi]
+        t1 = time.perf_counter()
+        x = encode_rows(rows, v)
+        t_encode = time.perf_counter() - t1
+        val_f1, test, margins = probe(x[tr], y[tr], x[va], y[va], x[te], y[te])
+        if v.temporal:
+            puffs = x.reshape(len(rows), v.params.n_slots, v.n_pn)
+            non_empty = puffs.sum(axis=2) > 0
+            active = float((puffs > ACTIVE).sum(axis=2)[non_empty].mean())
+        else:
+            active = float((x > ACTIVE).sum(axis=1).mean())
+        row = {
+            "name": v.name,
+            "temporal": v.temporal,
+            "n_pn": v.n_pn,
+            "dims": int(x.shape[1]),
+            "salt": v.salt,
+            "params": {
+                k: getattr(v.params, k)
+                for k in ("context_before", "context_after", "hashes_per_feature", "bigrams")
+            },
+            "active_pn_per_puff": active,
+            "val_f1": val_f1,
+            "test": test.as_dict(),
+            "encode_s": t_encode,
+            "seconds": time.perf_counter() - t1,
+        }
+        results.append(row)
+        errors = {
+            "variant": v.name,
+            "categories": error_categories(test_rows, margins, y[te]),
+            "worst": worst_errors(test_rows, margins, y[te]),
+        }
+        (ERRORS_DIR / f"{args.table}_{vi}.json").write_text(
+            json.dumps(errors, indent=2, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n"
         )
         print(
-            f"{v.name:44s} n_pn {v.n_pn:4d}  active {rows[-1]['active_pn']:5.1f}  val F1 {f1:.4f}  ({time.perf_counter() - t0:.0f} s)",
+            f"[{vi}] {v.name:50s} dims {x.shape[1]:5d}  active/puff {active:4.1f}  "
+            f"val F1 {val_f1:.4f}  test P {test.precision:.4f} R {test.recall:.4f} "
+            f"F1 {test.f1:.4f}  ({row['seconds']:.0f} s)",
             flush=True,
         )
-    OUT_JSON.write_text(
+
+    out_path = OUT_JSON if args.table == "keys" else OUT_JSON.with_name("encoder_proxy_kwargs.json")
+    previous: dict[str, object] = {}
+    if out_path.exists() and args.only:
+        previous = json.loads(out_path.read_text(encoding="utf-8"))
+    previous_rows = previous.get("rows", [])
+    assert isinstance(previous_rows, list)
+    merged: dict[str, dict[str, object]] = {str(r["name"]): r for r in previous_rows}
+    for r in results:
+        merged[str(r["name"])] = r
+    out_path.write_text(
         json.dumps(
             {
-                "snippets": args.snippets,
+                "generator_version": GENERATOR_VERSION,
+                "encoder_version": enc.ENCODER_VERSION,
                 "seed": args.seed,
-                "probe_rows": len(keep),
-                "val_rows": int(val.sum()),
-                "rows": rows,
+                "snippets": args.snippets,
+                "table": args.table,
+                "rows_total": len(rows),
+                "train_rows": len(tr),
+                "val_rows": len(va),
+                "test_rows": len(te),
+                "test_positive": int(y[te].sum()),
+                "probe": {
+                    "lr": LR,
+                    "l2": L2,
+                    "batch": BATCH,
+                    "epochs": EPOCHS,
+                    "patience": PATIENCE,
+                },
+                "rows": list(merged.values()),
             },
             indent=2,
             ensure_ascii=False,
@@ -194,7 +298,7 @@ def main(argv: list[str] | None = None) -> int:
         encoding="utf-8",
         newline="\n",
     )
-    print(f"wrote {OUT_JSON}")
+    print(f"wrote {out_path} ({time.perf_counter() - t0:.0f} s total)")
     return 0
 
 

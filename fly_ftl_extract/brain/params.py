@@ -52,15 +52,31 @@ class BrainParams:
         the model's one free parameter.""",
     )
     syn_scale: float = _p(
-        4.0,
+        10.0,
         """Multiplier on `w_syn` for our subgraph. Shiu simulate the whole brain with 1;
-        the isolated mushroom body needs its own value. Calibrated on the real odours of
-        every fixture candidate (auditor's decision after Phase 4; the synthetic 30 %-PN
-        odour is no longer used): target 8-10 % active Kenyon cells with APL, > 30 % without,
-        no neuron above 1/t_refractory, median active-KC rate < 50 Hz. With encoder
-        fly-odor-3 (context 6/3, no bag n-grams: sparser odours) 4.0 gives
-        8.6% / 52.2%; `scripts/calibrate.py`, curve in
-        docs/BENCH.md, value mirrored in docs/calibration.json.""",
+        the isolated mushroom body needs its own value. Calibrated together with
+        `apl_scale` on the real odour *sequences* of every fixture candidate in the temporal
+        code (`Brain.simulate_sequence`, auditor's decisions after Phases 4 and 5): target
+        8-10 % active Kenyon cells per non-empty 20 ms puff with APL, APL sparsening >= 2x,
+        one PN spike alone must not fire a KC (that happens from 11.7), no neuron above
+        1/t_refractory, median active-KC rate < 50 Hz. (10.0, 0.3) gives 9.2 % per puff,
+        27.9 % without APL (ratio 3.0), P(KC fires | 1 active claw) 0.24, | 2 claws 0.57;
+        Phase 3's 4.0 was for the single-odour mode with encoder fly-odor-3.
+        `scripts/calibrate.py`, grid in docs/BENCH.md §2, values mirrored in
+        docs/calibration.json.""",
+    )
+    apl_scale: float = _p(
+        0.3,
+        """Extra multiplier on the APL's output synapses (APL→KC, APL→PN, APL→MBON…), on top
+        of `syn_scale`. 1.0 = the FlyWire counts as they are (Shiu et al. scale every synapse
+        alike). Introduced for the temporal code (deviation from PLAN, docs/BENCH.md §2):
+        the single APL receives 1713 PN and 56261 KC synapses and, with every synapse
+        scaled alike, fires 7-8 spikes per 20 ms puff (near its 455 Hz refractory limit)
+        for as long as any odour is present; the Kenyon cells then respond only at odour
+        onset (10 % in the first puff, 0.4-2 % in every later one) and no `syn_scale`
+        between 1 and 40 lifts the per-puff activity above 1.6 %. 0.3 lets the APL
+        regulate (it still cuts the KC activity 3x and fires ~6 spikes per puff) instead of
+        clamping. Calibrated with `syn_scale` in `scripts/calibrate.py`.""",
     )
     dt: float = _p(0.1, "Integration step, ms. brian2's `defaultclock.dt`, as used by Shiu.")
     rate_max: float = _p(
@@ -76,6 +92,22 @@ class BrainParams:
     )
     t_silence: float = _p(
         10.0, "Silence after the odour while the last spikes propagate, ms. CLAUDE.md."
+    )
+    puff_ms: float = _p(
+        20.0,
+        """Duration of one puff in the temporal code (`Brain.simulate_sequence`), ms: every
+        slot of the token window is presented for `puff_ms`, the next slot follows without
+        silence, `t_silence` closes the trial. Auditor's decision after Phase 5. 20 ms =
+        one membrane time constant `tau_m`: when the next token arrives the previous
+        token's depolarisation has decayed to 1/e, so a Kenyon cell still carries the last
+        two or three tokens (that carry-over is the fly's memory of word order) while a
+        token six slots back has faded (e^-6). It is also 4 `tau_syn`, so the synaptic
+        variable of a puff has settled before the next one, and at PN rates of ~150 Hz
+        a puff delivers ~3 spikes per active PN: measured on the fixture sequences a KC
+        with one active claw fires in 24 % of the puffs, with two in 57 %, with three in
+        82 % (docs/BENCH.md §2). The puff_ms sweep there: 10 ms gives 5 % KC per puff and
+        same-candidate Jaccard 0.19, 20 ms 9 % and 0.34, 30 ms 12 % and 0.44 at 1.5x the
+        trial length.""",
     )
 
     def _steps(self, duration_ms: float, name: str) -> int:
@@ -94,6 +126,15 @@ class BrainParams:
     def n_steps(self) -> int:
         """Number of steps in one trial (odour + silence)."""
         return self.stim_steps + self._steps(self.t_silence, "t_silence")
+
+    @property
+    def puff_steps(self) -> int:
+        """Steps of one puff in the temporal code."""
+        return self._steps(self.puff_ms, "puff_ms")
+
+    def sequence_steps(self, n_puffs: int) -> int:
+        """Number of steps in one temporal-code trial (`n_puffs` puffs + silence)."""
+        return n_puffs * self.puff_steps + self._steps(self.t_silence, "t_silence")
 
     @property
     def refractory_steps(self) -> int:

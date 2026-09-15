@@ -23,6 +23,7 @@ import json
 import random
 import sys
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -37,7 +38,12 @@ from fly_ftl_extract.ftl.model import (
 from fly_ftl_extract.odor.encoder import ENCODER_VERSION, encode_many, normalize_window
 from fly_ftl_extract.reference.extractor import key_occurrences
 from fly_ftl_extract.reference.labels import LabelError, label_candidates, label_kwargs
-from fly_ftl_extract.tokenizer.candidates import Candidate, CandidateError, iter_candidates
+from fly_ftl_extract.tokenizer.candidates import (
+    Candidate,
+    CandidateError,
+    Window,
+    iter_candidates,
+)
 
 REPO = Path(__file__).resolve().parent.parent
 DATASET_DIR = REPO / "fly_ftl_extract" / "data" / "dataset"
@@ -557,7 +563,14 @@ class Row:
     odor: np.ndarray
 
 
-def rows_of_snippet(snippet: Snippet) -> tuple[list[Row], list[Row]] | None:
+Encoder = Callable[[list[Window], ExtractOptions], np.ndarray]
+
+
+def rows_of_snippet(
+    snippet: Snippet, encode: Encoder = encode_many
+) -> tuple[list[Row], list[Row]] | None:
+    """Labelled rows of one snippet; ``encode`` is injectable so that the encoder proxy
+    can put other encoders through the very same labelling path."""
     options = snippet.config.options()
     try:
         candidates = list(iter_candidates(snippet.source, options))
@@ -569,7 +582,7 @@ def rows_of_snippet(snippet: Snippet) -> tuple[list[Row], list[Row]] | None:
     if not candidates:
         return None
     content = snippet.source.encode("utf-8")
-    odors = encode_many([c.window for c in candidates], options)
+    odors = encode([c.window for c in candidates], options)
     keys = [
         Row(
             snippet.id,
@@ -595,7 +608,7 @@ def rows_of_snippet(snippet: Snippet) -> tuple[list[Row], list[Row]] | None:
         if not c.kwargs:
             continue
         placeable = label_kwargs(c, occurrence_of[i])
-        kw_odors = encode_many([k.window for k in c.kwargs], options)
+        kw_odors = encode([k.window for k in c.kwargs], options)
         kwargs.extend(
             Row(
                 snippet.id,
@@ -626,6 +639,27 @@ def balance(rows: list[Row], rng: np.random.Generator) -> list[Row]:
         keep = rng.choice(len(majority), cap, replace=False)
         majority = [majority[i] for i in sorted(keep)]
     return sorted(minority + majority, key=lambda r: (r.snippet, r.index))
+
+
+def balance_and_split(
+    key_rows: list[Row], kwarg_rows: list[Row], n_snippets: int, seed: int
+) -> tuple[list[Row], list[Row], dict[int, int]]:
+    """Balanced tables and the snippet → split (0 train, 1 val, 2 test) map.
+
+    One generator seeded with ``seed`` does the subsampling and then the permutation, so
+    the split depends only on the corpus (candidates and labels), never on the encoder:
+    the encoder proxy gets the very same rows and split as the dataset.
+    """
+    rng = np.random.default_rng(seed)
+    key_rows = balance(key_rows, rng)
+    kwarg_rows = balance(kwarg_rows, rng)
+    order = rng.permutation(n_snippets)
+    n_train = int(SPLIT_FRACTIONS[0] * n_snippets)
+    n_val = int(SPLIT_FRACTIONS[1] * n_snippets)
+    split_of = {int(sid): 0 for sid in order[:n_train]}
+    split_of.update({int(sid): 1 for sid in order[n_train : n_train + n_val]})
+    split_of.update({int(sid): 2 for sid in order[n_train + n_val :]})
+    return key_rows, kwarg_rows, split_of
 
 
 def write_table(
@@ -694,15 +728,9 @@ def main(argv: list[str] | None = None) -> int:
     }
     print(f"labelled + encoded in {t_label:.1f} s: {raw_counts} (skipped {skipped})", flush=True)
 
-    rng = np.random.default_rng(args.seed)
-    key_rows = balance(key_rows, rng)
-    kwarg_rows = balance(kwarg_rows, rng)
-    order = rng.permutation(len(snippets))
-    n_train = int(SPLIT_FRACTIONS[0] * len(snippets))
-    n_val = int(SPLIT_FRACTIONS[1] * len(snippets))
-    split_of = {int(sid): 0 for sid in order[:n_train]}
-    split_of.update({int(sid): 1 for sid in order[n_train : n_train + n_val]})
-    split_of.update({int(sid): 2 for sid in order[n_train + n_val :]})
+    key_rows, kwarg_rows, split_of = balance_and_split(
+        key_rows, kwarg_rows, len(snippets), args.seed
+    )
 
     args.out.mkdir(parents=True, exist_ok=True)
     with (args.out / "snippets.jsonl").open("w", encoding="utf-8", newline="\n") as fh:

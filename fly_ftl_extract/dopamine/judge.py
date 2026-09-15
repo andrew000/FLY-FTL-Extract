@@ -2,9 +2,12 @@
 
 :class:`Judge` turns one Python source into the keys the fly smells in it.  Every
 candidate with a key name is sniffed once with its production seed
-(:func:`fly_ftl_extract.dopamine.seed.trial_seed`); when the MBON margin is closer to zero
-than θ the fly sniffs again (up to ``max_resniff`` extra trials) and the summed margin
-decides.  Keyword arguments are judged the same way, only for calls judged to be keys.
+(:func:`fly_ftl_extract.dopamine.seed.trial_seed`): its window becomes a sequence of puffs
+(``odor/encoder.py``), the mushroom body receives them one after another
+(:meth:`Brain.simulate_sequence`) and the readout reads the Kenyon-cell counts of every
+puff.  When the MBON margin is closer to zero than θ the fly sniffs again (up to
+``max_resniff`` extra trials) and the summed margin decides.  Keyword arguments are judged
+the same way, only for calls judged to be keys.
 
 Nothing here looks at names or shapes of the code: the decision is the sign of a margin
 computed from Kenyon-cell spikes.
@@ -23,7 +26,7 @@ from fly_ftl_extract.dopamine.readout import Readout, vote
 from fly_ftl_extract.dopamine.seed import kwarg_trial_index, sniff_seed, trial_seed
 from fly_ftl_extract.dopamine.weights import MbonWeights
 from fly_ftl_extract.ftl.model import ExtractOptions
-from fly_ftl_extract.odor.encoder import ENCODER_VERSION, encode_many
+from fly_ftl_extract.odor.encoder import ENCODER_VERSION, N_SLOTS, encode_many
 from fly_ftl_extract.tokenizer.candidates import Candidate, Kwarg, Window, iter_candidates
 
 BATCH = 256
@@ -39,7 +42,7 @@ class Verdict:
     sniffs: int
     """Trials used (1 + resniffs)."""
     kc_active_fraction: float
-    """Of the first sniff (for the TUI)."""
+    """Of the first sniff, averaged over the puffs that carried odour (for the TUI)."""
 
 
 @dataclass(frozen=True)
@@ -97,6 +100,14 @@ class Judge:
         )
         self.max_resniff = self.weights.max_resniff if max_resniff is None else max_resniff
         self.n_kc = self.brain.n_kc
+        expected = N_SLOTS * self.n_kc
+        for name, readout in (("key", self.weights.key), ("kwarg", self.weights.kwarg)):
+            if readout.n_states != expected:
+                msg = (
+                    f"{name} readout expects {readout.n_states} KC states, the fly has "
+                    f"{N_SLOTS} puffs × {self.n_kc} KC = {expected}. Retrain."
+                )
+                raise weights_module.WeightsMismatchError(msg)
 
     def sniff(
         self, windows: list[Window], seeds: np.ndarray, readout: Readout, theta: float
@@ -110,9 +121,9 @@ class Judge:
         sniffs = np.ones(len(windows), dtype=np.int32)
         for start in range(0, len(windows), BATCH):
             sl = slice(start, start + BATCH)
-            res = self.brain.simulate(odors[sl], seeds[sl])
+            res = self.brain.simulate_sequence(odors[sl], seeds[sl])
             margins[sl, 0] = readout.margin(res.kc_counts)
-            fractions[sl] = res.kc_active_fraction
+            fractions[sl] = _active_over_puffs(res.kc_active_fraction, res.puff_active)
         unsure = np.flatnonzero(np.abs(margins[:, 0]) < theta)
         for sniff in range(1, self.max_resniff + 1):
             if len(unsure) == 0:
@@ -122,7 +133,7 @@ class Judge:
             )
             for start in range(0, len(unsure), BATCH):
                 idx = unsure[start : start + BATCH]
-                res = self.brain.simulate(odors[idx], extra_seeds[start : start + BATCH])
+                res = self.brain.simulate_sequence(odors[idx], extra_seeds[start : start + BATCH])
                 margins[idx, sniff] = readout.margin(res.kc_counts)
             sniffs[unsure] = sniff + 1
         summed = vote(margins)
@@ -180,3 +191,11 @@ class Judge:
                 )
             )
         return judged
+
+
+def _active_over_puffs(fraction: np.ndarray, active: np.ndarray) -> np.ndarray:
+    """Mean active-KC share per trial over the puffs that carried odour (0 if none)."""
+    n = active.sum(axis=1)
+    return np.where(n > 0, (fraction * active).sum(axis=1) / np.maximum(n, 1), 0.0).astype(
+        np.float32
+    )

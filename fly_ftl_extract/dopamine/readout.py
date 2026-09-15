@@ -2,6 +2,9 @@
 
 Features of one trial (``feature_mode``): ``binary`` = KC spiked, ``log1p`` = log1p(spike
 count), ``both`` = the two concatenated (CLAUDE.md: ``[kc_spiked, log1p(kc_count)]``).
+With the temporal code the KC state of a trial is ``(n_puffs, n_kc)`` — the counts *per
+puff* — and the features are taken per puff, so ``both`` is ``2 × n_puffs × n_kc`` long
+(auditor's decision after Phase 5); any trailing dimensions are flattened.
 The readout is ``margin = X @ W + b``; ``margin > 0`` means *key* (or *placeable*).
 Learning is the delta rule on minibatches with L2 (:func:`dan_update` — the dopamine
 error signal), early stopping on the validation F1.  Numpy only.
@@ -19,8 +22,13 @@ FEATURE_MODES: tuple[FeatureMode, ...] = ("binary", "log1p", "both")
 
 
 def features(kc_counts: np.ndarray, mode: FeatureMode) -> np.ndarray:
-    """Feature matrix ``(n_trials, dim)`` float32 of KC spike counts ``(n_trials, n_kc)``."""
+    """Feature matrix ``(n_trials, dim)`` float32 of KC spike counts.
+
+    ``kc_counts`` is ``(n_trials, n_kc)`` or, for the temporal code,
+    ``(n_trials, n_puffs, n_kc)`` — flattened per trial.
+    """
     counts = np.asarray(kc_counts)
+    counts = counts.reshape(counts.shape[0], -1)
     if mode == "binary":
         return (counts > 0).astype(np.float32)
     if mode == "log1p":
@@ -30,9 +38,9 @@ def features(kc_counts: np.ndarray, mode: FeatureMode) -> np.ndarray:
     )
 
 
-def feature_dim(n_kc: int, mode: FeatureMode) -> int:
-    """Length of a feature vector."""
-    return 2 * n_kc if mode == "both" else n_kc
+def feature_dim(n_states: int, mode: FeatureMode) -> int:
+    """Length of a feature vector for ``n_states`` KC states (``n_puffs × n_kc``)."""
+    return 2 * n_states if mode == "both" else n_states
 
 
 @dataclass
@@ -44,9 +52,14 @@ class Readout:
     mode: FeatureMode
 
     @classmethod
-    def zeros(cls, n_kc: int, mode: FeatureMode) -> Readout:
-        """An untrained readout (all weights zero)."""
-        return cls(np.zeros(feature_dim(n_kc, mode), dtype=np.float32), 0.0, mode)
+    def zeros(cls, n_states: int, mode: FeatureMode) -> Readout:
+        """An untrained readout (all weights zero) over ``n_states`` KC states."""
+        return cls(np.zeros(feature_dim(n_states, mode), dtype=np.float32), 0.0, mode)
+
+    @property
+    def n_states(self) -> int:
+        """KC states (``n_puffs × n_kc``) the readout expects."""
+        return len(self.w) // 2 if self.mode == "both" else len(self.w)
 
     def margin(self, kc_counts: np.ndarray) -> np.ndarray:
         """``X @ W + b`` per trial, from KC spike counts."""
@@ -55,6 +68,17 @@ class Readout:
     def margin_from_features(self, x: np.ndarray) -> np.ndarray:
         """``X @ W + b`` per trial, from an already built feature matrix."""
         return np.asarray(x @ self.w + np.float32(self.b), dtype=np.float32)
+
+    def margin_batched(self, kc_counts: np.ndarray, batch: int = 2048) -> np.ndarray:
+        """:meth:`margin` in slices of ``batch`` trials.
+
+        The feature matrix of a whole split (``n × 2 × n_puffs × n_kc`` float32) never has
+        to exist at once.
+        """
+        out = np.empty(len(kc_counts), dtype=np.float32)
+        for start in range(0, len(kc_counts), batch):
+            out[start : start + batch] = self.margin(kc_counts[start : start + batch])
+        return out
 
 
 def dan_update(readout: Readout, x: np.ndarray, y: np.ndarray, lr: float, l2: float) -> float:
@@ -164,15 +188,15 @@ def train_readout(
 ) -> tuple[Readout, TrainLog]:
     """Delta-rule training with early stopping on the validation F1.
 
-    ``counts_*`` are KC spike counts ``(n, n_kc)`` (uint8/int16); features are built per
-    minibatch so that the full feature matrix never has to fit in memory.
+    ``counts_*`` are KC spike counts ``(n, n_kc)`` or ``(n, n_puffs, n_kc)`` (uint8/int16);
+    features are built per minibatch so that the full feature matrix never has to fit in
+    memory.
     """
-    n_kc = counts_train.shape[1]
-    readout = Readout.zeros(n_kc, mode)
-    best = Readout.zeros(n_kc, mode)
+    n_states = int(np.prod(counts_train.shape[1:]))
+    readout = Readout.zeros(n_states, mode)
+    best = Readout.zeros(n_states, mode)
     log = TrainLog()
     rng = np.random.default_rng(config.seed)
-    x_val = features(counts_val, mode)
     y_tr = np.asarray(y_train, dtype=np.float32)
     since_best = 0
     for epoch in range(config.max_epochs):
@@ -185,7 +209,7 @@ def train_readout(
                     readout, features(counts_train[idx], mode), y_tr[idx], config.lr, config.l2
                 )
             )
-        val_f1 = score(readout.margin_from_features(x_val) > 0, y_val).f1
+        val_f1 = score(readout.margin_batched(counts_val) > 0, y_val).f1
         log.epochs.append({"epoch": epoch, "loss": float(np.mean(losses)), "val_f1": val_f1})
         if val_f1 > log.best_val_f1:
             log.best_val_f1, log.best_epoch, since_best = val_f1, epoch, 0

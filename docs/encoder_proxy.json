@@ -1,264 +1,203 @@
 {
-  "snippets": 3000,
-  "seed": 777,
-  "probe_rows": 47896,
-  "val_rows": 9788,
+  "generator_version": "grammar-3",
+  "encoder_version": "fly-odor-4",
+  "seed": 20240914,
+  "snippets": 20000,
+  "table": "keys",
+  "rows_total": 282592,
+  "train_rows": 225892,
+  "val_rows": 28235,
+  "test_rows": 28465,
+  "test_positive": 7099,
+  "probe": {
+    "lr": 0.5,
+    "l2": 1e-05,
+    "batch": 512,
+    "epochs": 40,
+    "patience": 6
+  },
   "rows": [
     {
-      "name": "fly-odor-1: context 12/6, 3-grams, bag 0.5",
+      "name": "fly-odor-3: one vector, context 6/3, 3-grams",
+      "temporal": false,
       "n_pn": 124,
-      "top_k": 0,
-      "salt": "fly-odor-2",
+      "dims": 124,
+      "salt": "fly-odor-3",
       "params": {
-        "max_ngram": 3,
-        "distance_tau": 6.0,
-        "bag_weight": 0.5,
-        "context_before": 12,
-        "context_after": 6
-      },
-      "active_pn": 68.90147402705863,
-      "mass": 38.86196517944336,
-      "val_f1": 0.924342765402368
-    },
-    {
-      "name": "12/6 without bag",
-      "n_pn": 124,
-      "top_k": 0,
-      "salt": "fly-odor-2",
-      "params": {
-        "max_ngram": 3,
-        "distance_tau": 6.0,
-        "bag_weight": 0.0,
-        "context_before": 12,
-        "context_after": 6
-      },
-      "active_pn": 47.962084516452315,
-      "mass": 27.58473777770996,
-      "val_f1": 0.9212391172302086
-    },
-    {
-      "name": "12/6, 2-grams, without bag",
-      "n_pn": 124,
-      "top_k": 0,
-      "salt": "fly-odor-2",
-      "params": {
-        "max_ngram": 2,
-        "distance_tau": 6.0,
-        "bag_weight": 0.0,
-        "context_before": 12,
-        "context_after": 6
-      },
-      "active_pn": 35.98313011524971,
-      "mass": 19.672142028808594,
-      "val_f1": 0.9254032258064516
-    },
-    {
-      "name": "6/3, bag 0.5",
-      "n_pn": 124,
-      "top_k": 0,
-      "salt": "fly-odor-2",
-      "params": {
-        "max_ngram": 3,
-        "distance_tau": 6.0,
-        "bag_weight": 0.5,
         "context_before": 6,
-        "context_after": 3
+        "context_after": 3,
+        "hashes_per_feature": 1,
+        "bigrams": false
       },
-      "active_pn": 47.932165525304825,
-      "mass": 29.16780662536621,
-      "val_f1": 0.9750302053966975
+      "active_pn_per_puff": 30.655765202128865,
+      "val_f1": 0.9885619739587079,
+      "test": {
+        "precision": 0.9847167694896243,
+        "recall": 0.9892942667981406,
+        "f1": 0.9870002108073923,
+        "tp": 7023,
+        "fp": 109,
+        "fn": 76,
+        "tn": 21257
+      },
+      "encode_s": 18.127562700000453,
+      "seconds": 19.26097579999987
     },
     {
-      "name": "fly-odor-2: context 6/3, without bag",
+      "name": "slots 6/1/3, token+role features, 1 hash",
+      "temporal": true,
       "n_pn": 124,
-      "top_k": 0,
-      "salt": "fly-odor-2",
+      "dims": 1240,
+      "salt": "fly-odor-4",
       "params": {
-        "max_ngram": 3,
-        "distance_tau": 6.0,
-        "bag_weight": 0.0,
         "context_before": 6,
-        "context_after": 3
+        "context_after": 3,
+        "hashes_per_feature": 1,
+        "bigrams": false
       },
-      "active_pn": 30.172644897277433,
-      "mass": 20.48418617248535,
-      "val_f1": 0.9786376461104394
+      "active_pn_per_puff": 4.3013262648584325,
+      "val_f1": 0.9922324510932107,
+      "test": {
+        "precision": 0.9889417693169092,
+        "recall": 0.9952105930412735,
+        "f1": 0.9920662781717335,
+        "tp": 7065,
+        "fp": 79,
+        "fn": 34,
+        "tn": 21287
+      },
+      "encode_s": 19.949134699999377,
+      "seconds": 33.85759979999966
     },
     {
-      "name": "6/3, tau 2, without bag",
+      "name": "slots, token+role, 2 hashes per feature",
+      "temporal": true,
       "n_pn": 124,
-      "top_k": 0,
-      "salt": "fly-odor-2",
+      "dims": 1240,
+      "salt": "fly-odor-4",
       "params": {
-        "max_ngram": 3,
-        "distance_tau": 2.0,
-        "bag_weight": 0.0,
         "context_before": 6,
-        "context_after": 3
+        "context_after": 3,
+        "hashes_per_feature": 2,
+        "bigrams": false
       },
-      "active_pn": 27.90638049106397,
-      "mass": 15.768424987792969,
-      "val_f1": 0.9740518962075848
+      "active_pn_per_puff": 8.450787262786744,
+      "val_f1": 0.9944616269869812,
+      "test": {
+        "precision": 0.9926976548237607,
+        "recall": 0.9957740526834765,
+        "f1": 0.9942334739803094,
+        "tp": 7069,
+        "fp": 52,
+        "fn": 30,
+        "tn": 21314
+      },
+      "encode_s": 32.49211019999984,
+      "seconds": 46.48708600000009
     },
     {
-      "name": "4/2, without bag",
+      "name": "slots + bigrams, 1 hash",
+      "temporal": true,
       "n_pn": 124,
-      "top_k": 0,
-      "salt": "fly-odor-2",
+      "dims": 1240,
+      "salt": "fly-odor-4",
       "params": {
-        "max_ngram": 3,
-        "distance_tau": 6.0,
-        "bag_weight": 0.0,
-        "context_before": 4,
-        "context_after": 2
-      },
-      "active_pn": 23.06148738934358,
-      "mass": 16.6016788482666,
-      "val_f1": 0.9146431199411332
-    },
-    {
-      "name": "3/2, 2-grams, without bag",
-      "n_pn": 124,
-      "top_k": 0,
-      "salt": "fly-odor-2",
-      "params": {
-        "max_ngram": 2,
-        "distance_tau": 6.0,
-        "bag_weight": 0.0,
-        "context_before": 3,
-        "context_after": 2
-      },
-      "active_pn": 16.06580925338233,
-      "mass": 11.654550552368164,
-      "val_f1": 0.8847610459873761
-    },
-    {
-      "name": "fly-odor-1 + top-40 PN",
-      "n_pn": 124,
-      "top_k": 40,
-      "salt": "fly-odor-2",
-      "params": {
-        "max_ngram": 3,
-        "distance_tau": 6.0,
-        "bag_weight": 0.5,
-        "context_before": 12,
-        "context_after": 6
-      },
-      "active_pn": 39.982441122431936,
-      "mass": 29.400344848632812,
-      "val_f1": 0.9210472904404302
-    },
-    {
-      "name": "fly-odor-2 + top-40 PN",
-      "n_pn": 124,
-      "top_k": 40,
-      "salt": "fly-odor-2",
-      "params": {
-        "max_ngram": 3,
-        "distance_tau": 6.0,
-        "bag_weight": 0.0,
         "context_before": 6,
-        "context_after": 3
+        "context_after": 3,
+        "hashes_per_feature": 1,
+        "bigrams": true
       },
-      "active_pn": 29.9750709871388,
-      "mass": 20.392011642456055,
-      "val_f1": 0.9780463242698892
+      "active_pn_per_puff": 5.18680265694514,
+      "val_f1": 0.9974130497269331,
+      "test": {
+        "precision": 0.9950911640953717,
+        "recall": 0.9994365403577968,
+        "f1": 0.997259118701244,
+        "tp": 7095,
+        "fp": 35,
+        "fn": 4,
+        "tn": 21331
+      },
+      "encode_s": 23.72938729999987,
+      "seconds": 37.77821330000006
     },
     {
-      "name": "fly-odor-2, salt salt-a",
+      "name": "fly-odor-4: slots + bigrams, 2 hashes",
+      "temporal": true,
       "n_pn": 124,
-      "top_k": 0,
-      "salt": "salt-a",
+      "dims": 1240,
+      "salt": "fly-odor-4",
       "params": {
-        "max_ngram": 3,
-        "distance_tau": 6.0,
-        "bag_weight": 0.0,
         "context_before": 6,
-        "context_after": 3
+        "context_after": 3,
+        "hashes_per_feature": 2,
+        "bigrams": true
       },
-      "active_pn": 29.346458994488057,
-      "mass": 20.081079483032227,
-      "val_f1": 0.9759229534510433
+      "active_pn_per_puff": 10.199602042204322,
+      "val_f1": 0.9989214064859424,
+      "test": {
+        "precision": 0.9970501474926253,
+        "recall": 0.9998591350894492,
+        "f1": 0.9984526656351104,
+        "tp": 7098,
+        "fp": 21,
+        "fn": 1,
+        "tn": 21345
+      },
+      "encode_s": 39.16709439999977,
+      "seconds": 53.27262180000071
     },
     {
-      "name": "fly-odor-2, salt salt-b",
-      "n_pn": 124,
-      "top_k": 0,
-      "salt": "salt-b",
-      "params": {
-        "max_ngram": 3,
-        "distance_tau": 6.0,
-        "bag_weight": 0.0,
-        "context_before": 6,
-        "context_after": 3
-      },
-      "active_pn": 29.97809837982295,
-      "mass": 20.466899871826172,
-      "val_f1": 0.9780904522613065
-    },
-    {
-      "name": "fly-odor-2, 160 buckets",
-      "n_pn": 160,
-      "top_k": 0,
-      "salt": "fly-odor-2",
-      "params": {
-        "max_ngram": 3,
-        "distance_tau": 6.0,
-        "bag_weight": 0.0,
-        "context_before": 6,
-        "context_after": 3
-      },
-      "active_pn": 30.664272590612995,
-      "mass": 20.76272201538086,
-      "val_f1": 0.9895414320193081
-    },
-    {
-      "name": "fly-odor-2, 256 buckets",
-      "n_pn": 256,
-      "top_k": 0,
-      "salt": "fly-odor-2",
-      "params": {
-        "max_ngram": 3,
-        "distance_tau": 6.0,
-        "bag_weight": 0.0,
-        "context_before": 6,
-        "context_after": 3
-      },
-      "active_pn": 32.52597294137298,
-      "mass": 21.49871253967285,
-      "val_f1": 0.990990990990991
-    },
-    {
-      "name": "fly-odor-2, 1024 buckets",
+      "name": "slots, token+role, 1024 buckets (ceiling)",
+      "temporal": true,
       "n_pn": 1024,
-      "top_k": 0,
-      "salt": "fly-odor-2",
+      "dims": 10240,
+      "salt": "fly-odor-4",
       "params": {
-        "max_ngram": 3,
-        "distance_tau": 6.0,
-        "bag_weight": 0.0,
         "context_before": 6,
-        "context_after": 3
+        "context_after": 3,
+        "hashes_per_feature": 1,
+        "bigrams": false
       },
-      "active_pn": 34.093828294638385,
-      "mass": 22.15717315673828,
-      "val_f1": 0.9956052736715941
+      "active_pn_per_puff": 4.326959931461242,
+      "val_f1": 0.9920161116305833,
+      "test": {
+        "precision": 0.9906070377120426,
+        "recall": 0.9953514579518242,
+        "f1": 0.992973580663294,
+        "tp": 7066,
+        "fp": 67,
+        "fn": 33,
+        "tn": 21299
+      },
+      "encode_s": 50.8019637999987,
+      "seconds": 113.18301749999955
     },
     {
-      "name": "fly-odor-1, 1024 buckets",
+      "name": "slots + bigrams, 2 hashes, 1024 buckets (ceiling)",
+      "temporal": true,
       "n_pn": 1024,
-      "top_k": 0,
-      "salt": "fly-odor-2",
+      "dims": 10240,
+      "salt": "fly-odor-4",
       "params": {
-        "max_ngram": 3,
-        "distance_tau": 6.0,
-        "bag_weight": 0.5,
-        "context_before": 12,
-        "context_after": 6
+        "context_before": 6,
+        "context_after": 3,
+        "hashes_per_feature": 2,
+        "bigrams": true
       },
-      "active_pn": 96.12067813596126,
-      "mass": 44.77614974975586,
-      "val_f1": 0.9969981989193516
+      "active_pn_per_puff": 10.406598849568677,
+      "val_f1": 0.9990650845019777,
+      "test": {
+        "precision": 0.996910546271591,
+        "recall": 1.0,
+        "f1": 0.9984528832630098,
+        "tp": 7099,
+        "fp": 22,
+        "fn": 0,
+        "tn": 21344
+      },
+      "encode_s": 88.45832449999943,
+      "seconds": 144.6960672999994
     }
   ]
 }

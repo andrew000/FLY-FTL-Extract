@@ -1,4 +1,7 @@
-"""The odour encoder: deterministic, sensitive to the window and to the options."""
+"""The odour encoder: deterministic, sensitive to the window and to the options.
+
+``fly-odor-4`` is a temporal code: one PN vector per slot (6 before, focus, 3 after).
+"""
 
 from __future__ import annotations
 
@@ -9,10 +12,13 @@ from fly_ftl_extract.odor.encoder import (
     DEFAULT_ENCODER,
     ENCODER_VERSION,
     N_PN_DEFAULT,
+    N_SLOTS,
     bucket,
     encode,
     encode_many,
     normalize_window,
+    slot_features,
+    token_depths,
 )
 from fly_ftl_extract.tokenizer.candidates import Candidate, iter_candidates
 
@@ -46,15 +52,56 @@ def test_encoder_is_deterministic() -> None:
 def test_vector_shape_and_range() -> None:
     for c in cands():
         vec = encode(c.window, OPTS)
-        assert vec.shape == (N_PN_DEFAULT,)
+        assert vec.shape == (N_SLOTS, N_PN_DEFAULT)
         assert vec.dtype == np.float32
         assert vec.min() >= 0.0
         assert vec.max() < 1.0
-        assert (vec > 0).sum() > 0
+        # the focus slot always smells of something; a context slot lights a few PNs
+        assert (vec[DEFAULT_ENCODER.context_before] > 0).sum() >= 4
+        for i, feats in enumerate(slot_features(c.window, OPTS)):
+            assert ((vec[i] > 0).sum() > 0) == bool(feats)
+
+
+def test_missing_context_slots_are_silent_puffs() -> None:
+    """A candidate on the first line has empty leading slots (zero rows), and the tokens
+    it does have sit right-aligned to the focus."""
+    c = next(c for c in cands('i18n.get("hello")\n') if c.kind == "string")
+    vec = encode(c.window, OPTS)
+    n_before = len(c.window.before)
+    assert n_before < DEFAULT_ENCODER.context_before
+    silent = DEFAULT_ENCODER.context_before - n_before
+    assert not vec[:silent].any()
+    assert vec[silent:].any(axis=1).all()
+    slots = slot_features(c.window, OPTS)
+    assert [bool(sl) for sl in slots[:silent]] == [False] * silent
+    assert any(f == "tok@-1:(" for f, _ in slots[DEFAULT_ENCODER.context_before - 1])
+
+
+def test_token_depths_walk_the_brackets() -> None:
+    source = 'i18n.get("k", name=f(user.name))\n'
+    c = next(c for c in cands(source) if c.text == "f")  # ``name=f(user.name)`` in the call
+    before, after = token_depths(c.window)
+    tokens = [t for t, _ in normalize_window(c.window, OPTS)]
+    assert tokens == ["get", "(", "<STR>", ",", "<NAME>", "=", "<NAME>", "(", "<NAME>", "."]
+    assert before == [0, 0, 1, 1, 1, 1]  # ``get (`` are outside the call, the rest inside
+    assert after == [1, 2, 2]  # ``(`` opens one more level for ``user .``
+
+
+def test_slot_order_carries_the_position() -> None:
+    """The same token in another slot lights other PNs (its distance is in the hash), and
+    the sequence read backwards is another odour."""
+    c = next(c for c in cands() if c.text == '"plain-key"')
+    vec = encode(c.window, OPTS)
+    assert not np.array_equal(vec, vec[::-1])
+    slots = slot_features(c.window, OPTS)
+    names = {f for f, _ in slots[DEFAULT_ENCODER.context_before - 1]}
+    assert "tok@-1:(" in names
+    assert "tok:(" in names
+    assert "type@-1:OP" in names
 
 
 def test_different_windows_give_different_vectors() -> None:
-    vecs = [encode(c.window, OPTS) for c in cands()]
+    vecs = [encode(c.window, OPTS).reshape(-1) for c in cands()]
     for i in range(len(vecs)):
         for j in range(i + 1, len(vecs)):
             assert not np.array_equal(vecs[i], vecs[j])

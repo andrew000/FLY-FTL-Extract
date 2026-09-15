@@ -62,7 +62,8 @@ class BrainParams:
         1/t_refractory, median active-KC rate < 50 Hz. With 20 ms puffs and fly-odor-4
         the grid chose (10.0, 0.3): 9.2 % per puff, ratio 3.0. With 40 ms puffs and
         fly-odor-5 (PN driven at 0.96 of rate_max) it chooses (5.0, 0.5): 8.5 % per puff,
-        28.9 % without APL (ratio 3.4) — more spikes per PN need less gain per synapse.
+        28.9 % without APL (ratio 3.4), P(KC fires | 1 active claw) 0.22, | 2 claws 0.61 —
+        more spikes per PN need less gain per synapse.
         Phase 3's 4.0 was for the single-odour mode with encoder fly-odor-3.
         `scripts/calibrate.py`, grid in docs/BENCH.md §2, values mirrored in
         docs/calibration.json.""",
@@ -106,7 +107,8 @@ class BrainParams:
         only ~3 spikes per active PN and the Kenyon-cell code is not reproducible: the same
         candidate under two seeds shares 34 % of its active (puff, KC) states, and the
         readout plateaus at val F1 0.96 (attempts 7-8, docs/METRICS.md §7). 40 ms = 2
-        `tau_m`: ~6 spikes per active PN, same-candidate Jaccard 0.45, and on the
+        `tau_m`: ~6 spikes per active PN, same-candidate Jaccard 0.43 (50 ms: 0.48 at
+        1.24x the trial), and on the
         40k-row lever harness the readout goes 0.9415 -> 0.9631 (30 ms: 0.9574); the
         previous token still carries into the next puff (e^-2 = 0.14 of its peak). Cost:
         4100 instead of 2100 steps per trial.""",

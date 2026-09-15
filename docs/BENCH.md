@@ -66,7 +66,7 @@ under a shared scale.
 <!-- calibration:start -->
 ## 2. Calibrating `syn_scale` and `apl_scale` on real odours (temporal coding)
 
-Odours: all 240 candidates from all fixtures (84 positive), tokenised and encoded with the `fly-odor-4` encoder using each fixture's options: a sequence of 10 puffs of 20 ms (`Brain.simulate_sequence`), an empty slot is silence. The synthetic odour (30 % of PNs at 150 Hz) is not used (reviewer's decision after Phase 4). The same set for every variant, seed 1.
+Odours: all 240 candidates from all fixtures (84 positive), tokenised and encoded with the `fly-odor-5` encoder using each fixture's options: a sequence of 10 puffs of 40 ms (`Brain.simulate_sequence`), an empty slot is silence. The synthetic odour (30 % of PNs at 150 Hz) is not used (reviewer's decision after Phase 4). The same set for every variant, seed 1.
 «KC active / puff» — the share of active KCs within a puff, averaged over non-empty puffs (the reviewer's target after Phase 5: 8–10 %); «union» — the share of KCs that spiked at least once per trial. Rate = spikes / trial duration. «no APL» — the APL→* weights zeroed; «ratio» — by how much APL reduces the per-puff KC activity.
 
 ### Why one `syn_scale` is not enough (`apl_scale` = 1)
@@ -75,15 +75,15 @@ The single APL receives 1713 synapses from PNs and 56261 from KCs and gives ~17 
 
 | syn_scale | KC active / puff | KC active union | APL spikes / puff | max KC, Hz | no APL: KC active / puff |
 |---:|---:|---:|---:|---:|---:|
-| 1.0 | 0.001 | 0.010 | 2.0 | 14 | 0.005 |
-| 2.0 | 0.005 | 0.040 | 3.6 | 24 | 0.048 |
-| 4.0 | 0.008 | 0.060 | 5.1 | 43 | 0.143 |
-| 8.0 | 0.009 | 0.073 | 6.3 | 57 | 0.246 |
-| 12.0 | 0.011 | 0.086 | 6.8 | 71 | 0.305 |
-| 16.0 | 0.013 | 0.099 | 7.1 | 81 | 0.353 |
-| 20.0 | 0.014 | 0.106 | 7.4 | 90 | 0.378 |
-| 32.0 | 0.015 | 0.121 | 7.8 | 105 | 0.414 |
-| 40.0 | 0.016 | 0.127 | 8.0 | 105 | 0.414 |
+| 1.0 | 0.008 | 0.066 | 5.4 | 15 | 0.034 |
+| 2.0 | 0.018 | 0.134 | 9.1 | 29 | 0.143 |
+| 4.0 | 0.023 | 0.159 | 12.0 | 44 | 0.261 |
+| 8.0 | 0.025 | 0.170 | 14.2 | 63 | 0.341 |
+| 12.0 | 0.026 | 0.177 | 15.1 | 76 | 0.398 |
+| 16.0 | 0.027 | 0.184 | 15.7 | 98 | 0.428 |
+| 20.0 | 0.028 | 0.190 | 16.1 | 107 | 0.443 |
+| 32.0 | 0.029 | 0.203 | 16.8 | 115 | 0.460 |
+| 40.0 | 0.030 | 0.210 | 16.9 | 122 | 0.456 |
 
 ### The `syn_scale` × `apl_scale` grid
 
@@ -91,57 +91,50 @@ Criteria: with APL 8%–10% of KCs active per puff; APL sparsifies ≥ 2× (inst
 
 | syn_scale | apl_scale | KC active / puff | KC active union | max KC, Hz | median active KC, Hz | max APL, Hz | max MBON, Hz | APL spikes / puff | MBON spikes / puff | no APL: KC active / puff | ratio | criteria |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
-| 2.0 | 1.0 | 0.005 | 0.040 | 24 | 5 | 200 | 14 | 3.60 | 0.02 | 0.048 | 10.3 | KC active per puff with APL 0.005 not in [0.08, 0.1] |
-| 3.0 | 1.0 | 0.007 | 0.054 | 33 | 5 | 243 | 24 | 4.53 | 0.11 | 0.100 | 15.2 | KC active per puff with APL 0.007 not in [0.08, 0.1] |
-| 4.0 | 1.0 | 0.008 | 0.060 | 43 | 5 | 271 | 19 | 5.14 | 0.26 | 0.143 | 19.1 | KC active per puff with APL 0.008 not in [0.08, 0.1] |
-| 5.0 | 1.0 | 0.008 | 0.064 | 52 | 5 | 290 | 29 | 5.55 | 0.54 | 0.177 | 21.6 | KC active per puff with APL 0.008 not in [0.08, 0.1] |
-| 6.0 | 1.0 | 0.009 | 0.067 | 52 | 5 | 310 | 38 | 5.86 | 0.84 | 0.204 | 23.5 | KC active per puff with APL 0.009 not in [0.08, 0.1] |
-| 8.0 | 1.0 | 0.009 | 0.073 | 57 | 5 | 329 | 48 | 6.31 | 1.39 | 0.246 | 26.1 | KC active per puff with APL 0.009 not in [0.08, 0.1] |
-| 10.0 | 1.0 | 0.010 | 0.079 | 67 | 5 | 343 | 52 | 6.62 | 2.00 | 0.279 | 27.0 | KC active per puff with APL 0.010 not in [0.08, 0.1] |
-| 2.0 | 0.5 | 0.012 | 0.093 | 29 | 5 | 238 | 33 | 4.31 | 0.53 | 0.048 | 4.2 | KC active per puff with APL 0.012 not in [0.08, 0.1] |
-| 3.0 | 0.5 | 0.019 | 0.139 | 43 | 5 | 290 | 76 | 5.43 | 2.25 | 0.100 | 5.3 | KC active per puff with APL 0.019 not in [0.08, 0.1] |
-| 4.0 | 0.5 | 0.025 | 0.171 | 57 | 5 | 324 | 114 | 5.99 | 4.70 | 0.143 | 5.8 | KC active per puff with APL 0.025 not in [0.08, 0.1] |
-| 5.0 | 0.5 | 0.030 | 0.198 | 62 | 5 | 348 | 148 | 6.26 | 7.59 | 0.177 | 6.0 | KC active per puff with APL 0.030 not in [0.08, 0.1] |
-| 6.0 | 0.5 | 0.035 | 0.222 | 76 | 5 | 357 | 171 | 6.36 | 10.44 | 0.204 | 5.9 | KC active per puff with APL 0.035 not in [0.08, 0.1] |
-| 8.0 | 0.5 | 0.042 | 0.255 | 86 | 5 | 381 | 219 | 6.47 | 16.15 | 0.246 | 5.9 | KC active per puff with APL 0.042 not in [0.08, 0.1] |
-| 10.0 | 0.5 | 0.047 | 0.276 | 95 | 5 | 376 | 271 | 6.55 | 20.38 | 0.279 | 5.9 | KC active per puff with APL 0.047 not in [0.08, 0.1] |
-| 2.0 | 0.3 | 0.020 | 0.152 | 33 | 5 | 248 | 71 | 4.40 | 2.56 | 0.048 | 2.4 | KC active per puff with APL 0.020 not in [0.08, 0.1] |
-| 3.0 | 0.3 | 0.042 | 0.271 | 57 | 5 | 276 | 152 | 4.66 | 9.47 | 0.100 | 2.4 | KC active per puff with APL 0.042 not in [0.08, 0.1] |
-| 4.0 | 0.3 | 0.057 | 0.339 | 62 | 5 | 300 | 210 | 5.03 | 16.03 | 0.143 | 2.5 | KC active per puff with APL 0.057 not in [0.08, 0.1] |
-| 5.0 | 0.3 | 0.068 | 0.377 | 76 | 10 | 310 | 238 | 5.41 | 21.46 | 0.177 | 2.6 | KC active per puff with APL 0.068 not in [0.08, 0.1] |
-| 6.0 | 0.3 | 0.076 | 0.404 | 90 | 10 | 329 | 271 | 5.67 | 26.38 | 0.204 | 2.7 | KC active per puff with APL 0.076 not in [0.08, 0.1] |
-| 8.0 | 0.3 | 0.086 | 0.433 | 95 | 10 | 333 | 314 | 6.12 | 35.13 | 0.246 | 2.9 | ✓ |
-| 10.0 **←** | 0.3 | 0.092 | 0.450 | 95 | 10 | 357 | 333 | 6.42 | 43.38 | 0.279 | 3.0 | ✓ |
-| 2.0 | 0.2 | 0.028 | 0.206 | 38 | 5 | 229 | 105 | 3.91 | 5.08 | 0.048 | 1.7 | KC active per puff with APL 0.028 not in [0.08, 0.1]; APL sparsening ratio 1.69 < 2.0 |
-| 3.0 | 0.2 | 0.055 | 0.339 | 57 | 5 | 267 | 190 | 4.64 | 14.42 | 0.100 | 1.8 | KC active per puff with APL 0.055 not in [0.08, 0.1]; APL sparsening ratio 1.80 < 2.0 |
-| 4.0 | 0.2 | 0.074 | 0.408 | 67 | 10 | 305 | 243 | 5.42 | 22.87 | 0.143 | 1.9 | KC active per puff with APL 0.074 not in [0.08, 0.1]; APL sparsening ratio 1.94 < 2.0 |
-| 5.0 | 0.2 | 0.087 | 0.450 | 76 | 10 | 338 | 276 | 5.95 | 30.59 | 0.177 | 2.0 | ✓ |
-| 6.0 | 0.2 | 0.097 | 0.478 | 90 | 10 | 352 | 305 | 6.37 | 38.04 | 0.204 | 2.1 | ✓ |
-| 8.0 | 0.2 | 0.111 | 0.511 | 100 | 10 | 376 | 343 | 6.90 | 52.02 | 0.246 | 2.2 | KC active per puff with APL 0.111 not in [0.08, 0.1] |
-| 10.0 | 0.2 | 0.120 | 0.531 | 105 | 10 | 395 | 362 | 7.25 | 64.16 | 0.279 | 2.3 | KC active per puff with APL 0.120 not in [0.08, 0.1] |
-| 2.0 | 0.15 | 0.033 | 0.231 | 33 | 5 | 219 | 124 | 3.81 | 6.44 | 0.048 | 1.5 | KC active per puff with APL 0.033 not in [0.08, 0.1]; APL sparsening ratio 1.47 < 2.0 |
-| 3.0 | 0.15 | 0.063 | 0.372 | 57 | 5 | 295 | 214 | 4.84 | 17.34 | 0.100 | 1.6 | KC active per puff with APL 0.063 not in [0.08, 0.1]; APL sparsening ratio 1.59 < 2.0 |
-| 4.0 | 0.15 | 0.085 | 0.448 | 67 | 10 | 333 | 257 | 5.74 | 27.58 | 0.143 | 1.7 | APL sparsening ratio 1.69 < 2.0 |
-| 5.0 | 0.15 | 0.100 | 0.493 | 86 | 10 | 357 | 300 | 6.38 | 37.18 | 0.177 | 1.8 | KC active per puff with APL 0.100 not in [0.08, 0.1]; APL sparsening ratio 1.77 < 2.0 |
-| 6.0 | 0.15 | 0.112 | 0.523 | 95 | 10 | 376 | 324 | 6.83 | 46.79 | 0.204 | 1.8 | KC active per puff with APL 0.112 not in [0.08, 0.1]; APL sparsening ratio 1.82 < 2.0 |
-| 8.0 | 0.15 | 0.129 | 0.560 | 100 | 10 | 405 | 357 | 7.42 | 63.64 | 0.246 | 1.9 | KC active per puff with APL 0.129 not in [0.08, 0.1]; APL sparsening ratio 1.91 < 2.0 |
-| 10.0 | 0.15 | 0.141 | 0.582 | 119 | 14 | 410 | 376 | 7.78 | 77.72 | 0.279 | 2.0 | KC active per puff with APL 0.141 not in [0.08, 0.1]; APL sparsening ratio 1.98 < 2.0 |
-| 2.0 | 0.1 | 0.037 | 0.257 | 38 | 5 | 233 | 138 | 3.74 | 8.00 | 0.048 | 1.3 | KC active per puff with APL 0.037 not in [0.08, 0.1]; APL sparsening ratio 1.29 < 2.0 |
-| 3.0 | 0.1 | 0.072 | 0.410 | 57 | 5 | 305 | 229 | 5.13 | 20.90 | 0.100 | 1.4 | KC active per puff with APL 0.072 not in [0.08, 0.1]; APL sparsening ratio 1.39 < 2.0 |
-| 4.0 | 0.1 | 0.098 | 0.493 | 71 | 10 | 343 | 281 | 6.20 | 33.61 | 0.143 | 1.5 | APL sparsening ratio 1.46 < 2.0 |
-| 5.0 | 0.1 | 0.118 | 0.544 | 90 | 10 | 376 | 319 | 6.89 | 46.06 | 0.177 | 1.5 | KC active per puff with APL 0.118 not in [0.08, 0.1]; APL sparsening ratio 1.50 < 2.0 |
-| 6.0 | 0.1 | 0.133 | 0.578 | 95 | 10 | 400 | 343 | 7.36 | 57.84 | 0.204 | 1.5 | KC active per puff with APL 0.133 not in [0.08, 0.1]; APL sparsening ratio 1.54 < 2.0 |
-| 8.0 | 0.1 | 0.155 | 0.619 | 100 | 14 | 414 | 371 | 7.96 | 78.05 | 0.246 | 1.6 | KC active per puff with APL 0.155 not in [0.08, 0.1]; APL sparsening ratio 1.59 < 2.0 |
-| 10.0 | 0.1 | 0.171 | 0.644 | 119 | 14 | 419 | 390 | 8.29 | 94.08 | 0.279 | 1.6 | KC active per puff with APL 0.171 not in [0.08, 0.1]; APL sparsening ratio 1.63 < 2.0 |
-| 2.0 | 0.05 | 0.042 | 0.284 | 38 | 5 | 238 | 162 | 3.84 | 9.75 | 0.048 | 1.1 | KC active per puff with APL 0.042 not in [0.08, 0.1]; APL sparsening ratio 1.14 < 2.0 |
-| 3.0 | 0.05 | 0.084 | 0.455 | 62 | 10 | 329 | 252 | 5.55 | 25.57 | 0.100 | 1.2 | APL sparsening ratio 1.19 < 2.0 |
-| 4.0 | 0.05 | 0.117 | 0.549 | 71 | 10 | 371 | 305 | 6.72 | 41.78 | 0.143 | 1.2 | KC active per puff with APL 0.117 not in [0.08, 0.1]; APL sparsening ratio 1.23 < 2.0 |
-| 5.0 | 0.05 | 0.142 | 0.605 | 90 | 10 | 400 | 333 | 7.46 | 57.60 | 0.177 | 1.2 | KC active per puff with APL 0.142 not in [0.08, 0.1]; APL sparsening ratio 1.25 < 2.0 |
-| 6.0 | 0.05 | 0.162 | 0.642 | 95 | 14 | 410 | 357 | 7.95 | 72.03 | 0.204 | 1.3 | KC active per puff with APL 0.162 not in [0.08, 0.1]; APL sparsening ratio 1.26 < 2.0 |
-| 8.0 | 0.05 | 0.192 | 0.688 | 110 | 14 | 424 | 386 | 8.45 | 96.27 | 0.246 | 1.3 | KC active per puff with APL 0.192 not in [0.08, 0.1]; APL sparsening ratio 1.28 < 2.0 |
-| 10.0 | 0.05 | 0.214 | 0.714 | 129 | 19 | 429 | 400 | 8.70 | 115.74 | 0.279 | 1.3 | KC active per puff with APL 0.214 not in [0.08, 0.1]; APL sparsening ratio 1.30 < 2.0 |
+| 2.0 | 1.0 | 0.018 | 0.134 | 29 | 2 | 246 | 20 | 9.05 | 0.35 | 0.143 | 7.8 | KC active per puff with APL 0.018 not in [0.08, 0.1] |
+| 3.0 | 1.0 | 0.022 | 0.152 | 37 | 2 | 288 | 32 | 10.91 | 1.05 | 0.216 | 9.9 | KC active per puff with APL 0.022 not in [0.08, 0.1] |
+| 4.0 | 1.0 | 0.023 | 0.159 | 44 | 2 | 317 | 41 | 12.04 | 1.90 | 0.261 | 11.2 | KC active per puff with APL 0.023 not in [0.08, 0.1] |
+| 5.0 | 1.0 | 0.024 | 0.163 | 54 | 2 | 332 | 51 | 12.83 | 2.84 | 0.289 | 12.0 | KC active per puff with APL 0.024 not in [0.08, 0.1] |
+| 6.0 | 1.0 | 0.024 | 0.165 | 56 | 2 | 346 | 59 | 13.41 | 3.58 | 0.309 | 12.6 | KC active per puff with APL 0.024 not in [0.08, 0.1] |
+| 8.0 | 1.0 | 0.025 | 0.170 | 63 | 5 | 366 | 85 | 14.19 | 5.32 | 0.341 | 13.5 | KC active per puff with APL 0.025 not in [0.08, 0.1] |
+| 10.0 | 1.0 | 0.026 | 0.173 | 73 | 5 | 378 | 100 | 14.72 | 7.40 | 0.373 | 14.5 | KC active per puff with APL 0.026 not in [0.08, 0.1] |
+| 2.0 | 0.7 | 0.029 | 0.201 | 32 | 2 | 268 | 41 | 9.99 | 2.10 | 0.143 | 4.9 | KC active per puff with APL 0.029 not in [0.08, 0.1] |
+| 3.0 | 0.7 | 0.037 | 0.239 | 39 | 2 | 320 | 83 | 12.02 | 5.94 | 0.216 | 5.8 | KC active per puff with APL 0.037 not in [0.08, 0.1] |
+| 4.0 | 0.7 | 0.042 | 0.259 | 46 | 5 | 344 | 124 | 13.17 | 10.35 | 0.261 | 6.2 | KC active per puff with APL 0.042 not in [0.08, 0.1] |
+| 5.0 | 0.7 | 0.045 | 0.271 | 56 | 5 | 361 | 146 | 13.91 | 14.81 | 0.289 | 6.4 | KC active per puff with APL 0.045 not in [0.08, 0.1] |
+| 6.0 | 0.7 | 0.047 | 0.278 | 63 | 5 | 373 | 173 | 14.44 | 18.77 | 0.309 | 6.6 | KC active per puff with APL 0.047 not in [0.08, 0.1] |
+| 8.0 | 0.7 | 0.050 | 0.292 | 66 | 5 | 390 | 224 | 15.06 | 27.64 | 0.341 | 6.8 | KC active per puff with APL 0.050 not in [0.08, 0.1] |
+| 10.0 | 0.7 | 0.052 | 0.301 | 73 | 5 | 398 | 278 | 15.48 | 37.67 | 0.373 | 7.1 | KC active per puff with APL 0.052 not in [0.08, 0.1] |
+| 2.0 | 0.5 | 0.044 | 0.277 | 37 | 2 | 283 | 73 | 10.62 | 6.44 | 0.143 | 3.3 | KC active per puff with APL 0.044 not in [0.08, 0.1] |
+| 3.0 | 0.5 | 0.062 | 0.353 | 46 | 5 | 329 | 132 | 12.23 | 16.71 | 0.216 | 3.5 | KC active per puff with APL 0.062 not in [0.08, 0.1] |
+| 4.0 | 0.5 | 0.075 | 0.400 | 59 | 5 | 344 | 163 | 12.82 | 26.94 | 0.261 | 3.5 | KC active per puff with APL 0.075 not in [0.08, 0.1] |
+| 5.0 **←** | 0.5 | 0.085 | 0.431 | 63 | 5 | 359 | 195 | 13.13 | 35.92 | 0.289 | 3.4 | ✓ |
+| 6.0 | 0.5 | 0.091 | 0.450 | 68 | 5 | 363 | 217 | 13.39 | 43.45 | 0.309 | 3.4 | ✓ |
+| 8.0 | 0.5 | 0.101 | 0.477 | 78 | 7 | 371 | 249 | 13.68 | 56.20 | 0.341 | 3.4 | KC active per puff with APL 0.101 not in [0.08, 0.1] |
+| 10.0 | 0.5 | 0.106 | 0.489 | 88 | 7 | 383 | 283 | 14.01 | 66.40 | 0.373 | 3.5 | KC active per puff with APL 0.106 not in [0.08, 0.1] |
+| 2.0 | 0.4 | 0.056 | 0.338 | 37 | 5 | 285 | 88 | 10.44 | 11.09 | 0.143 | 2.5 | KC active per puff with APL 0.056 not in [0.08, 0.1] |
+| 3.0 | 0.4 | 0.084 | 0.439 | 51 | 5 | 315 | 154 | 11.57 | 26.56 | 0.216 | 2.6 | ✓ |
+| 4.0 | 0.4 | 0.102 | 0.490 | 61 | 5 | 334 | 198 | 12.24 | 39.76 | 0.261 | 2.6 | KC active per puff with APL 0.102 not in [0.08, 0.1] |
+| 5.0 | 0.4 | 0.112 | 0.517 | 66 | 7 | 346 | 241 | 12.80 | 50.73 | 0.289 | 2.6 | KC active per puff with APL 0.112 not in [0.08, 0.1] |
+| 6.0 | 0.4 | 0.120 | 0.535 | 73 | 7 | 359 | 271 | 13.21 | 60.01 | 0.309 | 2.6 | KC active per puff with APL 0.120 not in [0.08, 0.1] |
+| 8.0 | 0.4 | 0.129 | 0.554 | 83 | 7 | 371 | 300 | 13.86 | 75.98 | 0.341 | 2.6 | KC active per puff with APL 0.129 not in [0.08, 0.1] |
+| 10.0 | 0.4 | 0.135 | 0.566 | 93 | 7 | 383 | 324 | 14.22 | 89.99 | 0.373 | 2.8 | KC active per puff with APL 0.135 not in [0.08, 0.1] |
+| 2.0 | 0.3 | 0.074 | 0.410 | 41 | 5 | 283 | 120 | 9.90 | 17.71 | 0.143 | 1.9 | KC active per puff with APL 0.074 not in [0.08, 0.1]; APL sparsening ratio 1.94 < 2.0 |
+| 3.0 | 0.3 | 0.108 | 0.516 | 54 | 5 | 317 | 195 | 11.46 | 37.63 | 0.216 | 2.0 | KC active per puff with APL 0.108 not in [0.08, 0.1] |
+| 4.0 | 0.3 | 0.127 | 0.563 | 61 | 7 | 351 | 244 | 12.63 | 54.08 | 0.261 | 2.1 | KC active per puff with APL 0.127 not in [0.08, 0.1] |
+| 5.0 | 0.3 | 0.140 | 0.588 | 71 | 7 | 363 | 283 | 13.41 | 68.12 | 0.289 | 2.1 | KC active per puff with APL 0.140 not in [0.08, 0.1] |
+| 6.0 | 0.3 | 0.148 | 0.604 | 78 | 7 | 378 | 312 | 14.00 | 80.88 | 0.309 | 2.1 | KC active per puff with APL 0.148 not in [0.08, 0.1] |
+| 8.0 | 0.3 | 0.160 | 0.624 | 93 | 10 | 393 | 346 | 14.74 | 103.81 | 0.341 | 2.1 | KC active per puff with APL 0.160 not in [0.08, 0.1] |
+| 10.0 | 0.3 | 0.168 | 0.636 | 100 | 10 | 402 | 361 | 15.19 | 123.72 | 0.373 | 2.2 | KC active per puff with APL 0.168 not in [0.08, 0.1] |
+| 2.0 | 0.2 | 0.092 | 0.477 | 41 | 5 | 280 | 151 | 9.86 | 25.32 | 0.143 | 1.6 | APL sparsening ratio 1.55 < 2.0 |
+| 3.0 | 0.2 | 0.133 | 0.585 | 56 | 7 | 334 | 239 | 12.12 | 50.95 | 0.216 | 1.6 | KC active per puff with APL 0.133 not in [0.08, 0.1]; APL sparsening ratio 1.62 < 2.0 |
+| 4.0 | 0.2 | 0.158 | 0.633 | 66 | 7 | 366 | 285 | 13.60 | 73.08 | 0.261 | 1.7 | KC active per puff with APL 0.158 not in [0.08, 0.1]; APL sparsening ratio 1.65 < 2.0 |
+| 5.0 | 0.2 | 0.174 | 0.660 | 76 | 10 | 388 | 320 | 14.54 | 93.20 | 0.289 | 1.7 | KC active per puff with APL 0.174 not in [0.08, 0.1]; APL sparsening ratio 1.66 < 2.0 |
+| 6.0 | 0.2 | 0.186 | 0.678 | 78 | 10 | 400 | 341 | 15.13 | 112.33 | 0.309 | 1.7 | KC active per puff with APL 0.186 not in [0.08, 0.1]; APL sparsening ratio 1.66 < 2.0 |
+| 8.0 | 0.2 | 0.202 | 0.699 | 95 | 12 | 415 | 371 | 15.91 | 145.19 | 0.341 | 1.7 | KC active per puff with APL 0.202 not in [0.08, 0.1]; APL sparsening ratio 1.68 < 2.0 |
+| 10.0 | 0.2 | 0.213 | 0.712 | 102 | 12 | 422 | 390 | 16.34 | 172.16 | 0.373 | 1.8 | KC active per puff with APL 0.213 not in [0.08, 0.1]; APL sparsening ratio 1.75 < 2.0 |
 
-Chosen: **syn_scale = 10.0, apl_scale = 0.3** — every criterion met. Without KC→KC (942 edges removed): KC active / puff 0.092, max KC 95 Hz (the recurrence does not cause runaway).
+Chosen: **syn_scale = 5.0, apl_scale = 0.5** — every criterion met. Without KC→KC (942 edges removed): KC active / puff 0.085, max KC 61 Hz (the recurrence does not cause runaway).
 
 ### Per-slot profile (the chosen pair)
 
@@ -149,41 +142,42 @@ Slot 0 is the candidate; negative slots are the context before it, positive ones
 
 | slot | non-empty | active PN | KC active / puff | KC active in empty | APL spikes |
 |---:|---:|---:|---:|---:|---:|
-| -6 | 0.87 | 9.9 | 0.108 | 0.000 | 6.43 |
-| -5 | 0.88 | 9.9 | 0.093 | 0.000 | 6.23 |
-| -4 | 0.93 | 9.6 | 0.078 | 0.000 | 5.85 |
-| -3 | 0.93 | 10.0 | 0.075 | 0.000 | 5.26 |
-| -2 | 0.94 | 9.7 | 0.080 | 0.000 | 5.29 |
-| -1 | 0.95 | 9.7 | 0.099 | 0.000 | 6.63 |
-| +0 | 1.00 | 14.1 | 0.092 | 0.000 | 6.87 |
-| +1 | 1.00 | 9.5 | 0.088 | 0.000 | 6.25 |
-| +2 | 1.00 | 9.5 | 0.089 | 0.000 | 5.72 |
-| +3 | 1.00 | 9.8 | 0.118 | 0.000 | 9.45 |
+| -6 | 0.87 | 9.8 | 0.102 | 0.000 | 12.20 |
+| -5 | 0.88 | 9.5 | 0.076 | 0.000 | 12.59 |
+| -4 | 0.93 | 9.4 | 0.066 | 0.000 | 13.01 |
+| -3 | 0.93 | 9.7 | 0.094 | 0.000 | 13.39 |
+| -2 | 0.94 | 10.0 | 0.089 | 0.000 | 12.52 |
+| -1 | 0.95 | 10.0 | 0.098 | 0.000 | 13.52 |
+| +0 | 1.00 | 14.4 | 0.096 | 0.000 | 13.60 |
+| +1 | 1.00 | 9.1 | 0.085 | 0.000 | 13.43 |
+| +2 | 1.00 | 9.9 | 0.068 | 0.000 | 12.19 |
+| +3 | 1.00 | 9.5 | 0.077 | 0.000 | 14.71 |
 
 ### How many KC claws one puff reaches
 
-An active PN = odor > 0.1; on average 10.2 active PNs per non-empty puff. The mean number of PN inputs (claws) per KC: 3.79; of them on average 0.31 are active in a puff. The distribution (KC × puffs) and the probability that the KC spikes in this puff, by the number of active claws:
+An active PN = odor > 0.1; on average 10.2 active PNs per non-empty puff. The mean number of PN inputs (claws) per KC: 3.79; of them on average 0.32 are active in a puff. The distribution (KC × puffs) and the probability that the KC spikes in this puff, by the number of active claws:
 
 | active claws | KC×puffs | share | P(KC active) | share among active KCs |
 |---:|---:|---:|---:|---:|
-| 0 | 4324822 | 0.732 | 0.021 | 0.168 |
-| 1 | 1367380 | 0.231 | 0.238 | 0.598 |
-| 2 | 200247 | 0.034 | 0.572 | 0.211 |
-| 3 | 15228 | 0.003 | 0.824 | 0.023 |
-| 4 | 497 | 0.000 | 0.954 | 0.001 |
-| 5 | 1 | 0.000 | 1.000 | 0.000 |
+| 0 | 4268929 | 0.723 | 0.012 | 0.104 |
+| 1 | 1413286 | 0.239 | 0.217 | 0.612 |
+| 2 | 210421 | 0.036 | 0.612 | 0.257 |
+| 3 | 14719 | 0.002 | 0.856 | 0.025 |
+| 4 | 817 | 0.000 | 0.973 | 0.002 |
+| 5 | 3 | 0.000 | 1.000 | 0.000 |
 
 ### Reliability of the KC code (the Jaccard test from PLAN) and puff duration
 
-Jaccard of the sets of active (puff, KC): the same candidate seed 1 vs 2 (mean over all candidates; «union» — over the per-trial united KC sets) and random pairs of different candidates. The row with the current puff_ms = 20 ms is marked; a shorter puff gives fewer spikes per puff and worse reproducibility, a longer one a longer trial for the same information.
+Jaccard of the sets of active (puff, KC): the same candidate seed 1 vs 2 (mean over all candidates; «union» — over the per-trial united KC sets) and random pairs of different candidates. The row with the current puff_ms = 40 ms is marked; a shorter puff gives fewer spikes per puff and worse reproducibility, a longer one a longer trial for the same information.
 
 | puff_ms | steps | KC active / puff | KC active union | J same candidate | J same, union | J different candidates | max KC, Hz |
 |---:|---:|---:|---:|---:|---:|---:|---:|
-| 10 | 1100 | 0.052 | 0.315 | 0.193 | 0.486 | 0.086 | 100 |
-| 20 **←** | 2100 | 0.092 | 0.450 | 0.335 | 0.656 | 0.143 | 95 |
-| 30 | 3100 | 0.119 | 0.524 | 0.440 | 0.742 | 0.183 | 84 |
+| 20 | 2100 | 0.047 | 0.287 | 0.260 | 0.514 | 0.105 | 67 |
+| 30 | 3100 | 0.069 | 0.375 | 0.359 | 0.622 | 0.144 | 61 |
+| 40 **←** | 4100 | 0.085 | 0.431 | 0.427 | 0.687 | 0.171 | 63 |
+| 50 | 5100 | 0.097 | 0.471 | 0.484 | 0.733 | 0.193 | 63 |
 
-With the current parameters: the same candidate J = 0.335 per puff, 0.656 per trial (gap to 0.5: -0.165 per puff), different candidates J = 0.143 (gap +0.357). The criterion «same > 0.5» per puff is not met (per trial it is): by the reviewer's decision after Phase 4 the corresponding test is diagnostic (xfail), the Phase 5 gate is readout accuracy.
+With the current parameters: the same candidate J = 0.427 per puff, 0.687 per trial (gap to 0.5: -0.073 per puff), different candidates J = 0.171 (gap +0.329). The criterion «same > 0.5» per puff is not met (per trial it is): by the reviewer's decision after Phase 4 the corresponding test is diagnostic (xfail), the Phase 5 gate is readout accuracy.
 <!-- calibration:end -->
 
 <!-- bench:start -->

@@ -54,13 +54,13 @@ under a shared scale.
 | `t_refractory` | 2.2 | Refractory period, ms; `v` and `g` are frozen, inputs still accumulate in `g`. Shiu `t_rfc` (Lazar et al. 2021). |
 | `t_delay` | 1.8 | Synaptic delay, ms: a spike reaches its targets `t_delay` later. Shiu `t_dly` (Paul et al. 2015). Not in CLAUDE.md; taken from the model. |
 | `w_syn` | 0.275 | Potential added to `g` per synapse, mV (× `syn_count` × sign). Shiu `w_syn`, the model's one free parameter. |
-| `syn_scale` | 10.0 | Multiplier on `w_syn` for our subgraph. Shiu simulate the whole brain with 1; the isolated mushroom body needs its own value. Calibrated together with `apl_scale` on the real odour *sequences* of every fixture candidate in the temporal code (`Brain.simulate_sequence`, auditor's decisions after Phases 4 and 5): target 8-10 % active Kenyon cells per non-empty 20 ms puff with APL, APL sparsening >= 2x, one PN spike alone must not fire a KC (that happens from 11.7), no neuron above 1/t_refractory, median active-KC rate < 50 Hz. (10.0, 0.3) gives 9.2 % per puff, 27.9 % without APL (ratio 3.0), P(KC fires | 1 active claw) 0.24, | 2 claws 0.57; Phase 3's 4.0 was for the single-odour mode with encoder fly-odor-3. `scripts/calibrate.py`, grid in docs/BENCH.md §2, values mirrored in docs/calibration.json. |
-| `apl_scale` | 0.3 | Extra multiplier on the APL's output synapses (APL→KC, APL→PN, APL→MBON…), on top of `syn_scale`. 1.0 = the FlyWire counts as they are (Shiu et al. scale every synapse alike). Introduced for the temporal code (deviation from PLAN, docs/BENCH.md §2): the single APL receives 1713 PN and 56261 KC synapses and, with every synapse scaled alike, fires 7-8 spikes per 20 ms puff (near its 455 Hz refractory limit) for as long as any odour is present; the Kenyon cells then respond only at odour onset (10 % in the first puff, 0.4-2 % in every later one) and no `syn_scale` between 1 and 40 lifts the per-puff activity above 1.6 %. 0.3 lets the APL regulate (it still cuts the KC activity 3x and fires ~6 spikes per puff) instead of clamping. Calibrated with `syn_scale` in `scripts/calibrate.py`. |
+| `syn_scale` | 5.0 | Multiplier on `w_syn` for our subgraph. Shiu simulate the whole brain with 1; the isolated mushroom body needs its own value. Calibrated together with `apl_scale` on the real odour *sequences* of every fixture candidate in the temporal code (`Brain.simulate_sequence`, auditor's decisions after Phases 4 and 5): target 8-10 % active Kenyon cells per non-empty 20 ms puff with APL, APL sparsening >= 2x, one PN spike alone must not fire a KC (that happens from 11.7), no neuron above 1/t_refractory, median active-KC rate < 50 Hz. With 20 ms puffs and fly-odor-4 the grid chose (10.0, 0.3): 9.2 % per puff, ratio 3.0. With 40 ms puffs and fly-odor-5 (PN driven at 0.96 of rate_max) it chooses (5.0, 0.5): 8.5 % per puff, 28.9 % without APL (ratio 3.4), P(KC fires | 1 active claw) 0.22, | 2 claws 0.61 — more spikes per PN need less gain per synapse. Phase 3's 4.0 was for the single-odour mode with encoder fly-odor-3. `scripts/calibrate.py`, grid in docs/BENCH.md §2, values mirrored in docs/calibration.json. |
+| `apl_scale` | 0.5 | Extra multiplier on the APL's output synapses (APL→KC, APL→PN, APL→MBON…), on top of `syn_scale`. 1.0 = the FlyWire counts as they are (Shiu et al. scale every synapse alike). Introduced for the temporal code (deviation from PLAN, docs/BENCH.md §2): the single APL receives 1713 PN and 56261 KC synapses and, with every synapse scaled alike, fires 7-8 spikes per 20 ms puff (near its 455 Hz refractory limit) for as long as any odour is present; the Kenyon cells then respond only at odour onset (10 % in the first puff, 0.4-2 % in every later one) and no `syn_scale` between 1 and 40 lifts the per-puff activity above 1.6 %. A value below 1 lets the APL regulate instead of clamping: 0.3 with 20 ms puffs, 0.5 with 40 ms puffs and fly-odor-5 (it still cuts the KC activity 3.4x and fires ~13 spikes per 40 ms puff). Calibrated with `syn_scale` in `scripts/calibrate.py`. |
 | `dt` | 0.1 | Integration step, ms. brian2's `defaultclock.dt`, as used by Shiu. |
 | `rate_max` | 200.0 | Firing rate of a projection neuron at odour value 1.0, Hz. CLAUDE.md; Shiu drive their input neurons at `r_poi = 150 Hz`, which is odour value 0.75 here. |
 | `t_stim` | 100.0 | Duration of the odour (PN Poisson input), ms. CLAUDE.md said 50 ms; the auditor after Phase 3 set 100 ms because at 50 ms the same odour with two seeds gave a Kenyon-cell Jaccard of 0.40 (< 0.5 required); at 100 ms it is > 0.5 (docs/BENCH.md §2). |
 | `t_silence` | 10.0 | Silence after the odour while the last spikes propagate, ms. CLAUDE.md. |
-| `puff_ms` | 20.0 | Duration of one puff in the temporal code (`Brain.simulate_sequence`), ms: every slot of the token window is presented for `puff_ms`, the next slot follows without silence, `t_silence` closes the trial. Auditor's decision after Phase 5. 20 ms = one membrane time constant `tau_m`: when the next token arrives the previous token's depolarisation has decayed to 1/e, so a Kenyon cell still carries the last two or three tokens (that carry-over is the fly's memory of word order) while a token six slots back has faded (e^-6). It is also 4 `tau_syn`, so the synaptic variable of a puff has settled before the next one, and at PN rates of ~150 Hz a puff delivers ~3 spikes per active PN: measured on the fixture sequences a KC with one active claw fires in 24 % of the puffs, with two in 57 %, with three in 82 % (docs/BENCH.md §2). The puff_ms sweep there: 10 ms gives 5 % KC per puff and same-candidate Jaccard 0.19, 20 ms 9 % and 0.34, 30 ms 12 % and 0.44 at 1.5x the trial length. |
+| `puff_ms` | 40.0 | Duration of one puff in the temporal code (`Brain.simulate_sequence`), ms: every slot of the token window is presented for `puff_ms`, the next slot follows without silence, `t_silence` closes the trial. The auditor's decision after Phase 5 set 20 ms (one `tau_m`: the previous token's depolarisation has decayed to 1/e when the next arrives, a token six slots back has faded to e^-6). At 20 ms a puff delivers only ~3 spikes per active PN and the Kenyon-cell code is not reproducible: the same candidate under two seeds shares 34 % of its active (puff, KC) states, and the readout plateaus at val F1 0.96 (attempts 7-8, docs/METRICS.md §7). 40 ms = 2 `tau_m`: ~6 spikes per active PN, same-candidate Jaccard 0.43 (50 ms: 0.48 at 1.24x the trial), and on the 40k-row lever harness the readout goes 0.9415 -> 0.9631 (30 ms: 0.9574); the previous token still carries into the next puff (e^-2 = 0.14 of its peak). Cost: 4100 instead of 2100 steps per trial. |
 <!-- params:end -->
 
 <!-- calibration:start -->
@@ -188,18 +188,18 @@ A trial = 1100 steps of 0.1 ms (T_stim 100 + T_silence 10 ms), 2935 neurons in t
 
 | batch | s per batch | trials/s | ms per step |
 |---:|---:|---:|---:|
-| 64 | 0.331 | 193.6 | 0.300 |
-| 256 | 1.212 | 211.3 | 1.102 |
-| 1024 | 6.877 | 148.9 | 6.252 |
+| 64 | 0.316 | 202.4 | 0.287 |
+| 256 | 1.148 | 223.0 | 1.044 |
+| 1024 | 7.430 | 137.8 | 6.755 |
 
-PLAN target (Phase 3) ≥ 200 trials/s at batch 256: 211.3 — met.
+PLAN target (Phase 3) ≥ 200 trials/s at batch 256: 223.0 — met.
 
 ### Two ways to compute the synaptic current (batch 256)
 
 | drive | trials/s |
 |---|---:|
-| `events` | 180.4 |
-| `dense` | 68.2 |
+| `events` | 229.8 |
+| `dense` | 78.3 |
 
 `events`: from the step's (trial, neuron) events a CSR spike matrix S is built and `S @ W` is computed (sparse × sparse, the result is added into `g` by flat indices). `dense`: `W.T @ spikes.T` with a dense spike matrix (n_neurons × n_trials). The results are bit-for-bit identical: True. `events` is used.
 
@@ -207,35 +207,35 @@ PLAN target (Phase 3) ≥ 200 trials/s at batch 256: 211.3 — met.
 
 ```
    ncalls  tottime  percall  cumtime  percall filename:lineno(function)
-        1    0.634    0.634    1.696    1.696 fly_ftl_extract\brain\lif.py:363(_run)
-     1082    0.271    0.000    0.859    0.001 fly_ftl_extract\brain\lif.py:453(_deliver)
-     1082    0.211    0.000    0.211    0.000 {built-in method scipy.sparse._sparsetools.csr_matmat}
-     2100    0.137    0.000    0.137    0.000 {method 'nonzero' of 'numpy.ndarray' objects}
-     1082    0.112    0.000    0.112    0.000 {built-in method scipy.sparse._sparsetools.csr_matmat_maxnnz}
-     1000    0.054    0.000    0.054    0.000 fly_ftl_extract\brain\lif.py:267(draw)
-     6492    0.037    0.000    0.053    0.000 site-packages\scipy\sparse\_sputils.py:263(get_index_dtype)
-     1082    0.019    0.000    0.019    0.000 {built-in method scipy.sparse._sparsetools.expandptr}
-     3246    0.012    0.000    0.089    0.000 site-packages\scipy\sparse\_compressed.py:30(__init__)
-     4332    0.012    0.000    0.012    0.000 {method 'reduce' of 'numpy.ufunc' objects}
-     1082    0.010    0.000    0.010    0.000 {method 'argsort' of 'numpy.ndarray' objects}
-     1082    0.009    0.000    0.410    0.000 site-packages\scipy\sparse\_compressed.py:415(_matmul_sparse)
-     6492    0.009    0.000    0.066    0.000 site-packages\scipy\sparse\_base.py:1695(_get_index_dtype)
-     3246    0.009    0.000    0.019    0.000 site-packages\scipy\sparse\_compressed.py:1132(prune)
+        1    0.412    0.412    1.228    1.228 fly_ftl_extract\brain\lif.py:363(_run)
+     1082    0.212    0.000    0.668    0.001 fly_ftl_extract\brain\lif.py:453(_deliver)
+     1082    0.172    0.000    0.172    0.000 {built-in method scipy.sparse._sparsetools.csr_matmat}
+     2100    0.098    0.000    0.098    0.000 {method 'nonzero' of 'numpy.ndarray' objects}
+     1082    0.082    0.000    0.082    0.000 {built-in method scipy.sparse._sparsetools.csr_matmat_maxnnz}
+     1000    0.041    0.000    0.041    0.000 fly_ftl_extract\brain\lif.py:267(draw)
+     6492    0.027    0.000    0.039    0.000 site-packages\scipy\sparse\_sputils.py:263(get_index_dtype)
+     1082    0.016    0.000    0.016    0.000 {built-in method scipy.sparse._sparsetools.expandptr}
+     4332    0.010    0.000    0.010    0.000 {method 'reduce' of 'numpy.ufunc' objects}
+     3246    0.009    0.000    0.066    0.000 site-packages\scipy\sparse\_compressed.py:30(__init__)
+     1082    0.007    0.000    0.007    0.000 {method 'argsort' of 'numpy.ndarray' objects}
+     1082    0.007    0.000    0.318    0.000 site-packages\scipy\sparse\_compressed.py:415(_matmul_sparse)
+     6492    0.007    0.000    0.049    0.000 site-packages\scipy\sparse\_base.py:1695(_get_index_dtype)
+     3246    0.007    0.000    0.015    0.000 site-packages\scipy\sparse\_compressed.py:1132(prune)
 ```
 <!-- bench:end -->
 
 <!-- bench_sequence:start -->
 ## 3a. Speed: temporal coding (`Brain.simulate_sequence`)
 
-A trial = 10 puffs × 20 ms + 10 ms of silence = 2100 steps of 0.1 ms; syn_scale 10.0, apl_scale 0.3. Odours — real candidate sequences from the fixtures, repeated up to the needed count. The 200 trials/s per process threshold was lifted by the reviewer's decision after Phase 5; the budget is ≤ 2 h of brain per full `scripts/train.py` run.
+A trial = 10 puffs × 40 ms + 10 ms of silence = 4100 steps of 0.1 ms; syn_scale 5.0, apl_scale 0.5. Odours — real candidate sequences from the fixtures, repeated up to the needed count. The 200 trials/s per process threshold was lifted by the reviewer's decision after Phase 5; the budget is ≤ 2 h of brain per full `scripts/train.py` run.
 
 ### One process
 
 | batch | s per batch | trials/s | ms per step |
 |---:|---:|---:|---:|
-| 64 | 0.494 | 129.7 | 0.235 |
-| 128 | 0.783 | 163.6 | 0.373 |
-| 256 | 1.360 | 188.2 | 0.648 |
+| 64 | 0.772 | 82.9 | 0.188 |
+| 128 | 1.200 | 106.7 | 0.293 |
+| 256 | 2.048 | 125.0 | 0.500 |
 
 ### Several processes (`scripts/train.py::simulate_all`, chunk = 8 batches, one seed)
 
@@ -243,33 +243,33 @@ A trial = 10 puffs × 20 ms + 10 ms of silence = 2100 steps of 0.1 ms; syn_scale
 
 | processes | batch | s | trials/s |
 |---:|---:|---:|---:|
-| 16 | 64 **←** | 6.1 | 1342 |
-| 16 | 128 | 9.2 | 894 |
-| 16 | 256 | 13.5 | 608 |
-| 30 | 64 | 6.1 | 1337 |
-| 30 | 128 | 8.8 | 927 |
-| 30 | 256 | 13.4 | 613 |
+| 16 | 64 **←** | 12.1 | 676 |
+| 16 | 128 | 28.0 | 292 |
+| 16 | 256 | 36.8 | 223 |
+| 30 | 64 | 12.6 | 650 |
+| 30 | 128 | 34.1 | 241 |
+| 30 | 256 | 41.7 | 197 |
 
-Best: 16 processes × batch 64 = 1342 trials/s. `cached_states` end to end (16384 trials, simulation + `savez_compressed`): 18 s = 924 trials/s; uint8 states 0.43 GB → 43 MB on disk.
+Best: 16 processes × batch 64 = 676 trials/s. `cached_states` end to end (16384 trials, simulation + `savez_compressed`): 33 s = 496 trials/s; uint8 states 0.43 GB → 44 MB on disk.
 
 ### Profile (cProfile, `simulate_sequence`, batch 128, sorted by tottime)
 
 ```
    ncalls  tottime  percall  cumtime  percall filename:lineno(function)
-        1    0.275    0.275    1.006    1.006 fly_ftl_extract\brain\lif.py:363(_run)
-     2082    0.122    0.000    0.588    0.000 fly_ftl_extract\brain\lif.py:453(_deliver)
-     4100    0.072    0.000    0.072    0.000 {method 'nonzero' of 'numpy.ndarray' objects}
-     2082    0.062    0.000    0.062    0.000 {built-in method scipy.sparse._sparsetools.csr_matmat}
-    12492    0.060    0.000    0.085    0.000 site-packages\scipy\sparse\_sputils.py:263(get_index_dtype)
-     2000    0.050    0.000    0.050    0.000 fly_ftl_extract\brain\lif.py:334(draw)
-     2082    0.023    0.000    0.023    0.000 {built-in method scipy.sparse._sparsetools.csr_matmat_maxnnz}
-     6246    0.019    0.000    0.143    0.000 site-packages\scipy\sparse\_compressed.py:30(__init__)
-     6246    0.015    0.000    0.033    0.000 site-packages\scipy\sparse\_compressed.py:1132(prune)
-     2082    0.014    0.000    0.225    0.000 site-packages\scipy\sparse\_compressed.py:415(_matmul_sparse)
-     6246    0.014    0.000    0.023    0.000 site-packages\scipy\sparse\_sputils.py:443(check_shape)
-    12492    0.014    0.000    0.105    0.000 site-packages\scipy\sparse\_base.py:1695(_get_index_dtype)
-     6246    0.013    0.000    0.051    0.000 site-packages\scipy\sparse\_compressed.py:166(check_format)
-    24984    0.013    0.000    0.013    0.000 site-packages\numpy\_core\getlimits.py:399(__init__)
+        1    0.444    0.444    1.606    1.606 fly_ftl_extract\brain\lif.py:363(_run)
+     4082    0.199    0.000    0.939    0.000 fly_ftl_extract\brain\lif.py:453(_deliver)
+     8100    0.110    0.000    0.110    0.000 {method 'nonzero' of 'numpy.ndarray' objects}
+     4082    0.104    0.000    0.104    0.000 {built-in method scipy.sparse._sparsetools.csr_matmat}
+    24492    0.092    0.000    0.131    0.000 site-packages\scipy\sparse\_sputils.py:263(get_index_dtype)
+     4000    0.081    0.000    0.081    0.000 fly_ftl_extract\brain\lif.py:334(draw)
+     4082    0.031    0.000    0.031    0.000 {built-in method scipy.sparse._sparsetools.csr_matmat_maxnnz}
+    12246    0.030    0.000    0.227    0.000 site-packages\scipy\sparse\_compressed.py:30(__init__)
+    12246    0.023    0.000    0.052    0.000 site-packages\scipy\sparse\_compressed.py:1132(prune)
+    24492    0.022    0.000    0.165    0.000 site-packages\scipy\sparse\_base.py:1695(_get_index_dtype)
+     4082    0.022    0.000    0.356    0.000 site-packages\scipy\sparse\_compressed.py:415(_matmul_sparse)
+    12246    0.022    0.000    0.037    0.000 site-packages\scipy\sparse\_sputils.py:443(check_shape)
+    12246    0.021    0.000    0.081    0.000 site-packages\scipy\sparse\_compressed.py:166(check_format)
+    48984    0.020    0.000    0.020    0.000 site-packages\numpy\_core\getlimits.py:399(__init__)
 ```
 
 Reading the profile: the ufunc calls (multiply/add/compare on (n_trials, n_int) arrays) are not shown separately by cProfile — they are part of the tottime of `_run`; `_deliver` is building the CSR spike matrix and `csr_matmat`; Poisson generation per puff (`Generator.random`) is a small share. The bottleneck is the per-step Python overhead, so steps ×2 ≈ time ×2.

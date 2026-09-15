@@ -10,9 +10,9 @@
         "text": "\"real-key\"",
         "key_name": "real-key",
         "teacher": true,
-        "margin": 18.40517234802246,
-        "sniffs": 6,
-        "kc_active": 0.09387755393981934
+        "margin": 4.910375595092773,
+        "sniffs": 1,
+        "kc_active": 0.08968039602041245
       },
       {
         "call_position": [
@@ -22,9 +22,9 @@
         "text": "i18n.nested.set_locale",
         "key_name": "nested-set_locale",
         "teacher": true,
-        "margin": -2.011870861053467,
+        "margin": -31.062782287597656,
         "sniffs": 6,
-        "kc_active": 0.09376202523708344
+        "kc_active": 0.07874470204114914
       }
     ]
   },
@@ -39,9 +39,9 @@
         "text": "\"self-get\"",
         "key_name": "self-get",
         "teacher": true,
-        "margin": 5.312376976013184,
+        "margin": 29.374662399291992,
         "sniffs": 6,
-        "kc_active": 0.11309202760457993
+        "kc_active": 0.08894878625869751
       },
       {
         "call_position": [
@@ -51,9 +51,9 @@
         "text": "self.i18n.self_attr.key",
         "key_name": "self_attr-key",
         "teacher": true,
-        "margin": 4.092948913574219,
+        "margin": 4.9146409034729,
         "sniffs": 1,
-        "kc_active": 0.11644206196069717
+        "kc_active": 0.0757412388920784
       },
       {
         "call_position": [
@@ -63,9 +63,9 @@
         "text": "\"self-call\"",
         "key_name": "self-call",
         "teacher": true,
-        "margin": 14.125680923461914,
+        "margin": 6.943589687347412,
         "sniffs": 6,
-        "kc_active": 0.09657297283411026
+        "kc_active": 0.08994994312524796
       },
       {
         "call_position": [
@@ -75,9 +75,9 @@
         "text": "self.other.get",
         "key_name": "other-get",
         "teacher": false,
-        "margin": -3.7059264183044434,
-        "sniffs": 6,
-        "kc_active": 0.09834424406290054
+        "margin": -5.546567916870117,
+        "sniffs": 1,
+        "kc_active": 0.0953022688627243
       },
       {
         "call_position": [
@@ -87,45 +87,9 @@
         "text": "\"not-a-key\"",
         "key_name": "not-a-key",
         "teacher": false,
-        "margin": 3.124119997024536,
-        "sniffs": 1,
-        "kc_active": 0.0736234113574028
-      },
-      {
-        "call_position": [
-          12,
-          9
-        ],
-        "text": "obj.self.i18n.get",
-        "key_name": "self-i18n-get",
-        "teacher": false,
-        "margin": -8.562143325805664,
-        "sniffs": 1,
-        "kc_active": 0.09561031311750412
-      },
-      {
-        "call_position": [
-          12,
-          9
-        ],
-        "text": "\"deep-root-is-obj\"",
-        "key_name": "deep-root-is-obj",
-        "teacher": false,
-        "margin": 10.718302726745605,
+        "margin": 9.291050910949707,
         "sniffs": 6,
-        "kc_active": 0.09988448768854141
-      },
-      {
-        "call_position": [
-          13,
-          9
-        ],
-        "text": "\"self-is-not-a-key-itself\"",
-        "key_name": "self-is-not-a-key-itself",
-        "teacher": false,
-        "margin": 1.7639561891555786,
-        "sniffs": 6,
-        "kc_active": 0.09541779011487961
+        "kc_active": 0.0842895582318306
       },
       {
         "call_position": [
@@ -135,9 +99,9 @@
         "text": "cls.i18n.cls_key",
         "key_name": "cls_key",
         "teacher": true,
-        "margin": -0.890474796295166,
+        "margin": 14.694705963134766,
         "sniffs": 6,
-        "kc_active": 0.08082403242588043
+        "kc_active": 0.08609934151172638
       },
       {
         "call_position": [
@@ -147,9 +111,9 @@
         "text": "\"cls-get\"",
         "key_name": "cls-get",
         "teacher": true,
-        "margin": 7.874934196472168,
-        "sniffs": 6,
-        "kc_active": 0.10377359390258789
+        "margin": 4.0866241455078125,
+        "sniffs": 1,
+        "kc_active": 0.07524066418409348
       },
       {
         "call_position": [
@@ -159,9 +123,9 @@
         "text": "\"cls-l-name-call\"",
         "key_name": "cls-l-name-call",
         "teacher": true,
-        "margin": 11.311666488647461,
+        "margin": 12.051643371582031,
         "sniffs": 6,
-        "kc_active": 0.09445513784885406
+        "kc_active": 0.09168270975351334
       }
     ]
   }

@@ -79,6 +79,7 @@ worker processes the throughput is memory-bound and the smaller working set wins
 1340 trials/s at 64 vs 900 at 128 and 610 at 256 (``scripts/bench.py``, docs/BENCH.md §3a)."""
 CHUNK_BATCHES = 8
 WORST = 10
+GATE = 0.995
 DEFAULT_MODES: tuple[str, ...] = ("both",)
 
 
@@ -890,7 +891,7 @@ def temporal_section(
     if BENCH_JSON.exists():
         bench = json.loads(BENCH_JSON.read_text(encoding="utf-8"))
         lines.append(
-            f"`scripts/bench.py` (docs/BENCH.md §3): one process {bench['single'][0]['trials_per_s']:.0f} "
+            f"`scripts/bench.py` (docs/BENCH.md §3a): one process {bench['single'][0]['trials_per_s']:.0f} "
             f"trials/s at batch {bench['single'][0]['batch']}; "
             + "; ".join(
                 f"{r['workers']} processes × batch {r['batch']}: {r['trials_per_s']:.0f} trials/s"
@@ -913,6 +914,74 @@ def temporal_section(
             f"- {r.name}: test without resniff {md_scores(r.evaluation.plain)}; with resniff "
             f"{md_scores(r.evaluation.resniffed)} (resniff {r.evaluation.resniff_fraction:.1%}, θ {r.theta:.3f})."
         )
+    return lines
+
+
+def deviations_section(brain: Brain, train_seeds: tuple[int, ...]) -> list[str]:
+    """§7: what was decided against the auditor's brief / PLAN, and why (audit protocol
+    item 4)."""
+    p = brain.params
+    return [
+        "",
+        "### Deviations from the reviewer's decisions and PLAN (for the audit protocol, item 4)",
+        "",
+        (
+            f"- `puff_ms` = {p.puff_ms:.0f} ms instead of 20 ms. At 20 ms the per-puff KC code is not reproducible "
+            "(Jaccard of the same candidate between two seeds 0.34; the readout plateaued at val F1 0.96 in attempts 7 and 8: "
+            "the same candidate with another seed gives a different decision in 3 % of cases, the mean of 3 trials — 0.988, and "
+            "train odours with an unseen seed — the same 0.963 vs 0.986 with a seen one). The lever harness above: "
+            "20 → 30 → 40 ms gives 0.9415 → 0.9574 → 0.9631 on the small training. The price is 4100 steps per "
+            "trial instead of 2100 (docs/BENCH.md §3a)."
+        ),
+        (
+            f"- `apl_scale` = {p.apl_scale} — a second calibrated brain parameter (the reviewer asked to "
+            "recalibrate only `syn_scale`). With the same scale for every synapse the single APL fires "
+            "7–8 times per 20 ms the whole time an odour is present, and the KCs respond only to the first puff (10 %, then "
+            "0.4–2 %); no `syn_scale` from 1 to 40 lifts the per-puff activity above 1.6 % "
+            "(docs/BENCH.md §2). The criterion «without APL > 30 %» was replaced with «APL reduces activity ≥ 2×» — "
+            "that threshold was for a synthetic odour with 30 % active PNs."
+        ),
+        (
+            f"- Encoder `{ENCODER_VERSION}`: feature weight 2 (a lone feature drives its PN to tanh(2) = 0.96 rate_max "
+            "instead of 0.76) — more PN spikes per puff; proxy 0.9983 (was 0.9985), the ≥ 0.996 gate holds."
+        ),
+        (
+            f"- Train augmentation with {len(train_seeds)} seeds instead of 3 (harness: 3 → 6 seeds at 20 ms gives "
+            "0.9415 → 0.9557); the brain budget is not exceeded (see §4). Val/test untouched, no train rows cut."
+        ),
+        (
+            "- Readout: lr 0.005 instead of 0.05 (~4800 active features per trial vs ~470 in fly-odor-3), "
+            "patience 8, up to 60 epochs, training on CSR states (the same delta rule, `dan_update_sparse`)."
+        ),
+        (
+            "- The resniff share on test is 10.3 % for keys with θ chosen on val for ≤ 10 % (exactly 10 % on val); "
+            "this is a statistical deviation of the split, not a different θ."
+        ),
+    ]
+
+
+def gate_section(results: dict[str, TaskResult], fixtures: FixturesResult) -> list[str]:
+    """§7: the Phase 5 gate, item by item."""
+    keys, kwargs = results["keys"].evaluation.resniffed, results["kwargs"].evaluation.resniffed
+    ok = "✓" if keys.precision >= GATE and keys.recall >= GATE else "✗"
+    ok_kw = "✓" if kwargs.precision >= GATE and kwargs.recall >= GATE else "✗"
+    ok_fx = "✓" if fixtures.files_ok == fixtures.files_total else "✗"
+    lines = [
+        "",
+        "### Phase 5 gates",
+        "",
+        f"- keys test with resniff: P {keys.precision:.4f}, R {keys.recall:.4f} (≥ {GATE}) — {ok}",
+        f"- kwargs test with resniff: P {kwargs.precision:.4f}, R {kwargs.recall:.4f} (≥ {GATE}) — {ok_kw}",
+        f"- fixtures through the fly: {fixtures.files_ok}/{fixtures.files_total} — {ok_fx}",
+    ]
+    if ok == "✓" and ok_kw == "✓" and ok_fx == "✗":
+        lines += [
+            "",
+            (
+                "The reviewer's stop condition (item 5): test passes, fixtures do not. No more knob-turning; the files "
+                "with differences and the margins of their candidates — §2 and `docs/fixture_mismatches.json`."
+            ),
+        ]
     return lines
 
 
@@ -1073,6 +1142,8 @@ def write_doc(
         "<!-- attempts:end -->",
         *proxy_section(),
         *temporal_section(results, brain, train_seeds, train_rows),
+        *deviations_section(brain, train_seeds),
+        *gate_section(results, fixtures),
     ]
     OUT_DOC.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
 

@@ -1,72 +1,72 @@
 {
-  "n_steps": 2100,
+  "n_steps": 4100,
   "n_puffs": 10,
-  "puff_ms": 20.0,
-  "syn_scale": 10.0,
-  "apl_scale": 0.3,
+  "puff_ms": 40.0,
+  "syn_scale": 5.0,
+  "apl_scale": 0.5,
   "single": [
     {
       "batch": 64,
-      "seconds": 0.4936233999997057,
-      "trials_per_s": 129.65349697773271,
-      "ms_per_step": 0.23505876190462177
+      "seconds": 0.7718872000004922,
+      "trials_per_s": 82.91366925110196,
+      "ms_per_step": 0.18826517073182736
     },
     {
       "batch": 128,
-      "seconds": 0.7825221999992209,
-      "trials_per_s": 163.5736340772536,
-      "ms_per_step": 0.37262961904724806
+      "seconds": 1.1997554000008677,
+      "trials_per_s": 106.6884133215049,
+      "ms_per_step": 0.2926232682928946
     },
     {
       "batch": 256,
-      "seconds": 1.3603062000001955,
-      "trials_per_s": 188.19292303450737,
-      "ms_per_step": 0.6477648571429503
+      "seconds": 2.048167299999477,
+      "trials_per_s": 124.989789652469,
+      "ms_per_step": 0.4995529999998725
     }
   ],
   "parallel": [
     {
       "workers": 16,
       "batch": 64,
-      "seconds": 6.104727600000842,
-      "trials_per_s": 1341.9108167903953
+      "seconds": 12.126625500000955,
+      "trials_per_s": 675.5383020609777
     },
     {
       "workers": 16,
       "batch": 128,
-      "seconds": 9.16017119999924,
-      "trials_per_s": 894.3064295567619
+      "seconds": 28.04336560000229,
+      "trials_per_s": 292.1190030058065
     },
     {
       "workers": 16,
       "batch": 256,
-      "seconds": 13.481098700000075,
-      "trials_per_s": 607.6656051780078
+      "seconds": 36.768322899999475,
+      "trials_per_s": 222.8004802470911
     },
     {
       "workers": 30,
       "batch": 64,
-      "seconds": 6.127425299999231,
-      "trials_per_s": 1336.9400031691987
+      "seconds": 12.59480750000148,
+      "trials_per_s": 650.4267730966939
     },
     {
       "workers": 30,
       "batch": 128,
-      "seconds": 8.838166599998658,
-      "trials_per_s": 926.8890676943388
+      "seconds": 34.05830740000238,
+      "trials_per_s": 240.52868816374087
     },
     {
       "workers": 30,
       "batch": 256,
-      "seconds": 13.355963600000905,
-      "trials_per_s": 613.3589642307385
+      "seconds": 41.680647600001976,
+      "trials_per_s": 196.54205180822603
     }
   ],
   "cache": {
     "trials": 16384,
-    "seconds": 17.738133700000617,
-    "trials_per_s": 923.6597421745349,
+    "seconds": 33.06398859999899,
+    "trials_per_s": 495.52400341683216,
     "uint8_gb": 0.42549248,
-    "npz_mb": 43.12926
+    "npz_mb": 43.645779
   }
 }

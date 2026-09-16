@@ -38,6 +38,26 @@ PLAN gate: P and R ≥ 0.995 on test for both tasks; 100 % on the golden fixture
 
 tokenizer → odor → brain → judge, comparing the set of (call_position, key_name, kwargs) with `reference/`: **23 / 24 files match** (26.4 s). The same test is `tests/test_judge_on_fixtures.py`.
 
+## 2b. Twins: why the fly does not see `<IGNORE>` in the focus
+
+`scripts/twin_diagnostics.py` (reviewer's decision after attempt 10). The candidate `ignore_attrs/app\main.py`:6 — `i18n.core.internal()` (teacher: not a key); the twin is the same file with line 6 replaced by `i18n.nested.internal()` (teacher: key ['nested-internal']). Windows: `<I18N> . <IGNORE> ( ) <NL> <I18N> . <IGNORE> . <NAME> ( ) <NL>` and `<I18N> . <IGNORE> ( ) <NL> <I18N> . <NAME> . <NAME> ( ) <NL>`. The weights were not changed.
+
+### 1. Proxy (linear, no brain)
+
+fly-odor-5: slots + bigrams, 2 hashes, feature weight 2 (PN 0.96), trained on the grammar-4 train split (val F1 0.9996, test F1 0.9994): margin of the original **-4.962**, of the twin **+7.486**.
+
+### 2. Twins in the brain (the same seed for both)
+
+PN buckets that differ between the two odours, by slot (slot 6 is the focus): [0, 0, 0, 0, 0, 0, 4, 0, 0, 0]; active buckets in the focus slot 20 / 20.
+
+| trial | Jaccard of KCs in the focus puff | KCs that differ in the focus | Jaccard of KCs over the whole trial | fly margin: original | twin |
+|---:|---:|---:|---:|---:|---:|
+| 0 | 0.990 | 5 | 0.960 | +4.95 | +12.41 |
+| 1 | 0.948 | 19 | 0.934 | -5.60 | +5.77 |
+| 2 | 0.964 | 16 | 0.951 | -7.58 | +3.33 |
+
+For scale: the same odour with two different seeds gives a focus-puff Jaccard of 0.490 and 0.405 per trial; the fly's θ for keys is 3.76.
+
 Differences:
 
 - ignore_attrs/app\main.py: missing [], extra [((6, 5), 'core-internal', ())]

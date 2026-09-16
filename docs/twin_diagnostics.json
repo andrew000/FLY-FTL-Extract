@@ -1,0 +1,165 @@
+{
+  "fixture": "ignore_attrs/app\\main.py",
+  "line": 6,
+  "original": {
+    "source": "i18n.core.internal()",
+    "teacher_keys": [],
+    "window": "<I18N> . <IGNORE> ( ) <NL> <I18N> . <IGNORE> . <NAME> ( ) <NL>"
+  },
+  "twin": {
+    "source": "i18n.nested.internal()",
+    "teacher_keys": [
+      "nested-internal"
+    ],
+    "window": "<I18N> . <IGNORE> ( ) <NL> <I18N> . <NAME> . <NAME> ( ) <NL>"
+  },
+  "encoder_version": "fly-odor-5",
+  "proxy": {
+    "variant": "fly-odor-5: slots + bigrams, 2 hashes, feature weight 2 (PN 0.96)",
+    "val_f1": 0.9995853633253862,
+    "test_f1": 0.9993706733794839,
+    "margin_original": -4.961851596832275,
+    "margin_twin": 7.486110687255859
+  },
+  "odour": {
+    "differing_buckets_per_slot": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      4,
+      0,
+      0,
+      0
+    ],
+    "active_buckets_per_slot": [
+      [
+        10,
+        10
+      ],
+      [
+        10,
+        10
+      ],
+      [
+        9,
+        9
+      ],
+      [
+        10,
+        10
+      ],
+      [
+        10,
+        10
+      ],
+      [
+        10,
+        10
+      ],
+      [
+        20,
+        20
+      ],
+      [
+        9,
+        9
+      ],
+      [
+        10,
+        10
+      ],
+      [
+        9,
+        9
+      ]
+    ],
+    "focus_slot": 6
+  },
+  "brain": {
+    "brain_hash": "cd3a9c7616718a25",
+    "theta_key": 3.75893497467041,
+    "per_seed": [
+      {
+        "sniff": 0,
+        "seed": 7805467672269401848,
+        "jaccard_focus_puff": 0.9901768172888016,
+        "jaccard_trial": 0.9601007979840404,
+        "jaccard_per_puff": [
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          0.9901768172888016,
+          0.8974358974358975,
+          0.7952380952380952,
+          0.4523809523809524
+        ],
+        "kc_active_focus": [
+          505,
+          508
+        ],
+        "kc_differing_focus": 5,
+        "margin_original": 4.953833103179932,
+        "margin_twin": 12.407309532165527
+      },
+      {
+        "sniff": 1,
+        "seed": 759438417883048717,
+        "jaccard_focus_puff": 0.9483695652173914,
+        "jaccard_trial": 0.9337273111017307,
+        "jaccard_per_puff": [
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          0.9483695652173914,
+          0.7730496453900709,
+          0.6451612903225806,
+          0.8429752066115702
+        ],
+        "kc_active_focus": [
+          356,
+          361
+        ],
+        "kc_differing_focus": 19,
+        "margin_original": -5.597962379455566,
+        "margin_twin": 5.772891044616699
+      },
+      {
+        "sniff": 2,
+        "seed": 12160153237206247202,
+        "jaccard_focus_puff": 0.9635535307517085,
+        "jaccard_trial": 0.9513602638087386,
+        "jaccard_per_puff": [
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          0.9635535307517085,
+          0.8065843621399177,
+          0.6821705426356589,
+          0.8914728682170543
+        ],
+        "kc_active_focus": [
+          434,
+          428
+        ],
+        "kc_differing_focus": 16,
+        "margin_original": -7.5796380043029785,
+        "margin_twin": 3.3332931995391846
+      }
+    ],
+    "same_odour_two_seeds_focus_jaccard": 0.48961937716262977,
+    "same_odour_two_seeds_trial_jaccard": 0.40538033395176254
+  },
+  "seconds": 115.47827000000007
+}

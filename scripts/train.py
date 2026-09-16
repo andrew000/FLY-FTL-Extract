@@ -69,6 +69,7 @@ PROXY_V1_JSON = REPO / "docs" / "encoder_proxy_v1.json"
 CALIBRATION_JSON = REPO / "docs" / "calibration.json"
 BENCH_JSON = REPO / "docs" / "bench_sequence.json"
 LEVERS_JSON = REPO / "docs" / "lever_harness.json"
+TWINS_JSON = REPO / "docs" / "twin_diagnostics.json"
 TRAIN_SEEDS = (101, 102, 103, 104, 105, 106)  # sniffs of every training odour
 DEFAULT_TRAIN_SEEDS = 3
 MAX_RESNIFF = 5
@@ -925,6 +926,61 @@ def temporal_section(
     return lines
 
 
+def twin_section() -> list[str]:
+    """§2b: the twin diagnostics of the fixture candidate the fly gets wrong."""
+    if not TWINS_JSON.exists():
+        return []
+    d = json.loads(TWINS_JSON.read_text(encoding="utf-8"))
+    pr, od, br = d["proxy"], d["odour"], d["brain"]
+    focus = od["focus_slot"]
+    lines = [
+        "",
+        "## 2b. Twins: why the fly does not see `<IGNORE>` in the focus",
+        "",
+        (
+            f"`scripts/twin_diagnostics.py` (reviewer's decision after attempt 10). The candidate "
+            f"`{d['fixture']}`:{d['line']} — `{d['original']['source']}` (teacher: "
+            f"{d['original']['teacher_keys'] or 'not a key'}); the twin is the same file with line "
+            f"{d['line']} replaced by `{d['twin']['source']}` (teacher: key "
+            f"{d['twin']['teacher_keys']}). Windows: `{d['original']['window']}` and "
+            f"`{d['twin']['window']}`. The weights were not changed."
+        ),
+        "",
+        "### 1. Proxy (linear, no brain)",
+        "",
+        (
+            f"{pr['variant']}, trained on the grammar-4 train split (val F1 {pr['val_f1']:.4f}, test F1 "
+            f"{pr['test_f1']:.4f}): margin of the original **{pr['margin_original']:+.3f}**, of the twin "
+            f"**{pr['margin_twin']:+.3f}**."
+        ),
+        "",
+        "### 2. Twins in the brain (the same seed for both)",
+        "",
+        (
+            "PN buckets that differ between the two odours, by slot (slot "
+            f"{focus} is the focus): {od['differing_buckets_per_slot']}; active buckets in the "
+            f"focus slot {od['active_buckets_per_slot'][focus][0]} / {od['active_buckets_per_slot'][focus][1]}."
+        ),
+        "",
+        "| trial | Jaccard of KCs in the focus puff | KCs that differ in the focus | Jaccard of KCs over the whole trial | fly margin: original | twin |",
+        "|---:|---:|---:|---:|---:|---:|",
+    ]
+    lines.extend(
+        f"| {r['sniff']} | {r['jaccard_focus_puff']:.3f} | {r['kc_differing_focus']} "
+        f"| {r['jaccard_trial']:.3f} | {r['margin_original']:+.2f} | {r['margin_twin']:+.2f} |"
+        for r in br["per_seed"]
+    )
+    lines += [
+        "",
+        (
+            f"For scale: the same odour with two different seeds gives a focus-puff Jaccard of "
+            f"{br['same_odour_two_seeds_focus_jaccard']:.3f} and "
+            f"{br['same_odour_two_seeds_trial_jaccard']:.3f} per trial; the fly's θ for keys is {br['theta_key']:.2f}."
+        ),
+    ]
+    return lines
+
+
 def grammar_section(dataset_meta: dict[str, object]) -> list[str]:
     """§6b: the grammar-4 mutation families and their share of the corpus."""
     fam = dataset_meta.get("grammar4_families")
@@ -1121,6 +1177,7 @@ def write_doc(
             "`tests/test_judge_on_fixtures.py`."
         ),
     ]
+    lines += twin_section()
     if fixtures.mismatches:
         lines += ["", "Differences:", "", *(f"- {m}" for m in fixtures.mismatches)]
         lines += [

@@ -124,9 +124,9 @@ def probe(  # noqa: PLR0917
     y_va: np.ndarray,
     x_te: np.ndarray,
     y_te: np.ndarray,
-) -> tuple[float, Scores, np.ndarray]:
-    """Logistic regression (delta rule), early stopping on val F1; test scores and margins
-    of the best epoch."""
+) -> tuple[float, Scores, np.ndarray, Readout]:
+    """Logistic regression (delta rule), early stopping on val F1; test scores, test margins
+    and the readout of the best epoch."""
     rng = np.random.default_rng(0)
     readout = Readout(np.zeros(x_tr.shape[1], np.float32), 0.0, "binary")
     best_f1, best_w, best_b, since = -1.0, readout.w.copy(), 0.0, 0
@@ -145,7 +145,44 @@ def probe(  # noqa: PLR0917
                 break
     best = Readout(best_w, best_b, "binary")
     margins = best.margin_from_features(x_te)
-    return best_f1, score(margins > 0, y_te), margins
+    return best_f1, score(margins > 0, y_te), margins, best
+
+
+@dataclass
+class Corpus:
+    """The dataset's rows (odour = ``(window, options)``) with labels and split indices."""
+
+    rows: list[Row]
+    y: np.ndarray
+    train: np.ndarray
+    val: np.ndarray
+    test: np.ndarray
+
+
+def load_corpus(table: str, n_snippets: int, seed: int) -> Corpus:
+    """Regenerate the corpus and reproduce ``make_dataset``'s balanced rows and split."""
+    snippets, _ = generate_snippets(n_snippets, seed)
+
+    def keep_windows(windows: list[Window], options: ExtractOptions) -> np.ndarray:
+        arr = np.empty(len(windows), dtype=object)
+        for i, w in enumerate(windows):
+            arr[i] = (w, options)
+        return arr
+
+    key_rows: list[Row] = []
+    kwarg_rows: list[Row] = []
+    for s in snippets:
+        result = rows_of_snippet(s, encode=keep_windows)
+        if result is None:
+            continue
+        key_rows.extend(result[0])
+        kwarg_rows.extend(result[1])
+    key_rows, kwarg_rows, split_of = balance_and_split(key_rows, kwarg_rows, len(snippets), seed)
+    rows = key_rows if table == "keys" else kwarg_rows
+    split = np.array([split_of[r.snippet] for r in rows])
+    y = np.array([r.label for r in rows])
+    tr, va, te = (np.flatnonzero(split == k) for k in range(3))
+    return Corpus(rows, y, tr, va, te)
 
 
 def window_text(row: Row) -> str:
@@ -192,29 +229,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     t0 = time.perf_counter()
-    snippets, _ = generate_snippets(args.snippets, args.seed)
-
-    def keep_windows(windows: list[Window], options: ExtractOptions) -> np.ndarray:
-        arr = np.empty(len(windows), dtype=object)
-        for i, w in enumerate(windows):
-            arr[i] = (w, options)
-        return arr
-
-    key_rows: list[Row] = []
-    kwarg_rows: list[Row] = []
-    for s in snippets:
-        result = rows_of_snippet(s, encode=keep_windows)
-        if result is None:
-            continue
-        key_rows.extend(result[0])
-        kwarg_rows.extend(result[1])
-    key_rows, kwarg_rows, split_of = balance_and_split(
-        key_rows, kwarg_rows, len(snippets), args.seed
-    )
-    rows = key_rows if args.table == "keys" else kwarg_rows
-    split = np.array([split_of[r.snippet] for r in rows])
-    y = np.array([r.label for r in rows])
-    tr, va, te = (np.flatnonzero(split == k) for k in range(3))
+    corpus = load_corpus(args.table, args.snippets, args.seed)
+    rows, y, tr, va, te = corpus.rows, corpus.y, corpus.train, corpus.val, corpus.test
     print(
         f"{GENERATOR_VERSION} seed {args.seed}: {args.table} rows {len(rows)} "
         f"({int(y.sum())} positive); train {len(tr)}, val {len(va)}, test {len(te)} "
@@ -231,7 +247,7 @@ def main(argv: list[str] | None = None) -> int:
         t1 = time.perf_counter()
         x = encode_rows(rows, v)
         t_encode = time.perf_counter() - t1
-        val_f1, test, margins = probe(x[tr], y[tr], x[va], y[va], x[te], y[te])
+        val_f1, test, margins, _readout = probe(x[tr], y[tr], x[va], y[va], x[te], y[te])
         if v.temporal:
             puffs = x.reshape(len(rows), v.params.n_slots, v.n_pn)
             non_empty = puffs.sum(axis=2) > 0

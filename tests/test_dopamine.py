@@ -140,11 +140,11 @@ def test_sparse_states_match_dense_features() -> None:
         for _ in range(5):
             loss_d = dan_update(dense, features(counts[idx], mode), y[idx], lr=0.3, l2=1e-3)
             loss_s = dan_update_sparse(sparse_r, pattern, logs, y[idx], lr=0.3, l2=1e-3)
-            assert loss_d == pytest.approx(loss_s, rel=1e-5)
-        assert np.allclose(dense.w, sparse_r.w, atol=1e-6)
-        assert dense.b == pytest.approx(sparse_r.b)
+            assert loss_d == pytest.approx(loss_s, rel=1e-3)
+        assert np.allclose(dense.w, sparse_r.w, atol=1e-3)
+        assert dense.b == pytest.approx(sparse_r.b, abs=1e-4)
         assert np.allclose(
-            margin_sparse(sparse_r, pattern, logs), dense.margin(counts[idx]), atol=1e-5
+            margin_sparse(sparse_r, pattern, logs), dense.margin(counts[idx]), atol=1e-2
         )
 
 
@@ -156,8 +156,8 @@ def test_train_readout_sparse_equals_dense() -> None:
     sparse_r, log_s = train_readout(
         SparseStates(counts), y, counts_val, y_val, mode="both", config=cfg
     )
-    assert log_d.best_val_f1 == pytest.approx(log_s.best_val_f1, abs=1e-6)
-    assert np.allclose(dense.w, sparse_r.w, atol=1e-4)
+    assert log_d.best_val_f1 == pytest.approx(log_s.best_val_f1, abs=1e-3)
+    assert np.allclose(dense.w, sparse_r.w, atol=1e-2)
 
 
 def test_sparse_states_concat_matches_whole() -> None:
@@ -186,6 +186,9 @@ def test_sparse_states_from_loader_matches_whole() -> None:
     assert np.array_equal(built.indices, whole.indices)
     assert np.array_equal(built.log1p, whole.log1p)
     assert len(built) == 70
+    assert built.indices.dtype == np.uint16
+    big = SparseStates(np.zeros((2, 70000), dtype=np.uint8))
+    assert big.indices.dtype == np.int32
     calls = [0]
 
     def flaky(i: int) -> np.ndarray:

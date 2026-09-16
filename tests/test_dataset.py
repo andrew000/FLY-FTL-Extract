@@ -53,7 +53,8 @@ def test_snippets_compile_have_candidates_and_labels() -> None:
         for r in keys:
             assert r.odor.shape == (N_SLOTS, N_PN_DEFAULT)
             assert 0 <= r.odor.min() <= r.odor.max() < 1
-            assert r.odor[DEFAULT_ENCODER.context_before].any()  # the focus puff
+            assert r.odor[DEFAULT_ENCODER.context_before].any()  # the root puff
+            assert r.odor[DEFAULT_ENCODER.summary_slot].any()  # the summary puff
     assert n_keys > 40
     assert n_pos > 5
     assert n_kwargs > 5

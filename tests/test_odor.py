@@ -1,6 +1,7 @@
 """The odour encoder: deterministic, sensitive to the window and to the options.
 
-``fly-odor-4`` is a temporal code: one PN vector per slot (6 before, focus, 3 after).
+``fly-odor-6`` is a temporal code: one PN vector per slot — 6 before, the focus spread
+over 4 element puffs and a summary puff, 3 after (14 puffs).
 """
 
 from __future__ import annotations
@@ -56,10 +57,58 @@ def test_vector_shape_and_range() -> None:
         assert vec.dtype == np.float32
         assert vec.min() >= 0.0
         assert vec.max() < 1.0
-        # the focus slot always smells of something; a context slot lights a few PNs
+        # the root puff and the summary puff always smell of something
         assert (vec[DEFAULT_ENCODER.context_before] > 0).sum() >= 4
+        assert (vec[DEFAULT_ENCODER.summary_slot] > 0).sum() >= 4
         for i, feats in enumerate(slot_features(c.window, OPTS)):
             assert ((vec[i] > 0).sum() > 0) == bool(feats)
+
+
+def test_focus_is_spread_over_element_puffs() -> None:
+    """``self.i18n.get`` → root, attr1, attr2 puffs, one silent element puff, summary;
+    a string candidate → one element puff, three silent, summary (fly-odor-6)."""
+    chain = next(c for c in cands() if c.text == "self.i18n.get")
+    slots = slot_features(chain.window, OPTS)
+    f = DEFAULT_ENCODER.context_before
+    names = [{feat for feat, _ in sl} for sl in slots[f : f + DEFAULT_ENCODER.focus_slots]]
+    assert "focus_tok@0:<NAME>" in names[0]  # ``self`` without -p is a plain name
+    assert "focus_tok@1:<I18N>" in names[1]
+    assert "focus_tok@2:get" in names[2]
+    assert names[3] == set()
+    summary = {feat for feat, _ in slots[DEFAULT_ENCODER.summary_slot]}
+    assert {"focus_len:3", "kind:chain", "first_positional:0"} <= summary
+    string = next(c for c in cands() if c.text == '"plain-key"')
+    slots = slot_features(string.window, OPTS)
+    assert "focus_tok@0:<STR>" in {feat for feat, _ in slots[f]}
+    assert all(not sl for sl in slots[f + 1 : f + DEFAULT_ENCODER.focus_slots])
+    assert "focus_len:1" in {feat for feat, _ in slots[DEFAULT_ENCODER.summary_slot]}
+    assert len(slots) == N_SLOTS == 14
+
+
+def test_long_chain_keeps_the_root_and_the_true_length() -> None:
+    c = next(c for c in cands("i18n.a.b.c.d.e(x=1)\n") if c.kind == "chain")
+    slots = slot_features(c.window, OPTS)
+    f = DEFAULT_ENCODER.context_before
+    assert "focus_tok@0:<I18N>" in {feat for feat, _ in slots[f]}
+    assert "focus_tok@3:<NAME>" in {feat for feat, _ in slots[f + 3]}
+    assert "focus_len:6" in {feat for feat, _ in slots[DEFAULT_ENCODER.summary_slot]}
+
+
+def test_twins_differ_in_their_own_puff_only() -> None:
+    """``i18n.core.internal()`` vs ``i18n.nested.internal()`` under ``-I core``: the odours
+    differ in the attr1 puff (and attr2's bigram) and nowhere else (docs/METRICS.md §2b)."""
+    opts = ExtractOptions(
+        code_path="app",
+        locales_path="locales",
+        ignore_attributes=frozenset({"core", "set_locale"}),
+    )
+    a = next(c for c in cands("i18n.core.internal()\n", opts) if c.kind == "chain")
+    b = next(c for c in cands("i18n.nested.internal()\n", opts) if c.kind == "chain")
+    va, vb = encode(a.window, opts), encode(b.window, opts)
+    differing = [(va[k] != vb[k]).any() for k in range(N_SLOTS)]
+    f = DEFAULT_ENCODER.context_before
+    # attr1 itself, and attr2 through its bigram with attr1; nothing else
+    assert differing == [k in (f + 1, f + 2) for k in range(N_SLOTS)]
 
 
 def test_missing_context_slots_are_silent_puffs() -> None:
@@ -71,7 +120,7 @@ def test_missing_context_slots_are_silent_puffs() -> None:
     assert n_before < DEFAULT_ENCODER.context_before
     silent = DEFAULT_ENCODER.context_before - n_before
     assert not vec[:silent].any()
-    assert vec[silent:].any(axis=1).all()
+    assert vec[silent : DEFAULT_ENCODER.context_before + 1].any(axis=1).all()  # up to the root
     slots = slot_features(c.window, OPTS)
     assert [bool(sl) for sl in slots[:silent]] == [False] * silent
     assert any(f == "tok@-1:(" for f, _ in slots[DEFAULT_ENCODER.context_before - 1])
@@ -98,6 +147,8 @@ def test_slot_order_carries_the_position() -> None:
     assert "tok@-1:(" in names
     assert "tok:(" in names
     assert "type@-1:OP" in names
+    after = {f for f, _ in slots[DEFAULT_ENCODER.summary_slot + 1]}
+    assert "tok@1:)" in after
 
 
 def test_different_windows_give_different_vectors() -> None:

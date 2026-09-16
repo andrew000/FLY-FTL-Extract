@@ -20,6 +20,7 @@ Results → ``docs/twin_diagnostics.json`` (rendered as METRICS.md §2b).
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 import time
@@ -63,6 +64,11 @@ def jaccard(a: np.ndarray, b: np.ndarray) -> float:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument(
+        "--proxy-only", action="store_true", help="skip the brain part (no matching weights yet)"
+    )
+    args = parser.parse_args()
     t0 = time.perf_counter()
     f = next(f for f in fixture_files(FIXTURE) if f.path.endswith(FILE))
     assert f.source is not None
@@ -118,6 +124,32 @@ def main() -> int:
     differing = [int((np.abs(a[k] - b[k]) > ODOUR_EPS).sum()) for k in range(a.shape[0])]
     active = [(int((a[k] > 0).sum()), int((b[k] > 0).sum())) for k in range(a.shape[0])]
     focus = DEFAULT_ENCODER.context_before
+    print(f"differing PN buckets per slot: {differing}")
+    if args.proxy_only:
+        OUT_JSON.with_name(f"twin_proxy_{ENCODER_VERSION}.json").write_text(
+            json.dumps(
+                {
+                    "encoder_version": ENCODER_VERSION,
+                    "proxy": {
+                        "variant": variant.name,
+                        "val_f1": val_f1,
+                        "test_f1": test_scores.f1,
+                        "test_precision": test_scores.precision,
+                        "test_recall": test_scores.recall,
+                        "margin_original": proxy_margin["original"],
+                        "margin_twin": proxy_margin["twin"],
+                    },
+                    "differing_buckets_per_slot": differing,
+                    "active_buckets_per_slot": active,
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+            + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+        return 0
     brain = Brain(load(), DEFAULT_PARAMS)
     weights = weights_module.load(brain_hash=brain.hash, encoder_version=ENCODER_VERSION)
     content = f.source.encode("utf-8")

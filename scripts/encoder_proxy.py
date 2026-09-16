@@ -66,7 +66,8 @@ class Variant:
     """``True``: slot vectors concatenated (fly-odor-4); ``False``: fly-odor-3 n-grams."""
 
 
-W1 = {"feature_weight": 1.0}
+W1 = {"feature_weight": 1.0, "focus_slots": 0}  # fly-odor-4: weight 1, packed focus
+W2 = {"focus_slots": 0}  # fly-odor-5: weight 2, packed focus
 SLOTS = enc.EncoderParams(bigrams=False, hashes_per_feature=1, **W1)
 VARIANTS = (
     Variant(
@@ -91,7 +92,12 @@ VARIANTS = (
         "slots + bigrams, 2 hashes, 1024 buckets (ceiling)", enc.EncoderParams(**W1), n_pn=1024
     ),
     Variant(
-        "fly-odor-5: slots + bigrams, 2 hashes, feature weight 2 (PN 0.96)", enc.EncoderParams()
+        "fly-odor-5: slots + bigrams, 2 hashes, feature weight 2 (PN 0.96)",
+        enc.EncoderParams(**W2),
+        salt="fly-odor-5",
+    ),
+    Variant(
+        "fly-odor-6: focus over 5 puffs [root][attr1][attr2][attr3][summary]", enc.EncoderParams()
     ),
 )
 

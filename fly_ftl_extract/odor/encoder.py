@@ -9,18 +9,28 @@ literal; Python keywords stay literal; operators stay literal.  The options ther
 *how a window smells*, never what the fly decides about the smell.
 
 Temporal coding (``fly-odor-4``, auditor's decision after Phase 5): the window is a sequence
-of ``N_SLOTS`` = 6 + 1 + 3 slots — six tokens before the focus (right-aligned to it), the
-focus itself, three tokens after.  Every slot becomes its own ``n_pn`` vector — one *puff*
-of odour that the mushroom body receives for ``BrainParams.puff_ms`` before the next slot's
-puff arrives (``Brain.simulate_sequence``).  A slot's features are the normalised token
-together with its role: signed distance to the focus, ``tokenize`` type and bracket depth
-(derived lexically by walking the brackets outward from the focus).  The focus slot hashes
-every focus token with its index in the focus (a chain ``i18n.a.b`` is several tokens but
-one slot) plus the window's scalars (kind, first positional, in kwargs, depth).  A slot with
-no token (a candidate on the first line of a file) is a zero vector: a silent puff.  Every
-feature is hashed with ``blake2b`` (salt = :data:`ENCODER_VERSION`) into ``n_pn`` buckets,
-``hashes_per_feature`` times; the bucket sums its feature weights and the sum goes through
-``tanh``.
+of slots — six tokens before the focus (right-aligned to it), the focus, three tokens
+after.  Every slot becomes its own ``n_pn`` vector — one *puff* of odour that the mushroom
+body receives for ``BrainParams.puff_ms`` before the next slot's puff arrives
+(``Brain.simulate_sequence``).  A context slot's features are the normalised token together
+with its role: signed distance to the focus, ``tokenize`` type, bracket depth (derived
+lexically by walking the brackets outward from the focus) and the bigram with the previous
+token.  A slot with no token (a candidate on the first line of a file) is a zero vector: a
+silent puff.  Every feature is hashed with ``blake2b`` (salt = :data:`ENCODER_VERSION`) into
+``n_pn`` buckets, ``hashes_per_feature`` times; the bucket sums its feature weights and the
+sum goes through ``tanh``.
+
+The focus (``fly-odor-6``, auditor's decision after attempt 10): the candidate is spread
+over ``focus_slots`` + 1 puffs — ``[root][attr1][attr2][attr3][summary]``.  The chain's
+name tokens (dots dropped) go one per slot, each with the same token + role features as a
+context slot (``focus_tok@i``, position-free class, type, bigram with the previous
+element, depth); a string candidate is ``[<STR>][silence × 3][summary]``; the summary puff
+carries ``focus_len`` (the true element count, even when a long chain is cut at the tail —
+the root always stays in slot 0), kind, first positional, in kwargs and depth.  Why: in
+fly-odor-4/5 a five-token chain was one puff, so ``i18n.core.internal()`` and
+``i18n.nested.internal()`` differed in 4 of 20 buckets of one puff and the Kenyon cells
+answered almost alike (docs/METRICS.md §2b) although the linear proxy separated them.
+``focus_slots = 0`` keeps the old packed focus for comparisons.
 
 Why: with 124 PN buckets a single vector of positional n-grams collides (the Phase 5
 proxy in docs/METRICS.md §6 topped at F1 0.973 for context 6/3 while the same features in
@@ -48,7 +58,7 @@ import numpy as np
 from fly_ftl_extract.ftl.model import GET_ATTR, PATH_KWARG, ExtractOptions
 from fly_ftl_extract.tokenizer.candidates import Tok, Window
 
-ENCODER_VERSION = "fly-odor-5"
+ENCODER_VERSION = "fly-odor-6"
 """Salt of the feature hash.  Bump on *any* change of the normalisation, the feature set,
 the weights, the slot layout or the bucket count: trained MBON weights are only valid for
 one version."""
@@ -69,6 +79,9 @@ class EncoderParams:
     ``context_before`` are used, right-aligned to the focus)."""
     context_after: int = 3
     """Slots after the focus."""
+    focus_slots: int = 4
+    """Puffs for the focus elements (root + 3 attributes); a summary puff follows them.
+    0 = the fly-odor-4/5 layout: the whole focus, scalars included, in one puff."""
     max_depth: int = 5
     """Bracket depth is clipped here before it becomes a feature."""
     hashes_per_feature: int = 2
@@ -95,14 +108,24 @@ class EncoderParams:
     """fly-odor-3: weight multiplier for position-free n-grams (0 = none)."""
 
     @property
+    def n_focus_puffs(self) -> int:
+        """Puffs the focus occupies (element slots + summary, or one packed puff)."""
+        return self.focus_slots + 1 if self.focus_slots else 1
+
+    @property
+    def summary_slot(self) -> int:
+        """Index of the summary puff (the packed focus puff when ``focus_slots == 0``)."""
+        return self.context_before + self.focus_slots
+
+    @property
     def n_slots(self) -> int:
-        """Puffs per window: before + focus + after."""
-        return self.context_before + 1 + self.context_after
+        """Puffs per window: before + focus puffs + after."""
+        return self.context_before + self.n_focus_puffs + self.context_after
 
 
 DEFAULT_ENCODER = EncoderParams()
 N_SLOTS = DEFAULT_ENCODER.n_slots
-"""Puffs per window with the default parameters (6 + 1 + 3)."""
+"""Puffs per window with the default parameters (6 + 4 + 1 + 3 = 14)."""
 
 _CLASS_TOKENS = {
     "STRING": "<STR>",
@@ -222,12 +245,14 @@ def slot_features(
     """``(feature, weight)`` pairs per slot (``params.n_slots`` lists; empty = silent puff).
 
     Slot order is source order: ``context_before`` slots (right-aligned to the focus, the
-    leading ones empty when the file starts), the focus slot, ``context_after`` slots.
+    leading ones empty when the file starts), the focus puffs (element slots and the
+    summary, or one packed puff), ``context_after`` slots.
     """
     before, after = _context(window, params)
     depths_before, depths_after = token_depths(window, params)
     slots: list[list[tuple[str, float]]] = [[] for _ in range(params.n_slots)]
     focus_slot = params.context_before
+    after_start = params.context_before + params.n_focus_puffs
 
     def context_slot(
         tok: Tok, prev: Tok | None, distance: int, depth: int
@@ -255,21 +280,38 @@ def slot_features(
 
     focus = window.focus
     w = params.feature_weight
-    focus_features: list[tuple[str, float]] = [
-        (f"focus:{i}:{normalize_token(tok, options)}", w) for i, tok in enumerate(focus)
-    ]
-    focus_features += [
-        (f"focus_len:{len(focus)}", w),
+    depth = min(max(window.depth, 0), params.max_depth)
+    scalars: list[tuple[str, float]] = [
         (f"kind:{window.focus_kind}", w),
         (f"first_positional:{int(window.first_positional)}", w),
         (f"in_kwargs:{int(window.in_kwargs)}", w),
-        (f"depth:{min(max(window.depth, 0), params.max_depth)}", w),
+        (f"depth:{depth}", w),
     ]
-    slots[focus_slot] = focus_features
+    if params.focus_slots:
+        # fly-odor-6: one puff per chain element (dots dropped), then the summary puff
+        elements = [tok for tok in focus if not (tok.type == "OP" and tok.text == ".")]
+        prev_tok: Tok | None = before[-1] if before else None
+        for i, tok in enumerate(elements[: params.focus_slots]):
+            text = normalize_token(tok, options)
+            prev_text = normalize_token(prev_tok, options) if prev_tok is not None else "<BOF>"
+            slots[focus_slot + i] = [
+                (f"focus_tok@{i}:{text}", w),
+                (f"focus_tok:{text}", w),
+                (f"focus_type@{i}:{tok.type}", w),
+                (f"focus_bi@{i}:{prev_text}\x1f{text}", w),
+                (f"focus_depth@{i}:{depth}", w),
+            ]
+            prev_tok = tok
+        slots[params.summary_slot] = [(f"focus_len:{len(elements)}", w), *scalars]
+    else:
+        # fly-odor-4/5: the whole focus in one puff
+        slots[focus_slot] = [
+            (f"focus:{i}:{normalize_token(tok, options)}", w) for i, tok in enumerate(focus)
+        ] + [(f"focus_len:{len(focus)}", w), *scalars]
 
     for i, tok in enumerate(after):
         prev = focus[-1] if i == 0 else after[i - 1]
-        slots[focus_slot + 1 + i] = context_slot(tok, prev, i + 1, depths_after[i])
+        slots[after_start + i] = context_slot(tok, prev, i + 1, depths_after[i])
     return slots
 
 

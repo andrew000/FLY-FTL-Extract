@@ -114,7 +114,18 @@ class SparseStates:
     as data.  The maths is exactly that of :func:`features` / :func:`dan_update`; only the
     zeros are never materialised (a dense ``512 × 51940`` float32 minibatch costs ~80 ms,
     the sparse one a few).
+
+    Storage: column indices as ``uint16`` when the state count allows (14 puffs × 2597 KC
+    = 36358 < 65536) and ``log1p`` as ``float16`` — 4 bytes per non-zero, so the six-seed
+    grammar-4 training set (1.8 M rows, ~5.4 G non-zeros) takes ~22 GB instead of 43.
+    Every minibatch is widened to ``int32`` / ``float32`` before scipy sees it; the
+    ``float16`` rounding of ``log1p(count)`` (≤ 5e-4) is far below anything the readout
+    can resolve.
     """
+
+    @staticmethod
+    def _index_dtype(n_states: int) -> type[np.integer]:
+        return np.uint16 if n_states < 2**16 else np.int32
 
     def __init__(self, counts: np.ndarray, chunk: int = 4096) -> None:
         n = counts.shape[0]
@@ -125,14 +136,15 @@ class SparseStates:
         for start in range(0, n, chunk):
             block = np.asarray(counts[start : start + chunk]).reshape(-1, self.n_states)
             rows, cols = np.nonzero(block)
-            indices_parts.append(cols.astype(np.int32))
-            log_parts.append(np.log1p(block[rows, cols].astype(np.float32)))
+            indices_parts.append(cols.astype(self._index_dtype(self.n_states)))
+            log_parts.append(np.log1p(block[rows, cols].astype(np.float32)).astype(np.float16))
             indptr[start + 1 : start + 1 + len(block)] = indptr[start] + np.cumsum(
                 np.bincount(rows, minlength=len(block))
             )
         self.indptr = indptr
-        self.indices = np.concatenate(indices_parts) if indices_parts else np.zeros(0, np.int32)
-        self.log1p = np.concatenate(log_parts) if log_parts else np.zeros(0, np.float32)
+        idx_dtype = self._index_dtype(self.n_states)
+        self.indices = np.concatenate(indices_parts) if indices_parts else np.zeros(0, idx_dtype)
+        self.log1p = np.concatenate(log_parts) if log_parts else np.zeros(0, np.float16)
         self.n = int(n)
 
     def __len__(self) -> int:
@@ -160,8 +172,8 @@ class SparseStates:
         out = cls.__new__(cls)
         out.n_states, out.n = n_states, n_rows
         out.indptr = np.zeros(n_rows + 1, dtype=np.int64)
-        out.indices = np.empty(nnz, dtype=np.int32)
-        out.log1p = np.empty(nnz, dtype=np.float32)
+        out.indices = np.empty(nnz, dtype=cls._index_dtype(n_states))
+        out.log1p = np.empty(nnz, dtype=np.float16)
         row = pos = 0
         for i in range(n_parts):
             counts = load(i)
@@ -202,8 +214,8 @@ class SparseStates:
         out = cls.__new__(cls)
         out.n_states, out.n = n_states, n
         out.indptr = np.zeros(n + 1, dtype=np.int64)
-        out.indices = np.empty(nnz, dtype=np.int32)
-        out.log1p = np.empty(nnz, dtype=np.float32)
+        out.indices = np.empty(nnz, dtype=cls._index_dtype(n_states))
+        out.log1p = np.empty(nnz, dtype=np.float16)
         row, pos = 0, 0
         while parts:
             part = parts.pop(0)
@@ -220,12 +232,15 @@ class SparseStates:
         """``(pattern, log1p)`` CSR matrices of the selected trials (same sparsity)."""
         starts, ends = self.indptr[idx], self.indptr[idx + 1]
         lengths = ends - starts
-        take = np.concatenate([np.arange(a, b) for a, b in zip(starts, ends, strict=True)])
         indptr = np.zeros(len(idx) + 1, dtype=np.int64)
         np.cumsum(lengths, out=indptr[1:])
+        # gather indices of all selected rows' non-zeros without a Python loop:
+        # position within the output minus the row's output start, plus the row's start
+        total = int(indptr[-1])
+        take = np.arange(total, dtype=np.int64) + np.repeat(starts - indptr[:-1], lengths)
         shape = (len(idx), self.n_states)
-        cols = self.indices[take]
-        log_data = self.log1p[take]
+        cols = self.indices[take].astype(np.int32)
+        log_data = self.log1p[take].astype(np.float32)
         pattern = sp.csr_matrix((np.ones(len(cols), dtype=np.float32), cols, indptr), shape=shape)
         logs = sp.csr_matrix((log_data, cols, indptr), shape=shape)
         return pattern, logs

@@ -1,0 +1,53 @@
+{
+  "variant": "fly-odor-6: focus over 5 puffs [root][attr1][attr2][attr3][summary]",
+  "categories": {
+    "FP after=( <NAME> before=, <I18N> <NL>": 2,
+    "FN after=( ) before=. <NAME> <NL>": 2,
+    "FP after=( ) before=<NL> <NAME> (": 1,
+    "FN after=( <NAME> before=. <NAME> <NL>": 1
+  },
+  "worst": [
+    {
+      "label": false,
+      "margin": 1.97835373878479,
+      "snippet": 10829,
+      "key_name": "price-limit_retry",
+      "window": "<I18N> , <I18N> <NL> <NAME> ( <PREFIX> . <NAME> . <NAME> ( ) ,"
+    },
+    {
+      "label": true,
+      "margin": -1.66607666015625,
+      "snippet": 5220,
+      "key_name": "menu_value",
+      "window": "<NAME> = <NAME> . <NAME> <NL> <PREFIX> . <I18N> . <NAME> ( ) <NL>"
+    },
+    {
+      "label": true,
+      "margin": -1.0046861171722412,
+      "snippet": 9476,
+      "key_name": "group_label",
+      "window": "] = <NAME> . <NAME> <NL> <PREFIX> . <I18N> . <NAME> ( ) <NL>"
+    },
+    {
+      "label": true,
+      "margin": -0.3423198461532593,
+      "snippet": 15466,
+      "key_name": "use_locale",
+      "window": "<NAME> = <NAME> . <NAME> <NL> <I18N> . <NAME> ( <NAME> ="
+    },
+    {
+      "label": false,
+      "margin": 0.24568867683410645,
+      "snippet": 4554,
+      "key_name": "bind-load",
+      "window": "<NAME> , <I18N> , <I18N> <NL> <I18N> . <IGNORE> . <NAME> ( <NAME> ="
+    },
+    {
+      "label": false,
+      "margin": 0.24568867683410645,
+      "snippet": 4809,
+      "key_name": "use_context-start_admin",
+      "window": "<NAME> , <I18N> , <I18N> <NL> <I18N> . <IGNORE> . <NAME> ( <NAME> ="
+    }
+  ]
+}

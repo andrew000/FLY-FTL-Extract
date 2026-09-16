@@ -121,15 +121,15 @@ puffs, `T_silence = 10 ms` at the end; the membrane state is not reset between p
 the memory of the preceding tokens). The reviewer asked for 20 ms; at 20 ms the per-puff KC
 code is not reproducible (Jaccard of the same candidate 0.34, readout plateau 0.96, attempts
 7–8), hence `puff_ms = 40` (rationale in the docstring and METRICS.md §7). The «trial» state =
-KC spike counts **per puff** `(n_puffs, n_kc)` int16 + MBON spikes (for the TUI). The old
-`simulate()` (one vector for `T_stim = 100 ms`) stays for the Phase 3 tests with its own
-calibration. APL must be active: if the share of active KCs per non-empty puff leaves
-3–15 %, that is a bug in the weight scaling, not a reason to switch APL off. Calibration has
-two parameters: `syn_scale` and `apl_scale` (a multiplier on APL's output synapses; with the
-same scale for every synapse the single APL fires at its refractory limit the whole time an
-odour is present and the KCs respond only to the first puff — no `syn_scale` changes that,
-`docs/BENCH.md` §2). Target: 8–10 % KCs per puff, APL reduces activity ≥ 2×, a single PN
-spike alone does not light a KC.
+KC spike counts **per puff** `(n_puffs, n_kc)` int16 + MBON spikes (for the TUI); with
+fly-odor-6 there are 14 puffs (5700 steps). The old `simulate()` (one vector for
+`T_stim = 100 ms`) stays for the Phase 3 tests with its own calibration. APL must be active:
+if the share of active KCs per non-empty puff leaves 3–15 %, that is a bug in the weight
+scaling, not a reason to switch APL off. Calibration has two parameters: `syn_scale` and
+`apl_scale` (a multiplier on APL's output synapses; with the same scale for every synapse the
+single APL fires at its refractory limit the whole time an odour is present and the KCs
+respond only to the first puff — no `syn_scale` changes that, `docs/BENCH.md` §2). Target:
+8–10 % KCs per puff, APL reduces activity ≥ 2×, a single PN spike alone does not light a KC.
 
 **Batching is mandatory**: the state has shape `(n_trials, n_neurons)`, the synaptic current
 is `spikes @ W` through `scipy.sparse.csr_matrix`. The threshold of ≥ 200 trials/s per
@@ -164,7 +164,15 @@ the previous token; the candidate slot — its tokens with the index within the 
 first_positional / in_kwargs / depth; 2 hashes per feature (~10 active PNs per puff); an empty
 slot (start of file) is a zero vector, a silent puff. `fly-odor-5` = the same with feature
 weight 2 (a lone feature drives its PN to tanh(2) = 0.96 rate_max instead of 0.76): more PN
-spikes per puff — a more reproducible KC code. The proxy (logistic regression on the odours
+spikes per puff — a more reproducible KC code. **`fly-odor-6`** (reviewer's decision after
+attempt 10, twin diagnostics in METRICS.md §2b): the focus is stretched over 5 puffs
+`[root][attr1][attr2][attr3][summary]` — chain elements without the dots, one per puff, with
+the same token + role features as the context slots; a string candidate is
+`[<STR>][silence×3][summary]`; summary = the true focus_len (a long chain is cut from the
+tail, root is always slot 0), kind, first_positional, in_kwargs, depth. 14 puffs in total.
+Reason: in fly-odor-4/5 the five-token focus was one puff, and `i18n.core.internal()` vs
+`i18n.nested.internal()` differed in 4 buckets of 20 — the KCs responded almost identically
+although the linear proxy separated them. The proxy (logistic regression on the odours
 themselves, test split grammar-3, `docs/METRICS.md` §6): fly-odor-3 (one vector, n-grams)
 0.987 → slots 0.992 → slots + bigrams 0.997 → + 2 hashes 0.9985; 1024 buckets give the same
 0.9985, i.e. 124 PNs are no longer the limit. The residue is `obj.self.i18n.get(…)`: the `.`
@@ -192,7 +200,9 @@ equals the key (`i18n.core.get("core-get")`). Kwargs of a positive call: placeab
 the teacher put into the message (`_path` and `--ignore-kwargs` are not).
 
 Readout under the temporal code: features `[spiked, log1p(count)]` per puff →
-2 × 10 × 2597 = 51 940 weights per class; the delta rule as before; resniff as before.
+2 × 14 × 2597 = 72 716 weights per class (fly-odor-6; was 2 × 10 × 2597); the delta rule as
+before; resniff as before. Training runs on CSR states (`SparseStates`: uint16 indices,
+float16 log1p), the same delta rule.
 
 Dataset: `scripts/make_dataset.py` generates ≥ 20 000 snippets from a grammar of random
 Python constructs (`i18n.get` calls, attribute chains of various lengths, `self.i18n`,

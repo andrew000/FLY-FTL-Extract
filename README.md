@@ -58,10 +58,10 @@ Python file ──tokenize──▶ candidate + window (6 tokens before · focus
 ## Installation
 
 **Python 3.14** is required (`requires-python = ">=3.14,<3.15"`). The package is not on PyPI;
-it is installed from the repository or from the wheel (`uv build` → `dist/`):
+it is installed from a local checkout or from the wheel (`uv build` → `dist/`):
 
 ```bash
-uv tool install --python 3.14 git+https://github.com/andrew000/fly-ftl-extract      # or
+uv tool install --python 3.14 /path/to/checkout/fly_ftl_extract                        # from a checkout, or
 uv tool install --python 3.14 ./dist/fly_ftl_extract-0.1.0-py3-none-any.whl
 pip install ./dist/fly_ftl_extract-0.1.0-py3-none-any.whl                            # in a 3.14 venv
 ```
@@ -162,6 +162,6 @@ Everything is deterministic (the seeds are fixed); the times are from this machi
 | 1 | download `proofread_connections_783.feather` (852 MB), `proofread_root_ids_783.npy`, `Supplemental_file1_neuron_annotations.tsv` into `.cache/flywire/` | raw FlyWire data | — |
 | 2 | `uv run --extra connectome python scripts/build_connectome.py` | the mushroom-body subgraph → `data/mb_fafb783.npz` + `meta.json`, `docs/CONNECTOME.md` | ≈ 4 s (the feather is read through a memory map in batches, only the needed columns); a repeated run gives byte-for-byte the same npz, only the build date changes in `meta.json` |
 | 3 | `uv run python scripts/make_dataset.py` | 20 000 snippets of the `grammar-4` grammar, labelling by the AST reference, encoding → `data/dataset/` | 10.7 s generation + 142 s labelling and encoding |
-| 4 | `uv run python scripts/train.py` | the brain on every window (train × 6 seeds, val, test; state cache in `.cache/brain_states/`), delta rule, θ, fixtures → `data/mbon_weights.npz`, `docs/METRICS.md` | 7563 s in total: brain keys 748 s + kwargs 1006 s, readout keys 5222 s (100 epochs), kwargs 135 s, fixtures 32 s |
-| 5 | `uv run pytest -q` | 294 tests, among them golden through the fly and `--fly-audit` on the fixtures | ≈ 2.5 min |
+| 4 | `uv run python scripts/train.py` | the brain on every window (train × 6 seeds, val, test; state cache in `.cache/brain_states/`), delta rule, θ, fixtures → `data/mbon_weights.npz`, `docs/METRICS.md` | 7563 s in total in a run with the state cache: brain keys 748 s (without the cache — a full recompute ≈ 50 min, 16 processes), kwargs 1006 s, readout keys 5222 s (100 epochs), kwargs 135 s, fixtures 32 s |
+| 5 | `uv run pytest -q` | 295 tests (294 passed + 1 diagnostic xfail), among them golden through the fly and `--fly-audit` on the fixtures | ≈ 2.5 min |
 | 6 | `uv run python scripts/compare_with_reference.py` | the real `ftl 0.12.1` (via `uv tool run`) against ours → `docs/COMPARE.md` | ≈ 45 s |

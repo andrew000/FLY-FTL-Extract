@@ -49,11 +49,12 @@ added).
 | 14 | `…/gender.py:23:10` | `"f": L("settings-gender-female-btn", …),` | not a key, −14.42 (6) | key — a miss; likewise line 79 |
 | 15 | statistics | — | files with keys 100 | 99 (a consequence of no. 1) |
 
-All 14 difference windows were «unsure» on the first trial (`|m| < θ`) and received 5
-resniffs each; the sum stayed on the wrong side. Closest to zero are nos. 9–10 (−1.9, −1.0): one
-extra puff of context could have flipped them. The full log with the margins of all 6 326
-windows is `bot_run.txt` in the report to the reviewer (not committed to the repo: it is
-someone else's code).
+13 of the 14 difference windows were «unsure» on the first trial (`|m| < θ`) and received 5
+resniffs each; the sum stayed on the wrong side. The exception is no. 2
+(`i18n.inventory.deprecated(…)`): −6.54 on the first trial, i.e. a confident error without
+resniff. Closest to zero are nos. 9–10 (−1.9, −1.0): one extra puff of context could have
+flipped them. The full log with the margins of all 6 326 windows is `bot_run.txt` in the
+report to the reviewer (not committed to the repo: it is someone else's code).
 
 ## What the misses have in common
 

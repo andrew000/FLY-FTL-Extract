@@ -47,7 +47,7 @@ from fly_ftl_extract.tokenizer.candidates import (
 
 REPO = Path(__file__).resolve().parent.parent
 DATASET_DIR = REPO / "fly_ftl_extract" / "data" / "dataset"
-GENERATOR_VERSION = "grammar-4"
+GENERATOR_VERSION = "grammar-5"
 DEFAULT_SNIPPETS = 20_000
 DEFAULT_SEED = 20240914
 SPLIT_FRACTIONS = (0.8, 0.1, 0.1)
@@ -55,12 +55,22 @@ NEGATIVE_RATIO = 3  # majority : minority
 SPLIT_NAMES = ("train", "val", "test")
 PREFIXED_BARE_CALL = 0.6  # share of bare calls written as self.L(...) / cls.LazyProxy(...)
 PREFIX_GET_CALL = 0.08
-MUTATION_SHARE = 0.3
-"""grammar-4 (auditor's decision after attempt 9): share of statements drawn from the
-mutation families below — one token class of a positive production changed, the label
-always from ``reference/``.  The two fixture files the attempt-9 fly got wrong
-(``i18n.nested.set_locale()`` is a key, ``self.other.get("x")`` is not) were constructs the
-grammar-3 corpus almost never produced."""
+MUTATION_SHARE = 0.45
+"""Share of statements drawn from the mutation families (grammar-4 and grammar-5) below.
+
+grammar-4 (auditor's decision after attempt 9): one token class of a positive production
+changed, the label always from ``reference/``.  The two fixture files the attempt-9 fly got
+wrong (``i18n.nested.set_locale()`` is a key, ``self.other.get("x")`` is not) were
+constructs the grammar-3 corpus almost never produced.
+
+grammar-5 (auditor's decision after Phase 7 on a real aiogram bot, ``docs/REAL_PROJECT.md``):
+the i18n call in *positions* the grammar never produced — a dict value, a keyword argument
+of another constructor, a decorator argument, a sequence element, a return/yield value — and
+their look-alike negatives.  0.30 → 0.45 so that the grammar-4 families keep a useful
+absolute count next to the ten new ones."""
+GRAMMAR5_SHARE = 0.6
+"""Share of mutation draws that are grammar-5 families: 10 families × ≈ 6 % of all family
+occurrences each (auditor: ~5–7 % each), the 14 grammar-4 families ≈ 2.9 % each."""
 FILE_START_MUTATION = 0.1
 """Share of modules whose very first line is a mutation statement (no import header)."""
 MUTATION_FAMILIES = (
@@ -87,6 +97,36 @@ MUTATION_CONTEXTS = (
     "ctx-arg",  # other(ident, expr) / other(expr, "s")
     "ctx-file-start",  # the module's first line
 )
+GRAMMAR5_FAMILIES = (
+    "g5-dict-value-str",  # {"k": <I18N>("x"), …}                — key (dict value)
+    "g5-dict-value-enum",  # {Kind.X: <I18N>("x", _path=…), …}   — key (dict value)
+    "g5-kwarg-value",  # Item(name=<I18N>("a"), description=<I18N>("b", …)) — keys
+    "g5-decorator-arg",  # @router.message(<I18N>("k", …)) def … — key
+    "g5-seq-element",  # [<I18N>("a"), …] / (…, <I18N>("b")) / {…} — keys
+    "g5-return-yield",  # return <I18N>("x") / yield <I18N>("x")  — key
+    "g5-neg-seq-str",  # (("s", data.get("s")), …) — strings, no i18n call
+    "g5-neg-dict-key",  # {"k": Kind.X, "s": 1}   — strings as dict keys
+    "g5-neg-decorator-plain",  # @router.message(Command("s")) — no i18n name
+    "g5-neg-tuple-in-arg",  # other(("s", 1)) — a tuple of strings as an argument
+)
+"""grammar-5 families; each statement carries its own context and one of
+:data:`GRAMMAR5_LAYOUTS` (one line / broken over lines).  Labels — from the teacher, as
+always: the grammar only puts the constructs in front of it."""
+GRAMMAR5_LAYOUTS = ("g5-one-line", "g5-multi-line")
+ENUM_POOL = ("Kind", "Gender", "State", "Mode", "Category", "Slot")
+CTOR_POOL = ("Item", "Resource", "Button", "Entry", "Option", "Field")
+I18N_KWARG_NAMES = ("name", "description", "title", "label", "hint", "text")
+ROUTER_POOL = ("router", "dp", "app", "handlers")
+DECORATOR_METHODS = ("message", "callback_query", "inline_query")
+PLAIN_FILTERS = (
+    'Command("{s}")',
+    'Command("{s}", "{t}")',
+    'F.text == "{s}"',
+    'F.data.startswith("{s}")',
+    'StateFilter("{s}")',
+    'Text("{s}")',
+)
+DATA_POOL = ("data", "state", "payload", "store", "workflow_data", "settings")
 
 # ------------------------------------------------------------------- vocabulary
 
@@ -465,8 +505,249 @@ class Grammar:
             items = [kw]
         return f"{root}.get({', '.join([s, *items])})"
 
+    # -- grammar-5 families: the i18n call in positions the earlier grammars never used --
+    def i18n_call(self) -> str:
+        """A call the teacher usually calls a key: ``L("x")``, ``L("x", _path=…)``,
+        ``i18n.get("x", a=1)``, ``i18n.a.b()`` — with the snippet's own ``-k``/``-K`` names
+        (``root()`` may put it behind a prefix inside a method)."""
+        r = self.rng.random()
+        if r < 0.55:  # noqa: PLR2004
+            root = self.rng.choice(self.config.i18n_keys)
+            if self.in_method and self.rng.random() < 0.3:  # noqa: PLR2004
+                root = f"{self.in_method}.{root}"
+            return f"{root}({self.call_args(self.string(), 1)})"
+        if r < 0.8:  # noqa: PLR2004
+            return self.get_call(1)
+        return self.attr_call()
+
+    def enum_key(self) -> str:
+        return f"{self.rng.choice(ENUM_POOL)}.{self.word().upper()}"
+
+    def _lay_out(self, head: str, items: list[str], tail: str, *, multi: bool) -> list[str]:
+        """``head item, item tail`` on one line or one item per line."""
+        self.families.append(GRAMMAR5_LAYOUTS[1] if multi else GRAMMAR5_LAYOUTS[0])
+        if multi:
+            return [head, *(f"    {item}," for item in items), tail]
+        return [f"{head}{', '.join(items)}{tail}"]
+
+    def _annotated_target(self, key_type: str) -> str:
+        r = self.rng.random()
+        if r < 0.25:  # noqa: PLR2004
+            return f"{self.ident().upper()}: Final[dict[{key_type}, Any]]"
+        if r < 0.4:  # noqa: PLR2004
+            return f"{self.ident()}: dict[{key_type}, str]"
+        return self.ident().upper() if r < 0.7 else self.ident()  # noqa: PLR2004
+
+    def _ctor_call(self, *, multi: bool, indent: str = "") -> list[str]:
+        """``Item(name=<I18N>("a"), description=<I18N>("b"), price=3)`` — two or three
+        i18n keyword values, the second/third after a line break in the multi-line form
+        (the shape the Phase-7 fly missed: ``docs/REAL_PROJECT.md`` № 8–10)."""
+        names = self.rng.sample(I18N_KWARG_NAMES, self.rng.randint(2, 3))
+        items = [f"{n}={self.i18n_call()}" for n in names]
+        extras = [
+            f"{self.rng.choice(['price', 'weight', 'order', 'limit'])}={self.rng.randint(1, 99)}",
+            f"kind={self.enum_key()}",
+        ]
+        for extra in extras[: self.rng.randint(0, 2)]:
+            items.insert(self.rng.randint(0, len(items)), extra)
+        if self.rng.random() < 0.3:  # noqa: PLR2004
+            items.insert(0, self.ident())
+        ctor = self.rng.choice(CTOR_POOL)
+        if multi:
+            return [f"{ctor}(", *(f"{indent}    {item}," for item in items), f"{indent})"]
+        return [f"{ctor}({', '.join(items)})"]
+
+    def g5_dict_value(self, *, enum: bool) -> list[str]:
+        n = self.rng.randint(2, 5)
+        items = []
+        for _ in range(n):
+            key = self.enum_key() if enum else self.string()
+            value = self.i18n_call() if self.rng.random() < 0.8 else self.value(1)  # noqa: PLR2004
+            items.append(f"{key}: {value}")
+        target = self._annotated_target(self.rng.choice(ENUM_POOL) if enum else "str")
+        return self._lay_out(f"{target} = {{", items, "}", multi=self.rng.random() < 0.6)  # noqa: PLR2004
+
+    def g5_kwarg_value(self) -> list[str]:
+        multi = self.rng.random() < 0.6  # noqa: PLR2004
+        r = self.rng.random()
+        if r < 0.4:  # noqa: PLR2004
+            # nested as a dict value (a private aiogram bot: Kind.X: Resource(name=L(…), description=L(…)))
+            lines = [f"{self._annotated_target(self.rng.choice(ENUM_POOL))} = {{"]
+            for _ in range(self.rng.randint(1, 3)):
+                ctor = self._ctor_call(multi=multi, indent="    ")
+                ctor[0] = f"    {self.enum_key()}: {ctor[0]}"
+                ctor[-1] += ","
+                lines.extend(ctor)
+            lines.append("}")
+            self.families.append(GRAMMAR5_LAYOUTS[1] if multi else GRAMMAR5_LAYOUTS[0])
+            return lines
+        ctor = self._ctor_call(multi=multi)
+        self.families.append(GRAMMAR5_LAYOUTS[1] if multi else GRAMMAR5_LAYOUTS[0])
+        if r < 0.7 or not self.in_function:  # noqa: PLR2004
+            ctor[0] = f"{self.ident()} = {ctor[0]}"
+        elif r < 0.85:  # noqa: PLR2004
+            ctor[0] = f"return {ctor[0]}"
+        else:
+            ctor[0] = f"{self.rng.choice(PLAIN_CALLEES)}({ctor[0]}"
+            ctor[-1] += ")"
+        return ctor
+
+    def _decorated_def(self, filters: list[str], *, multi: bool) -> list[str]:
+        router = self.rng.choice(ROUTER_POOL)
+        method = self.rng.choice(DECORATOR_METHODS)
+        lines = self._lay_out(f"@{router}.{method}(", filters, ")", multi=multi)
+        is_async = self.rng.random() < 0.7  # noqa: PLR2004
+        params = ", ".join(
+            dict.fromkeys(
+                [
+                    "message" if method == "message" else "query",
+                    *self.rng.sample(["i18n", "state", "user"], self.rng.randint(0, 2)),
+                ]
+            )
+        )
+        lines.append(f"{'async ' if is_async else ''}def {self.ident()}({params}):")
+        target = "message" if method == "message" else "query.message"
+        r = self.rng.random()
+        if r < 0.3:  # noqa: PLR2004
+            body = "pass"
+        elif r < 0.6 and is_async:  # noqa: PLR2004
+            arg = self.i18n_call() if self.rng.random() < 0.6 else self.string()  # noqa: PLR2004
+            body = f"await {target}.answer({arg})"
+        elif r < 0.8:  # noqa: PLR2004
+            body = f"return {self.value(1)}"
+        else:
+            body = f"{self.ident()} = {self.i18n_call()}"
+        lines.append(f"    {body}")
+        return lines
+
+    def g5_decorator_arg(self) -> list[str]:
+        filters = [self.i18n_call()]
+        if self.rng.random() < 0.4:  # noqa: PLR2004
+            s, t = self.key(), self.key()
+            filters.append(self.rng.choice(PLAIN_FILTERS).format(s=s, t=t))
+        if self.rng.random() < 0.25:  # noqa: PLR2004
+            filters.insert(0, f'F.chat.type == "{self.rng.choice(["private", "group"])}"')
+        return self._decorated_def(filters, multi=self.rng.random() < 0.6)  # noqa: PLR2004
+
+    def g5_neg_decorator_plain(self) -> list[str]:
+        s, t = self.key(), self.key()
+        filters = [self.rng.choice(PLAIN_FILTERS).format(s=s, t=t)]
+        if self.rng.random() < 0.3:  # noqa: PLR2004
+            filters.append(f"{self.rng.choice(['flags', 'magic'])}={self.value(1)}")
+        return self._decorated_def(filters, multi=self.rng.random() < 0.5)  # noqa: PLR2004
+
+    def g5_seq_element(self) -> list[str]:
+        n = self.rng.randint(2, 4)
+        items = [self.i18n_call()]
+        items.extend(
+            self.i18n_call() if self.rng.random() < 0.6 else self.value(1)  # noqa: PLR2004
+            for _ in range(n - 1)
+        )
+        self.rng.shuffle(items)
+        multi = self.rng.random() < 0.6  # noqa: PLR2004
+        open_, close = self.rng.choice([("[", "]"), ("(", ")"), ("{", "}"), ("[", "]")])
+        target = self.ident() if self.rng.random() < 0.8 else self.ident().upper()  # noqa: PLR2004
+        return self._lay_out(f"{target} = {open_}", items, close, multi=multi)
+
+    def g5_return_yield(self) -> list[str]:
+        # an async def with both `return value` and `yield` does not compile
+        keyword = "return" if self.in_async else self.rng.choice(["return", "return", "yield"])
+        r = self.rng.random()
+        if r < 0.5:  # noqa: PLR2004
+            body = self._lay_out(f"{keyword} ", [self.i18n_call()], "", multi=False)
+        elif r < 0.75:  # noqa: PLR2004
+            body = self._lay_out(
+                f"{keyword} (", [self.i18n_call(), self.string()], ")", multi=False
+            )
+        else:
+            body = self._lay_out(
+                f"{keyword} [",
+                [self.i18n_call() for _ in range(self.rng.randint(1, 3))],
+                "]",
+                multi=True,
+            )
+        if self.in_function:
+            return body
+        return [f"def {self.ident()}():", *(f"    {ln}" for ln in body)]
+
+    def g5_neg_seq_str(self) -> list[str]:
+        data = self.rng.choice(DATA_POOL)
+        r = self.rng.random()
+        if r < 0.5:  # noqa: PLR2004
+            # (("s", data.get("s")), ("t", data.get("t"))) — a private aiogram bot № 1
+            items = []
+            for _ in range(self.rng.randint(1, 3)):
+                s = self.string()
+                items.append(f"({s}, {data}.get({s}))")
+        elif r < 0.75:  # noqa: PLR2004
+            items = [self.string() for _ in range(self.rng.randint(2, 4))]
+            if self.rng.random() < 0.5:  # noqa: PLR2004
+                items.append(self.ident())
+        else:
+            items = [f"({self.string()}, {self.rng.randint(0, 9)})" for _ in range(2)]
+        open_, close = self.rng.choice([("(", ")"), ("[", "]")])
+        return self._lay_out(
+            f"{self.ident()} = {open_}",
+            items,
+            close,
+            multi=self.rng.random() < 0.5,  # noqa: PLR2004
+        )
+
+    def g5_neg_dict_key(self) -> list[str]:
+        items = []
+        for _ in range(self.rng.randint(2, 4)):
+            r = self.rng.random()
+            if r < 0.4:  # noqa: PLR2004
+                value = self.enum_key()
+            elif r < 0.7:  # noqa: PLR2004
+                value = str(self.rng.randint(0, 99))
+            elif r < 0.85:  # noqa: PLR2004
+                value = self.ident()
+            else:
+                value = f"{self.rng.choice(CTOR_POOL)}({self.ident()}={self.rng.randint(1, 9)})"
+            items.append(f"{self.string()}: {value}")
+        target = self._annotated_target("str")
+        return self._lay_out(f"{target} = {{", items, "}", multi=self.rng.random() < 0.6)  # noqa: PLR2004
+
+    def g5_neg_tuple_in_arg(self) -> list[str]:
+        callee = self.rng.choice((*PLAIN_CALLEES, "add", "register", "dict", "sorted"))
+        r = self.rng.random()
+        if r < 0.4:  # noqa: PLR2004
+            items = [f"({self.string()}, {self.rng.randint(0, 9)})"]
+        elif r < 0.7:  # noqa: PLR2004
+            items = [f"({self.string()}, {self.ident()})", f"key={self.string()}"]
+        else:
+            items = [f"({self.string()}, {self.rng.randint(0, 9)})" for _ in range(2)]
+        return self._lay_out(f"{callee}(", items, ")", multi=self.rng.random() < 0.5)  # noqa: PLR2004
+
+    def grammar5_statement(self) -> list[str]:
+        family = self.rng.choice(GRAMMAR5_FAMILIES)
+        self.families.append(family)
+        if family == "g5-dict-value-str":
+            return self.g5_dict_value(enum=False)
+        if family == "g5-dict-value-enum":
+            return self.g5_dict_value(enum=True)
+        if family == "g5-kwarg-value":
+            return self.g5_kwarg_value()
+        if family == "g5-decorator-arg":
+            return self.g5_decorator_arg()
+        if family == "g5-seq-element":
+            return self.g5_seq_element()
+        if family == "g5-return-yield":
+            return self.g5_return_yield()
+        if family == "g5-neg-seq-str":
+            return self.g5_neg_seq_str()
+        if family == "g5-neg-dict-key":
+            return self.g5_neg_dict_key()
+        if family == "g5-neg-decorator-plain":
+            return self.g5_neg_decorator_plain()
+        return self.g5_neg_tuple_in_arg()
+
     def mutation_statement(self, context: str | None = None) -> list[str]:
-        """A mutation expression placed into one of :data:`MUTATION_CONTEXTS`."""
+        """A mutation expression placed into one of :data:`MUTATION_CONTEXTS`, or (with
+        :data:`GRAMMAR5_SHARE`) a grammar-5 statement that carries its own context."""
+        if self.rng.random() < GRAMMAR5_SHARE:
+            return self.grammar5_statement()
         expr = self.mutation()
         ctx = context or self.rng.choice(MUTATION_CONTEXTS[:-1])
         if ctx == "ctx-return-list" and not self.in_function:
@@ -763,23 +1044,26 @@ def rows_of_snippet(
 
 
 def family_shares(snippets: list[Snippet]) -> dict[str, dict[str, float | int]]:
-    """Per mutation family / context: occurrences, share of all occurrences, share of
-    snippets that contain it (docs/METRICS.md, grammar-4 section)."""
-    counts: dict[str, int] = dict.fromkeys((*MUTATION_FAMILIES, *MUTATION_CONTEXTS), 0)
+    """Per mutation family / context / layout: occurrences, ``share`` within its own group
+    (grammar-4 families, contexts, grammar-5 families, layouts), ``share_all`` among *all*
+    family occurrences (grammar-4 + grammar-5 — the auditor's «~5–7 % each»), and the
+    share of snippets that contain it (docs/METRICS.md §6b/§6c)."""
+    groups = (MUTATION_FAMILIES, MUTATION_CONTEXTS, GRAMMAR5_FAMILIES, GRAMMAR5_LAYOUTS)
+    counts: dict[str, int] = dict.fromkeys((tag for group in groups for tag in group), 0)
     in_snippets: dict[str, int] = dict.fromkeys(counts, 0)
     for s in snippets:
         for tag in s.families:
             counts[tag] = counts.get(tag, 0) + 1
         for tag in set(s.families):
             in_snippets[tag] = in_snippets.get(tag, 0) + 1
-    total_fam = sum(counts[f] for f in MUTATION_FAMILIES) or 1
-    total_ctx = sum(counts[c] for c in MUTATION_CONTEXTS) or 1
+    totals = {tag: sum(counts[t] for t in group) or 1 for group in groups for tag in group}
+    total_all = sum(counts[f] for f in (*MUTATION_FAMILIES, *GRAMMAR5_FAMILIES)) or 1
     out: dict[str, dict[str, float | int]] = {}
     for tag, n in counts.items():
-        total = total_fam if tag in MUTATION_FAMILIES else total_ctx
         out[tag] = {
             "occurrences": n,
-            "share": n / total,
+            "share": n / totals.get(tag, total_all),
+            "share_all": n / total_all,
             "snippets": in_snippets[tag],
             "snippet_share": in_snippets[tag] / max(len(snippets), 1),
         }
@@ -909,9 +1193,13 @@ def main(argv: list[str] | None = None) -> int:
         "keys": write_table("keys", key_rows, split_of, args.out),
         "kwargs": write_table("kwargs", kwarg_rows, split_of, args.out),
     }
+    shares = family_shares(snippets)
     meta = {
         "generator_version": GENERATOR_VERSION,
-        "grammar4_families": family_shares(snippets),
+        "mutation_share": MUTATION_SHARE,
+        "grammar5_share": GRAMMAR5_SHARE,
+        "grammar4_families": {tag: shares[tag] for tag in (*MUTATION_FAMILIES, *MUTATION_CONTEXTS)},
+        "grammar5_families": {tag: shares[tag] for tag in (*GRAMMAR5_FAMILIES, *GRAMMAR5_LAYOUTS)},
         "encoder_version": ENCODER_VERSION,
         "seed": args.seed,
         "snippets": len(snippets),

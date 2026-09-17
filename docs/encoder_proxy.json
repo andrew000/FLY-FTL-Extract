@@ -1,14 +1,14 @@
 {
-  "generator_version": "grammar-4",
+  "generator_version": "grammar-5",
   "encoder_version": "fly-odor-6",
   "seed": 20240914,
   "snippets": 20000,
   "table": "keys",
-  "rows_total": 376336,
-  "train_rows": 300158,
-  "val_rows": 38386,
-  "test_rows": 37792,
-  "test_positive": 9532,
+  "rows_total": 460672,
+  "train_rows": 368970,
+  "val_rows": 45779,
+  "test_rows": 45923,
+  "test_positive": 11554,
   "probe": {
     "lr": 0.5,
     "l2": 1e-05,
@@ -237,19 +237,19 @@
         "hashes_per_feature": 2,
         "bigrams": true
       },
-      "active_pn_per_puff": 9.674277666456748,
-      "val_f1": 0.9997408386461412,
+      "active_pn_per_puff": 9.672583130826853,
+      "val_f1": 0.9997390396659708,
       "test": {
-        "precision": 0.9996852706672262,
-        "recall": 0.9996852706672262,
-        "f1": 0.9996852706672262,
-        "tp": 9529,
-        "fp": 3,
+        "precision": 0.9992214532871972,
+        "recall": 0.9997403496624545,
+        "f1": 0.9994808341265035,
+        "tp": 11551,
+        "fp": 9,
         "fn": 3,
-        "tn": 28257
+        "tn": 34360
       },
-      "encode_s": 53.344981799999914,
-      "seconds": 70.90778940000018
+      "encode_s": 92.37457110000105,
+      "seconds": 113.19344450000062
     }
   ]
 }

@@ -52,6 +52,7 @@ from fly_ftl_extract.dopamine import (
     weights_path,
 )
 from fly_ftl_extract.dopamine.readout import TrainLog
+from fly_ftl_extract.dopamine.weights import load as load_weights
 from fly_ftl_extract.ftl.model import kwargs_from_key
 from fly_ftl_extract.odor.encoder import ENCODER_VERSION
 from fly_ftl_extract.reference.extractor import key_occurrences
@@ -345,6 +346,14 @@ def md_scores(s: Scores) -> str:
 
 
 @dataclass
+class BaselineResult:
+    """The previous weights (``--baseline-weights``) scored on this corpus's test split."""
+
+    theta: float
+    evaluation: Evaluation
+
+
+@dataclass
 class TaskResult:
     """Everything train.py learned about one task (keys or kwargs)."""
 
@@ -357,6 +366,7 @@ class TaskResult:
     logs: dict[str, TrainLog]
     rows: dict[str, int]
     kc_active: dict[str, float]
+    baseline: BaselineResult | None = None
 
     def summary(self) -> dict[str, object]:
         return {
@@ -366,6 +376,14 @@ class TaskResult:
             "test": self.evaluation.plain.as_dict(),
             "test_resniff": self.evaluation.resniffed.as_dict(),
             "resniff_fraction": self.evaluation.resniff_fraction,
+            "baseline": None
+            if self.baseline is None
+            else {
+                "theta": self.baseline.theta,
+                "test": self.baseline.evaluation.plain.as_dict(),
+                "test_resniff": self.baseline.evaluation.resniffed.as_dict(),
+                "resniff_fraction": self.baseline.evaluation.resniff_fraction,
+            },
             "modes": {
                 m: {
                     "best_val_f1": log.best_val_f1,
@@ -406,6 +424,7 @@ def train_task(
     max_resniff: int = MAX_RESNIFF,
     train_seeds: tuple[int, ...] = TRAIN_SEEDS,
     train_rows: int | None = None,
+    baseline: MbonWeights | None = None,
 ) -> tuple[TaskResult, dict[str, float]]:
     table = Table(name, dataset)
     tr, dropped = subsample_train(table, train_rows, np.random.default_rng(config.seed))
@@ -506,6 +525,26 @@ def train_task(
         f"(resniff {evaluation.resniff_fraction:.1%})",
         flush=True,
     )
+    baseline_result: BaselineResult | None = None
+    if baseline is not None:
+        # the previous fly on this corpus's test states: the honest «before» of a retraining
+        b_readout = baseline.key if name == "keys" else baseline.kwarg
+        b_theta = baseline.theta_key if name == "keys" else baseline.theta_kwarg
+        b_eval = evaluate(
+            brain,
+            table,
+            b_readout,
+            theta=b_theta,
+            counts_test=counts_te,
+            cache_dir=cache,
+            max_resniff=baseline.max_resniff,
+        )
+        baseline_result = BaselineResult(b_theta, b_eval)
+        print(
+            f"  {name}: BASELINE weights θ {b_theta:.4f}; test {md_scores(b_eval.plain)}; "
+            f"with resniff {md_scores(b_eval.resniffed)} (resniff {b_eval.resniff_fraction:.1%})",
+            flush=True,
+        )
     result = TaskResult(
         name=name,
         mode=readout.mode,
@@ -524,6 +563,7 @@ def train_task(
             "positive_test": int(table.label[te].sum()),
         },
         kc_active=kc_active,
+        baseline=baseline_result,
     )
     return result, timings
 
@@ -553,6 +593,12 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="cap on keys train rows (negatives subsampled, positives kept); kwargs untouched",
     )
+    parser.add_argument(
+        "--baseline-weights",
+        type=Path,
+        default=None,
+        help="previous mbon_weights.npz to score on this corpus's test split (METRICS.md §8)",
+    )
     args = parser.parse_args(argv)
     config = TrainConfig(
         lr=args.lr,
@@ -581,6 +627,17 @@ def main(argv: list[str] | None = None) -> int:
         flush=True,
     )
 
+    baseline: MbonWeights | None = None
+    if args.baseline_weights is not None:
+        baseline = load_weights(
+            args.baseline_weights, brain_hash=brain.hash, encoder_version=ENCODER_VERSION
+        )
+        print(
+            f"baseline weights {args.baseline_weights} (corpus "
+            f"{baseline.metrics.get('dataset', {}).get('generator_version', '?')})",
+            flush=True,
+        )
+
     results: dict[str, TaskResult] = {}
     timings: dict[str, float] = {}
     for name in ("keys", "kwargs"):
@@ -594,6 +651,7 @@ def main(argv: list[str] | None = None) -> int:
             max_resniff=max_resniff,
             train_seeds=train_seeds,
             train_rows=args.train_rows if name == "keys" else None,
+            baseline=baseline,
         )
         results[name] = result
         timings.update({f"{name}_{k}": v for k, v in task_timings.items()})
@@ -667,6 +725,7 @@ def main(argv: list[str] | None = None) -> int:
         max_resniff=max_resniff,
         train_seeds=train_seeds,
         train_rows=args.train_rows,
+        baseline=baseline,
     )
     print(f"wrote {args.out} ({args.out.stat().st_size} bytes) and {OUT_DOC}")
     return 0
@@ -784,7 +843,9 @@ def proxy_section() -> list[str]:
                 "1024 buckets gave the same F1 — the limit was not the hash but the near absence of such examples in "
                 "the corpus. On grammar-4 (mutation families, §6b) the same features give "
                 "test F1 0.9994; the residue is `docs/proxy_errors/keys_7.json`. The table rows other than "
-                "fly-odor-3 and fly-odor-5 were measured on the grammar-3 corpus."
+                "fly-odor-3 and fly-odor-5 (grammar-4) and fly-odor-6 (re-measured on grammar-5, §6c: "
+                "0.9997 → 0.9995 with 10 new families; the residue is `docs/proxy_errors/keys_8.json`) "
+                "were measured on the grammar-3 corpus."
             ),
         ]
     if PROXY_V1_JSON.exists():
@@ -1015,18 +1076,24 @@ def grammar_section(dataset_meta: dict[str, object]) -> list[str]:
     fam = dataset_meta.get("grammar4_families")
     if not isinstance(fam, dict):
         return []
+    mutation_share = float(str(dataset_meta.get("mutation_share", 0.3)))
+    g5_note = (
+        f", of them {float(str(dataset_meta['grammar5_share'])):.0%} grammar-5 (§6c)"
+        if "grammar5_share" in dataset_meta
+        else ""
+    )
     lines = [
         "",
-        f"## 6b. Corpus `{dataset_meta['generator_version']}`: mutation families",
+        f"## 6b. Corpus `{dataset_meta['generator_version']}`: the grammar-4 mutation families",
         "",
         (
             "Reviewer's decision after attempt 9: for productions with a positive, mutations of one "
             "token class are generated, the label always from `reference/` (`scripts/make_dataset.py`, `MUTATION_FAMILIES` / "
-            "`MUTATION_CONTEXTS`; 30 % of statements are mutations, 10 % of modules start with a mutation on the first "
-            "line). «share» — among all family occurrences (separately — among the contexts); «snippets» — "
-            "the share of corpus snippets where the family occurs at least once. There were no unexpected teacher labels: "
-            "everything agreed with docs/FORMAT.md §2 (an ignore attribute acts only at the first level; a prefix — only "
-            "when a `--i18n-keys` name follows it directly)."
+            f"`MUTATION_CONTEXTS`; {mutation_share:.0%} of statements are mutations{g5_note}, 10 % of modules "
+            "start with a mutation on the first line). «share» — among the occurrences of the grammar-4 families "
+            "(separately — among the contexts); «snippets» — the share of corpus snippets where the family occurs at least once. "
+            "There were no unexpected teacher labels: everything agreed with docs/FORMAT.md §2 (an ignore attribute acts "
+            "only at the first level; a prefix — only when a `--i18n-keys` name follows it directly)."
         ),
         "",
         "| family / context | occurrences | share | snippets |",
@@ -1039,10 +1106,51 @@ def grammar_section(dataset_meta: dict[str, object]) -> list[str]:
     return lines
 
 
-def deviations_section(brain: Brain, train_seeds: tuple[int, ...]) -> list[str]:
+def grammar5_section(dataset_meta: dict[str, object]) -> list[str]:
+    """§6c: the grammar-5 families (the i18n call in positions the real aiogram bot used
+    and the grammar never produced — ``docs/REAL_PROJECT.md``) and their shares."""
+    fam = dataset_meta.get("grammar5_families")
+    if not isinstance(fam, dict):
+        return []
+    g5_share = float(str(dataset_meta.get("grammar5_share", 0.6)))
+    lines = [
+        "",
+        f"## 6c. Corpus `{dataset_meta['generator_version']}`: call-position families",
+        "",
+        (
+            "Reviewer's decision after Phase 7 (15 differences on a real bot, `docs/REAL_PROJECT.md`): "
+            "the call `<I18N>(<STR>)` is placed in positions grammar-4 never had — a dict value "
+            "(string key and `Enum.X`), a keyword argument of another constructor (including the second/third one "
+            "after a line break), a decorator argument, an element of a list/tuple/set, a "
+            "`return`/`yield` value; and twin negatives — tuples and lists of strings without a call "
+            '(`("s", data.get("s"))`), strings as dict keys, decorators without an i18n name '
+            '(`@router.message(Command("s"))`), a tuple of strings as a call argument. Every family — '
+            "with the snippet's `-k`/`-K` names and with `i18n`, on one line and broken over lines (`g5-one-line` / "
+            f"`g5-multi-line`). {g5_share:.0%} of mutations are grammar-5 (`GRAMMAR5_SHARE`). «share» — among "
+            "the occurrences of the grammar-5 families (for the layouts — among the layouts); «share of all» — among "
+            "all occurrences of the grammar-4 + grammar-5 families (the reviewer's target ~5–7 % per family). Labels — from "
+            "the teacher; no surprises: a string that is a dict value and a string in a decorator are keys when "
+            "the call is made by an i18n name, and not keys in the twins (docs/FORMAT.md §1)."
+        ),
+        "",
+        "| family / layout | occurrences | share | share of all | snippets |",
+        "|---|---:|---:|---:|---:|",
+    ]
+    lines.extend(
+        f"| {tag} | {r['occurrences']} | {r['share']:.3f} | {r['share_all']:.3f} "
+        f"| {r['snippet_share']:.3f} |"
+        for tag, r in fam.items()
+    )
+    return lines
+
+
+def deviations_section(
+    brain: Brain, train_seeds: tuple[int, ...], config: TrainConfig | None = None
+) -> list[str]:
     """§7: what was decided against the auditor's brief / PLAN, and why (audit protocol
     item 4)."""
     p = brain.params
+    config = config or TrainConfig(lr=0.005, max_epochs=100, patience=10)
     return [
         "",
         "### Deviations from the reviewer's decisions and PLAN (for the audit protocol, item 4)",
@@ -1072,8 +1180,9 @@ def deviations_section(brain: Brain, train_seeds: tuple[int, ...]) -> list[str]:
             "0.9415 → 0.9557); the brain budget is not exceeded (see §4). Val/test untouched, no train rows cut."
         ),
         (
-            "- Readout: lr 0.005 instead of 0.05 (~4800 active features per trial vs ~470 in fly-odor-3), "
-            "patience 8, up to 60 epochs, training on CSR states (the same delta rule, `dan_update_sparse`)."
+            f"- Readout: lr {config.lr} instead of 0.05 (~4800 active features per trial vs ~470 in "
+            f"fly-odor-3), patience {config.patience}, up to {config.max_epochs} epochs, training on "
+            "CSR states (the same delta rule, `dan_update_sparse`)."
         ),
         (
             "- The resniff share on test is 10.3 % for keys with θ chosen on val for ≤ 10 % (exactly 10 % on val); "
@@ -1119,6 +1228,7 @@ def write_doc(
     max_resniff: int = MAX_RESNIFF,
     train_seeds: tuple[int, ...] = TRAIN_SEEDS,
     train_rows: int | None = None,
+    baseline: MbonWeights | None = None,
 ) -> None:
     ds_timing = dataset_meta["timing_s"]
     assert isinstance(ds_timing, dict)
@@ -1265,11 +1375,53 @@ def write_doc(
         "<!-- attempts:end -->",
         *proxy_section(),
         *grammar_section(dataset_meta),
+        *grammar5_section(dataset_meta),
         *temporal_section(results, brain, train_seeds, train_rows),
-        *deviations_section(brain, train_seeds),
+        *deviations_section(brain, train_seeds, config),
         *gate_section(results, fixtures),
+        *baseline_section(results, baseline, dataset_meta),
     ]
     OUT_DOC.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
+
+
+def baseline_section(
+    results: dict[str, TaskResult],
+    baseline: MbonWeights | None,
+    dataset_meta: dict[str, object],
+) -> list[str]:
+    """§8: the previous weights scored on *this* corpus's test split next to the new ones
+    (auditor after Phase 7: «test before/after» for the grammar-5 retraining)."""
+    if baseline is None:
+        return []
+    prev = baseline.metrics.get("dataset", {})
+    prev_gen = prev.get("generator_version", "?") if isinstance(prev, dict) else "?"
+    lines = [
+        "",
+        f"## 8. Before/after: the old weights ({prev_gen}) and the new ones on the `{dataset_meta['generator_version']}` test",
+        "",
+        (
+            "The old weights (`--baseline-weights`) were run through the same test brain states of this corpus "
+            "(resniff — with their own θ and the same trial seeds); the new ones are the «after» row. The difference is "
+            "the price of the families the old corpus did not have."
+        ),
+        "",
+        "| task | weights | test without resniff | test with resniff | resniff share | θ |",
+        "|---|---|---|---|---:|---:|",
+    ]
+    for r in results.values():
+        b = r.baseline
+        if b is not None:
+            lines.append(
+                f"| {r.name} | before ({prev_gen}) | {md_scores(b.evaluation.plain)} "
+                f"| {md_scores(b.evaluation.resniffed)} | {b.evaluation.resniff_fraction:.1%} "
+                f"| {b.theta:.3f} |"
+            )
+        lines.append(
+            f"| {r.name} | after ({dataset_meta['generator_version']}) | "
+            f"{md_scores(r.evaluation.plain)} | {md_scores(r.evaluation.resniffed)} "
+            f"| {r.evaluation.resniff_fraction:.1%} | {r.theta:.3f} |"
+        )
+    return lines
 
 
 if __name__ == "__main__":

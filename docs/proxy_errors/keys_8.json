@@ -1,53 +1,101 @@
 {
   "variant": "fly-odor-6: focus over 5 puffs [root][attr1][attr2][attr3][summary]",
   "categories": {
-    "FP after=( <NAME> before=, <I18N> <NL>": 2,
-    "FN after=( ) before=. <NAME> <NL>": 2,
-    "FP after=( ) before=<NL> <NAME> (": 1,
-    "FN after=( <NAME> before=. <NAME> <NL>": 1
+    "FP after=( <STR> before=<NL> return (": 2,
+    "FN after=( <STR> before=. <NAME> (": 2,
+    "FP after=( <IGNORE_KW> before=) ] <NL>": 1,
+    "FP after=, <NAME> before=. get (": 1,
+    "FN after=( _path before=. <NAME> (": 1,
+    "FP after=( ) before=, <I18N> <NL>": 1,
+    "FP after=) <NL> before=. <I18N> (": 1,
+    "FP after=, ** before=. get (": 1,
+    "FP after=( _path before=<NAME> = [": 1,
+    "FP after=( <NAME> before=, <I18N> <NL>": 1
   },
   "worst": [
     {
       "label": false,
-      "margin": 1.97835373878479,
-      "snippet": 10829,
-      "key_name": "price-limit_retry",
-      "window": "<I18N> , <I18N> <NL> <NAME> ( <PREFIX> . <NAME> . <NAME> ( ) ,"
-    },
-    {
-      "label": true,
-      "margin": -1.66607666015625,
-      "snippet": 5220,
-      "key_name": "menu_value",
-      "window": "<NAME> = <NAME> . <NAME> <NL> <PREFIX> . <I18N> . <NAME> ( ) <NL>"
-    },
-    {
-      "label": true,
-      "margin": -1.0046861171722412,
-      "snippet": 9476,
-      "key_name": "group_label",
-      "window": "] = <NAME> . <NAME> <NL> <PREFIX> . <I18N> . <NAME> ( ) <NL>"
-    },
-    {
-      "label": true,
-      "margin": -0.3423198461532593,
-      "snippet": 15466,
-      "key_name": "use_locale",
-      "window": "<NAME> = <NAME> . <NAME> <NL> <I18N> . <NAME> ( <NAME> ="
+      "margin": 1.934559941291809,
+      "snippet": 14264,
+      "key_name": "set_locale-status_help-level_summary",
+      "window": "<NAME> , <I18N> , <I18N> <NL> <I18N> . <IGNORE> . <NAME> . <NAME> ( <NAME> ="
     },
     {
       "label": false,
-      "margin": 0.24568867683410645,
-      "snippet": 4554,
-      "key_name": "bind-load",
-      "window": "<NAME> , <I18N> , <I18N> <NL> <I18N> . <IGNORE> . <NAME> ( <NAME> ="
+      "margin": 1.824771523475647,
+      "snippet": 6188,
+      "key_name": "LazyProxy-photo-send-text",
+      "window": "<I18N> , <I18N> , <I18N> <NL> <NAME> . <I18N> . <NAME> . <NAME> . <NAME> ( ) <NL>"
+    },
+    {
+      "label": true,
+      "margin": -1.5124231576919556,
+      "snippet": 9504,
+      "key_name": "photo_message-next_send-count_task-get",
+      "window": "<NAME> . <NAME> . <NAME> ( <PREFIX> . <I18N> . <NAME> . <NAME> . <NAME> . get ( <STR> ,"
     },
     {
       "label": false,
-      "margin": 0.24568867683410645,
-      "snippet": 4809,
-      "key_name": "use_context-start_admin",
-      "window": "<NAME> , <I18N> , <I18N> <NL> <I18N> . <IGNORE> . <NAME> ( <NAME> ="
+      "margin": 1.307216763496399,
+      "snippet": 5800,
+      "key_name": "amount_send_amount",
+      "window": ") <NL> <PREFIX> . get ( <STR> , <NAME> ="
+    },
+    {
+      "label": true,
+      "margin": -1.1978226900100708,
+      "snippet": 5865,
+      "key_name": "user",
+      "window": "<NAME> . <NAME> . <NAME> ( <PREFIX> . <I18N> . <NAME> ( _path ="
+    },
+    {
+      "label": false,
+      "margin": 0.6227580308914185,
+      "snippet": 12874,
+      "key_name": "L-value-total_error-balance_order",
+      "window": "<NAME> = [ <IGNORE_KW> . <I18N> . <NAME> . <NAME> . <NAME> ( _path ="
+    },
+    {
+      "label": false,
+      "margin": 0.2661393880844116,
+      "snippet": 12643,
+      "key_name": "label-task-refund",
+      "window": "<PREFIX> . get ( <STR> , ** <NAME>"
+    },
+    {
+      "label": true,
+      "margin": -0.21060031652450562,
+      "snippet": 6214,
+      "key_name": "profile_admin",
+      "window": "<NAME> . <NAME> . <NAME> ( <I18N> . <NAME> ( <STR> ,"
+    },
+    {
+      "label": false,
+      "margin": 0.20617914199829102,
+      "snippet": 72,
+      "key_name": "i18n-lang",
+      "window": "<NAME> } <FSTR_END> ) ] <NL> <IGNORE_KW> . <I18N> . <NAME> ( <IGNORE_KW> ="
+    },
+    {
+      "label": false,
+      "margin": 0.1549912691116333,
+      "snippet": 7897,
+      "key_name": "ok_4",
+      "window": "<NAME> = <IGNORE_KW> . <I18N> ( <STR> ) <NL> return"
+    },
+    {
+      "label": false,
+      "margin": 0.14792191982269287,
+      "snippet": 4135,
+      "key_name": null,
+      "window": ") , ] <NL> return ( <PREFIX> . <I18N> ( <STR> ,"
+    },
+    {
+      "label": false,
+      "margin": 0.12916457653045654,
+      "snippet": 8469,
+      "key_name": null,
+      "window": "<PREFIX> ) : <NL> return ( <PREFIX> . <I18N> ( <STR> ,"
     }
   ]
 }

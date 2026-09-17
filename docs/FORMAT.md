@@ -21,6 +21,8 @@ experiments described at the end. Where the behaviour was a surprise it is marke
 | `i18n.get("dotted.key.name")`, `i18n.get("unicode-ключ", тест=1)` | **(!)** written as is — this is **invalid Fluent** (identifier = `[a-zA-Z][a-zA-Z0-9_-]*`); python-fluent and fluent-rs will yield Junk on re-reading → the next run of the original fails with a syntax error |
 | `i18n.get("k", **extra)` and `i18n.get("k", count=1)` | `k = k{ $count }` — the call without `**` wins; `**` alone gives `k = k` |
 | a string in a comment/docstring | not a key |
+| `{"k": L("x")}`, `Kind.X: L("x", _path=…)`, `Item(name=L("a"), description=L("b"))`, `@router.message(LF("k"))`, `[L("a"), L("b")]`, `return L("x")` | keys: the call position does not matter — a dict value, a kwarg of another constructor, a decorator argument, a sequence element, `return`/`yield` (verified with the binary on a real bot, `docs/REAL_PROJECT.md`; the grammar-4 fly missed all these positions — hence the grammar-5 corpus, METRICS.md §6c) |
+| `("s", data.get("s"))`, `{"k": Kind.X}`, `@router.message(Command("s"))`, `foo(("s", 1))` | not keys: a string without a call of an i18n name — whether in a tuple, as a dict key or in a decorator (the grammar-4 fly called `("captcha_timeout_task", …)` in a tuple a key) |
 
 Kwargs in the placeholder message are **sorted by name**: `zeta=1, alpha=2, mid=3` →
 `{ $alpha }{ $mid }{ $zeta }`, with no spaces between placeables: `key{ $a }{ $b }`.

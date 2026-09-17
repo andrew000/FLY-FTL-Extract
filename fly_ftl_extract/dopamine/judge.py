@@ -30,7 +30,7 @@ from fly_ftl_extract.dopamine.readout import Readout, vote
 from fly_ftl_extract.dopamine.seed import kwarg_trial_index, salted_seed, sniff_seed, trial_seed
 from fly_ftl_extract.dopamine.weights import MbonWeights
 from fly_ftl_extract.ftl.model import ExtractOptions
-from fly_ftl_extract.odor.encoder import ENCODER_VERSION, N_SLOTS, encode_many
+from fly_ftl_extract.odor.encoder import DEFAULT_ENCODER, ENCODER_VERSION, N_SLOTS, encode_many
 from fly_ftl_extract.tokenizer.candidates import Candidate, Kwarg, Window, iter_candidates
 
 BATCH = 256
@@ -60,8 +60,9 @@ class Verdict:
     mbon_active_fraction: float = 0.0
     """Share of MBONs that spiked at least once in the first sniff."""
     kc_pattern: bytes = b""
-    """``np.packbits`` of the Kenyon cells that spiked in any puff of the first sniff
-    (``n_kc`` bits) — the row of the TUI spike raster.  Real spikes, not decoration."""
+    """``np.packbits`` of the Kenyon cells that spiked in the *summary puff* of the first
+    sniff (``n_kc`` bits; the puff that carries the candidate's kind and position) — the
+    row of the TUI spike raster.  Real spikes, not decoration."""
 
     def kc_bits(self, n_kc: int) -> np.ndarray:
         """The ``kc_pattern`` unpacked to ``n_kc`` booleans (all ``False`` if not recorded)."""
@@ -261,7 +262,8 @@ class Judge:
     def _first_sniff_stats(res: SequenceResult) -> list[Verdict]:
         """What the TUI shows about a trial: real activity of PN, KC, APL and MBON."""
         fractions = _active_over_puffs(res.kc_active_fraction, res.puff_active)
-        kc_any = res.kc_counts.sum(axis=1) > 0  # (n_trials, n_kc)
+        summary = min(DEFAULT_ENCODER.summary_slot, res.n_puffs - 1)
+        kc_any = res.kc_counts[:, summary, :] > 0  # (n_trials, n_kc)
         pn_any = (res.pn_counts.sum(axis=1) > 0).mean(axis=1)
         mbon_any = (res.mbon_counts.sum(axis=1) > 0).mean(axis=1)
         apl = res.apl_counts.sum(axis=1)

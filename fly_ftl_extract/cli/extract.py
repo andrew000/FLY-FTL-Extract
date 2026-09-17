@@ -498,7 +498,13 @@ def run_command(
         return EXIT_FLY_ERROR
 
     cache = ExtractCache.open(options, judge) if options.cache else None
-    run = extract_with_fly(options, fly, judge, cache=cache)
+    observer = _make_observer(fly, judge, options)
+    try:
+        run = extract_with_fly(options, fly, judge, observer, cache=cache)
+    finally:
+        close = getattr(observer, "close", None)
+        if callable(close):
+            close()
     if cache is not None:
         cache.save()
     outcome: ExtractOutcome = run_extract(run.extraction, options, extraction_seconds=run.seconds)
@@ -510,6 +516,15 @@ def run_command(
     if fly.audit:
         return max(outcome.exit_code, _run_audit(options, run))
     return outcome.exit_code
+
+
+def _make_observer(fly: FlyOptions, judge: Judge, options: ExtractOptions) -> Observer:
+    """The TUI when wanted and stdout is a terminal; otherwise nothing (plain logs)."""
+    if not fly.tui or not sys.stdout.isatty():
+        return NullObserver()
+    from fly_ftl_extract.tui import FlyTui  # noqa: PLC0415 — rich only when it is shown
+
+    return FlyTui.start(judge, options)
 
 
 def _run_audit(options: ExtractOptions, run: FlyRun) -> int:

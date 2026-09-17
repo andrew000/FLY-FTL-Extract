@@ -66,7 +66,7 @@ under a shared scale.
 <!-- calibration:start -->
 ## 2. Calibrating `syn_scale` and `apl_scale` on real odours (temporal coding)
 
-Odours: all 240 candidates from all fixtures (84 positive), tokenised and encoded with the `fly-odor-5` encoder using each fixture's options: a sequence of 10 puffs of 40 ms (`Brain.simulate_sequence`), an empty slot is silence. The synthetic odour (30 % of PNs at 150 Hz) is not used (reviewer's decision after Phase 4). The same set for every variant, seed 1.
+Odours: all 240 candidates from all fixtures (84 positive), tokenised and encoded with the `fly-odor-6` encoder using each fixture's options: a sequence of 14 puffs of 40 ms (`Brain.simulate_sequence`), an empty slot is silence. The synthetic odour (30 % of PNs at 150 Hz) is not used (reviewer's decision after Phase 4). The same set for every variant, seed 1.
 «KC active / puff» — the share of active KCs within a puff, averaged over non-empty puffs (the reviewer's target after Phase 5: 8–10 %); «union» — the share of KCs that spiked at least once per trial. Rate = spikes / trial duration. «no APL» — the APL→* weights zeroed; «ratio» — by how much APL reduces the per-puff KC activity.
 
 ### Why one `syn_scale` is not enough (`apl_scale` = 1)
@@ -75,15 +75,15 @@ The single APL receives 1713 synapses from PNs and 56261 from KCs and gives ~17 
 
 | syn_scale | KC active / puff | KC active union | APL spikes / puff | max KC, Hz | no APL: KC active / puff |
 |---:|---:|---:|---:|---:|---:|
-| 1.0 | 0.008 | 0.066 | 5.4 | 15 | 0.034 |
-| 2.0 | 0.018 | 0.134 | 9.1 | 29 | 0.143 |
-| 4.0 | 0.023 | 0.159 | 12.0 | 44 | 0.261 |
-| 8.0 | 0.025 | 0.170 | 14.2 | 63 | 0.341 |
-| 12.0 | 0.026 | 0.177 | 15.1 | 76 | 0.398 |
-| 16.0 | 0.027 | 0.184 | 15.7 | 98 | 0.428 |
-| 20.0 | 0.028 | 0.190 | 16.1 | 107 | 0.443 |
-| 32.0 | 0.029 | 0.203 | 16.8 | 115 | 0.460 |
-| 40.0 | 0.030 | 0.210 | 16.9 | 122 | 0.456 |
+| 1.0 | 0.008 | 0.077 | 5.3 | 16 | 0.033 |
+| 2.0 | 0.019 | 0.152 | 8.9 | 30 | 0.135 |
+| 4.0 | 0.024 | 0.180 | 12.0 | 53 | 0.246 |
+| 8.0 | 0.026 | 0.194 | 14.1 | 72 | 0.320 |
+| 12.0 | 0.027 | 0.204 | 15.1 | 81 | 0.374 |
+| 16.0 | 0.028 | 0.209 | 15.6 | 86 | 0.402 |
+| 20.0 | 0.027 | 0.206 | 16.0 | 88 | 0.417 |
+| 32.0 | 0.028 | 0.213 | 16.7 | 102 | 0.435 |
+| 40.0 | 0.028 | 0.218 | 16.9 | 107 | 0.433 |
 
 ### The `syn_scale` × `apl_scale` grid
 
@@ -91,50 +91,50 @@ Criteria: with APL 8%–10% of KCs active per puff; APL sparsifies ≥ 2× (inst
 
 | syn_scale | apl_scale | KC active / puff | KC active union | max KC, Hz | median active KC, Hz | max APL, Hz | max MBON, Hz | APL spikes / puff | MBON spikes / puff | no APL: KC active / puff | ratio | criteria |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
-| 2.0 | 1.0 | 0.018 | 0.134 | 29 | 2 | 246 | 20 | 9.05 | 0.35 | 0.143 | 7.8 | KC active per puff with APL 0.018 not in [0.08, 0.1] |
-| 3.0 | 1.0 | 0.022 | 0.152 | 37 | 2 | 288 | 32 | 10.91 | 1.05 | 0.216 | 9.9 | KC active per puff with APL 0.022 not in [0.08, 0.1] |
-| 4.0 | 1.0 | 0.023 | 0.159 | 44 | 2 | 317 | 41 | 12.04 | 1.90 | 0.261 | 11.2 | KC active per puff with APL 0.023 not in [0.08, 0.1] |
-| 5.0 | 1.0 | 0.024 | 0.163 | 54 | 2 | 332 | 51 | 12.83 | 2.84 | 0.289 | 12.0 | KC active per puff with APL 0.024 not in [0.08, 0.1] |
-| 6.0 | 1.0 | 0.024 | 0.165 | 56 | 2 | 346 | 59 | 13.41 | 3.58 | 0.309 | 12.6 | KC active per puff with APL 0.024 not in [0.08, 0.1] |
-| 8.0 | 1.0 | 0.025 | 0.170 | 63 | 5 | 366 | 85 | 14.19 | 5.32 | 0.341 | 13.5 | KC active per puff with APL 0.025 not in [0.08, 0.1] |
-| 10.0 | 1.0 | 0.026 | 0.173 | 73 | 5 | 378 | 100 | 14.72 | 7.40 | 0.373 | 14.5 | KC active per puff with APL 0.026 not in [0.08, 0.1] |
-| 2.0 | 0.7 | 0.029 | 0.201 | 32 | 2 | 268 | 41 | 9.99 | 2.10 | 0.143 | 4.9 | KC active per puff with APL 0.029 not in [0.08, 0.1] |
-| 3.0 | 0.7 | 0.037 | 0.239 | 39 | 2 | 320 | 83 | 12.02 | 5.94 | 0.216 | 5.8 | KC active per puff with APL 0.037 not in [0.08, 0.1] |
-| 4.0 | 0.7 | 0.042 | 0.259 | 46 | 5 | 344 | 124 | 13.17 | 10.35 | 0.261 | 6.2 | KC active per puff with APL 0.042 not in [0.08, 0.1] |
-| 5.0 | 0.7 | 0.045 | 0.271 | 56 | 5 | 361 | 146 | 13.91 | 14.81 | 0.289 | 6.4 | KC active per puff with APL 0.045 not in [0.08, 0.1] |
-| 6.0 | 0.7 | 0.047 | 0.278 | 63 | 5 | 373 | 173 | 14.44 | 18.77 | 0.309 | 6.6 | KC active per puff with APL 0.047 not in [0.08, 0.1] |
-| 8.0 | 0.7 | 0.050 | 0.292 | 66 | 5 | 390 | 224 | 15.06 | 27.64 | 0.341 | 6.8 | KC active per puff with APL 0.050 not in [0.08, 0.1] |
-| 10.0 | 0.7 | 0.052 | 0.301 | 73 | 5 | 398 | 278 | 15.48 | 37.67 | 0.373 | 7.1 | KC active per puff with APL 0.052 not in [0.08, 0.1] |
-| 2.0 | 0.5 | 0.044 | 0.277 | 37 | 2 | 283 | 73 | 10.62 | 6.44 | 0.143 | 3.3 | KC active per puff with APL 0.044 not in [0.08, 0.1] |
-| 3.0 | 0.5 | 0.062 | 0.353 | 46 | 5 | 329 | 132 | 12.23 | 16.71 | 0.216 | 3.5 | KC active per puff with APL 0.062 not in [0.08, 0.1] |
-| 4.0 | 0.5 | 0.075 | 0.400 | 59 | 5 | 344 | 163 | 12.82 | 26.94 | 0.261 | 3.5 | KC active per puff with APL 0.075 not in [0.08, 0.1] |
-| 5.0 **←** | 0.5 | 0.085 | 0.431 | 63 | 5 | 359 | 195 | 13.13 | 35.92 | 0.289 | 3.4 | ✓ |
-| 6.0 | 0.5 | 0.091 | 0.450 | 68 | 5 | 363 | 217 | 13.39 | 43.45 | 0.309 | 3.4 | ✓ |
-| 8.0 | 0.5 | 0.101 | 0.477 | 78 | 7 | 371 | 249 | 13.68 | 56.20 | 0.341 | 3.4 | KC active per puff with APL 0.101 not in [0.08, 0.1] |
-| 10.0 | 0.5 | 0.106 | 0.489 | 88 | 7 | 383 | 283 | 14.01 | 66.40 | 0.373 | 3.5 | KC active per puff with APL 0.106 not in [0.08, 0.1] |
-| 2.0 | 0.4 | 0.056 | 0.338 | 37 | 5 | 285 | 88 | 10.44 | 11.09 | 0.143 | 2.5 | KC active per puff with APL 0.056 not in [0.08, 0.1] |
-| 3.0 | 0.4 | 0.084 | 0.439 | 51 | 5 | 315 | 154 | 11.57 | 26.56 | 0.216 | 2.6 | ✓ |
-| 4.0 | 0.4 | 0.102 | 0.490 | 61 | 5 | 334 | 198 | 12.24 | 39.76 | 0.261 | 2.6 | KC active per puff with APL 0.102 not in [0.08, 0.1] |
-| 5.0 | 0.4 | 0.112 | 0.517 | 66 | 7 | 346 | 241 | 12.80 | 50.73 | 0.289 | 2.6 | KC active per puff with APL 0.112 not in [0.08, 0.1] |
-| 6.0 | 0.4 | 0.120 | 0.535 | 73 | 7 | 359 | 271 | 13.21 | 60.01 | 0.309 | 2.6 | KC active per puff with APL 0.120 not in [0.08, 0.1] |
-| 8.0 | 0.4 | 0.129 | 0.554 | 83 | 7 | 371 | 300 | 13.86 | 75.98 | 0.341 | 2.6 | KC active per puff with APL 0.129 not in [0.08, 0.1] |
-| 10.0 | 0.4 | 0.135 | 0.566 | 93 | 7 | 383 | 324 | 14.22 | 89.99 | 0.373 | 2.8 | KC active per puff with APL 0.135 not in [0.08, 0.1] |
-| 2.0 | 0.3 | 0.074 | 0.410 | 41 | 5 | 283 | 120 | 9.90 | 17.71 | 0.143 | 1.9 | KC active per puff with APL 0.074 not in [0.08, 0.1]; APL sparsening ratio 1.94 < 2.0 |
-| 3.0 | 0.3 | 0.108 | 0.516 | 54 | 5 | 317 | 195 | 11.46 | 37.63 | 0.216 | 2.0 | KC active per puff with APL 0.108 not in [0.08, 0.1] |
-| 4.0 | 0.3 | 0.127 | 0.563 | 61 | 7 | 351 | 244 | 12.63 | 54.08 | 0.261 | 2.1 | KC active per puff with APL 0.127 not in [0.08, 0.1] |
-| 5.0 | 0.3 | 0.140 | 0.588 | 71 | 7 | 363 | 283 | 13.41 | 68.12 | 0.289 | 2.1 | KC active per puff with APL 0.140 not in [0.08, 0.1] |
-| 6.0 | 0.3 | 0.148 | 0.604 | 78 | 7 | 378 | 312 | 14.00 | 80.88 | 0.309 | 2.1 | KC active per puff with APL 0.148 not in [0.08, 0.1] |
-| 8.0 | 0.3 | 0.160 | 0.624 | 93 | 10 | 393 | 346 | 14.74 | 103.81 | 0.341 | 2.1 | KC active per puff with APL 0.160 not in [0.08, 0.1] |
-| 10.0 | 0.3 | 0.168 | 0.636 | 100 | 10 | 402 | 361 | 15.19 | 123.72 | 0.373 | 2.2 | KC active per puff with APL 0.168 not in [0.08, 0.1] |
-| 2.0 | 0.2 | 0.092 | 0.477 | 41 | 5 | 280 | 151 | 9.86 | 25.32 | 0.143 | 1.6 | APL sparsening ratio 1.55 < 2.0 |
-| 3.0 | 0.2 | 0.133 | 0.585 | 56 | 7 | 334 | 239 | 12.12 | 50.95 | 0.216 | 1.6 | KC active per puff with APL 0.133 not in [0.08, 0.1]; APL sparsening ratio 1.62 < 2.0 |
-| 4.0 | 0.2 | 0.158 | 0.633 | 66 | 7 | 366 | 285 | 13.60 | 73.08 | 0.261 | 1.7 | KC active per puff with APL 0.158 not in [0.08, 0.1]; APL sparsening ratio 1.65 < 2.0 |
-| 5.0 | 0.2 | 0.174 | 0.660 | 76 | 10 | 388 | 320 | 14.54 | 93.20 | 0.289 | 1.7 | KC active per puff with APL 0.174 not in [0.08, 0.1]; APL sparsening ratio 1.66 < 2.0 |
-| 6.0 | 0.2 | 0.186 | 0.678 | 78 | 10 | 400 | 341 | 15.13 | 112.33 | 0.309 | 1.7 | KC active per puff with APL 0.186 not in [0.08, 0.1]; APL sparsening ratio 1.66 < 2.0 |
-| 8.0 | 0.2 | 0.202 | 0.699 | 95 | 12 | 415 | 371 | 15.91 | 145.19 | 0.341 | 1.7 | KC active per puff with APL 0.202 not in [0.08, 0.1]; APL sparsening ratio 1.68 < 2.0 |
-| 10.0 | 0.2 | 0.213 | 0.712 | 102 | 12 | 422 | 390 | 16.34 | 172.16 | 0.373 | 1.8 | KC active per puff with APL 0.213 not in [0.08, 0.1]; APL sparsening ratio 1.75 < 2.0 |
+| 2.0 | 1.0 | 0.019 | 0.152 | 30 | 2 | 240 | 16 | 8.93 | 0.34 | 0.135 | 7.2 | KC active per puff with APL 0.019 not in [0.08, 0.1] |
+| 3.0 | 1.0 | 0.022 | 0.172 | 44 | 2 | 284 | 26 | 10.82 | 1.06 | 0.205 | 9.2 | KC active per puff with APL 0.022 not in [0.08, 0.1] |
+| 4.0 | 1.0 | 0.024 | 0.180 | 53 | 2 | 314 | 39 | 11.98 | 1.93 | 0.246 | 10.3 | KC active per puff with APL 0.024 not in [0.08, 0.1] |
+| 5.0 | 1.0 | 0.025 | 0.185 | 58 | 2 | 333 | 53 | 12.77 | 3.03 | 0.273 | 11.0 | KC active per puff with APL 0.025 not in [0.08, 0.1] |
+| 6.0 | 1.0 | 0.025 | 0.189 | 63 | 4 | 344 | 60 | 13.36 | 4.08 | 0.291 | 11.5 | KC active per puff with APL 0.025 not in [0.08, 0.1] |
+| 8.0 | 1.0 | 0.026 | 0.194 | 72 | 4 | 361 | 74 | 14.14 | 6.05 | 0.320 | 12.2 | KC active per puff with APL 0.026 not in [0.08, 0.1] |
+| 10.0 | 1.0 | 0.027 | 0.199 | 75 | 4 | 374 | 114 | 14.66 | 8.26 | 0.349 | 13.0 | KC active per puff with APL 0.027 not in [0.08, 0.1] |
+| 2.0 | 0.7 | 0.029 | 0.222 | 33 | 2 | 263 | 39 | 9.85 | 1.98 | 0.135 | 4.6 | KC active per puff with APL 0.029 not in [0.08, 0.1] |
+| 3.0 | 0.7 | 0.037 | 0.263 | 46 | 4 | 312 | 79 | 11.90 | 5.59 | 0.205 | 5.5 | KC active per puff with APL 0.037 not in [0.08, 0.1] |
+| 4.0 | 0.7 | 0.042 | 0.283 | 54 | 4 | 337 | 107 | 13.07 | 9.81 | 0.246 | 5.9 | KC active per puff with APL 0.042 not in [0.08, 0.1] |
+| 5.0 | 0.7 | 0.045 | 0.296 | 63 | 4 | 356 | 133 | 13.79 | 14.21 | 0.273 | 6.1 | KC active per puff with APL 0.045 not in [0.08, 0.1] |
+| 6.0 | 0.7 | 0.047 | 0.304 | 68 | 4 | 367 | 156 | 14.31 | 18.15 | 0.291 | 6.2 | KC active per puff with APL 0.047 not in [0.08, 0.1] |
+| 8.0 | 0.7 | 0.049 | 0.314 | 74 | 4 | 377 | 207 | 14.95 | 26.27 | 0.320 | 6.5 | KC active per puff with APL 0.049 not in [0.08, 0.1] |
+| 10.0 | 0.7 | 0.051 | 0.318 | 81 | 4 | 391 | 265 | 15.40 | 35.28 | 0.349 | 6.9 | KC active per puff with APL 0.051 not in [0.08, 0.1] |
+| 2.0 | 0.5 | 0.043 | 0.299 | 35 | 2 | 282 | 70 | 10.47 | 5.96 | 0.135 | 3.2 | KC active per puff with APL 0.043 not in [0.08, 0.1] |
+| 3.0 | 0.5 | 0.061 | 0.378 | 49 | 4 | 321 | 118 | 12.05 | 15.83 | 0.205 | 3.4 | KC active per puff with APL 0.061 not in [0.08, 0.1] |
+| 4.0 | 0.5 | 0.074 | 0.425 | 61 | 4 | 312 | 149 | 12.68 | 25.88 | 0.246 | 3.3 | KC active per puff with APL 0.074 not in [0.08, 0.1] |
+| 5.0 **←** | 0.5 | 0.082 | 0.453 | 65 | 4 | 342 | 172 | 13.06 | 34.36 | 0.273 | 3.3 | ✓ |
+| 6.0 | 0.5 | 0.089 | 0.472 | 75 | 5 | 358 | 211 | 13.32 | 41.57 | 0.291 | 3.3 | ✓ |
+| 8.0 | 0.5 | 0.097 | 0.495 | 81 | 5 | 361 | 244 | 13.68 | 53.73 | 0.320 | 3.3 | ✓ |
+| 10.0 | 0.5 | 0.102 | 0.508 | 91 | 5 | 365 | 251 | 13.93 | 64.09 | 0.349 | 3.4 | KC active per puff with APL 0.102 not in [0.08, 0.1] |
+| 2.0 | 0.4 | 0.055 | 0.359 | 35 | 4 | 268 | 81 | 10.28 | 10.34 | 0.135 | 2.5 | KC active per puff with APL 0.055 not in [0.08, 0.1] |
+| 3.0 | 0.4 | 0.082 | 0.462 | 51 | 4 | 300 | 133 | 11.38 | 25.03 | 0.205 | 2.5 | ✓ |
+| 4.0 | 0.4 | 0.098 | 0.511 | 63 | 5 | 319 | 188 | 12.10 | 37.88 | 0.246 | 2.5 | ✓ |
+| 5.0 | 0.4 | 0.108 | 0.536 | 70 | 5 | 335 | 221 | 12.72 | 48.58 | 0.273 | 2.5 | KC active per puff with APL 0.108 not in [0.08, 0.1] |
+| 6.0 | 0.4 | 0.115 | 0.552 | 75 | 5 | 339 | 261 | 13.16 | 57.62 | 0.291 | 2.5 | KC active per puff with APL 0.115 not in [0.08, 0.1] |
+| 8.0 | 0.4 | 0.124 | 0.570 | 86 | 7 | 367 | 281 | 13.81 | 73.08 | 0.320 | 2.6 | KC active per puff with APL 0.124 not in [0.08, 0.1] |
+| 10.0 | 0.4 | 0.129 | 0.580 | 96 | 7 | 367 | 314 | 14.24 | 86.85 | 0.349 | 2.7 | KC active per puff with APL 0.129 not in [0.08, 0.1] |
+| 2.0 | 0.3 | 0.071 | 0.430 | 37 | 4 | 272 | 102 | 9.74 | 16.57 | 0.135 | 1.9 | KC active per puff with APL 0.071 not in [0.08, 0.1]; APL sparsening ratio 1.91 < 2.0 |
+| 3.0 | 0.3 | 0.104 | 0.535 | 53 | 4 | 300 | 195 | 11.31 | 35.54 | 0.205 | 2.0 | KC active per puff with APL 0.104 not in [0.08, 0.1]; APL sparsening ratio 1.97 < 2.0 |
+| 4.0 | 0.3 | 0.122 | 0.579 | 63 | 5 | 332 | 246 | 12.50 | 51.65 | 0.246 | 2.0 | KC active per puff with APL 0.122 not in [0.08, 0.1] |
+| 5.0 | 0.3 | 0.134 | 0.603 | 72 | 5 | 354 | 277 | 13.32 | 65.29 | 0.273 | 2.0 | KC active per puff with APL 0.134 not in [0.08, 0.1] |
+| 6.0 | 0.3 | 0.142 | 0.618 | 75 | 7 | 354 | 307 | 13.90 | 77.52 | 0.291 | 2.0 | KC active per puff with APL 0.142 not in [0.08, 0.1] |
+| 8.0 | 0.3 | 0.153 | 0.636 | 88 | 7 | 379 | 332 | 14.68 | 99.76 | 0.320 | 2.1 | KC active per puff with APL 0.153 not in [0.08, 0.1] |
+| 10.0 | 0.3 | 0.160 | 0.647 | 98 | 9 | 388 | 360 | 15.17 | 118.72 | 0.349 | 2.2 | KC active per puff with APL 0.160 not in [0.08, 0.1] |
+| 2.0 | 0.2 | 0.088 | 0.496 | 37 | 4 | 263 | 146 | 9.68 | 23.69 | 0.135 | 1.5 | APL sparsening ratio 1.53 < 2.0 |
+| 3.0 | 0.2 | 0.127 | 0.600 | 54 | 5 | 321 | 233 | 11.96 | 48.08 | 0.205 | 1.6 | KC active per puff with APL 0.127 not in [0.08, 0.1]; APL sparsening ratio 1.61 < 2.0 |
+| 4.0 | 0.2 | 0.151 | 0.646 | 65 | 5 | 354 | 281 | 13.45 | 69.37 | 0.246 | 1.6 | KC active per puff with APL 0.151 not in [0.08, 0.1]; APL sparsening ratio 1.64 < 2.0 |
+| 5.0 | 0.2 | 0.166 | 0.672 | 72 | 7 | 374 | 312 | 14.40 | 88.51 | 0.273 | 1.6 | KC active per puff with APL 0.166 not in [0.08, 0.1]; APL sparsening ratio 1.64 < 2.0 |
+| 6.0 | 0.2 | 0.177 | 0.688 | 81 | 9 | 386 | 337 | 15.03 | 106.82 | 0.291 | 1.6 | KC active per puff with APL 0.177 not in [0.08, 0.1]; APL sparsening ratio 1.64 < 2.0 |
+| 8.0 | 0.2 | 0.192 | 0.708 | 93 | 9 | 402 | 367 | 15.81 | 138.42 | 0.320 | 1.7 | KC active per puff with APL 0.192 not in [0.08, 0.1]; APL sparsening ratio 1.66 < 2.0 |
+| 10.0 | 0.2 | 0.202 | 0.719 | 104 | 11 | 412 | 381 | 16.24 | 163.88 | 0.349 | 1.7 | KC active per puff with APL 0.202 not in [0.08, 0.1]; APL sparsening ratio 1.72 < 2.0 |
 
-Chosen: **syn_scale = 5.0, apl_scale = 0.5** — every criterion met. Without KC→KC (942 edges removed): KC active / puff 0.085, max KC 61 Hz (the recurrence does not cause runaway).
+Chosen: **syn_scale = 5.0, apl_scale = 0.5** — every criterion met. Without KC→KC (942 edges removed): KC active / puff 0.083, max KC 65 Hz (the recurrence does not cause runaway).
 
 ### Per-slot profile (the chosen pair)
 
@@ -142,29 +142,33 @@ Slot 0 is the candidate; negative slots are the context before it, positive ones
 
 | slot | non-empty | active PN | KC active / puff | KC active in empty | APL spikes |
 |---:|---:|---:|---:|---:|---:|
-| -6 | 0.87 | 9.8 | 0.102 | 0.000 | 12.20 |
-| -5 | 0.88 | 9.5 | 0.076 | 0.000 | 12.59 |
-| -4 | 0.93 | 9.4 | 0.066 | 0.000 | 13.01 |
-| -3 | 0.93 | 9.7 | 0.094 | 0.000 | 13.39 |
-| -2 | 0.94 | 10.0 | 0.089 | 0.000 | 12.52 |
-| -1 | 0.95 | 10.0 | 0.098 | 0.000 | 13.52 |
-| +0 | 1.00 | 14.4 | 0.096 | 0.000 | 13.60 |
-| +1 | 1.00 | 9.1 | 0.085 | 0.000 | 13.43 |
-| +2 | 1.00 | 9.9 | 0.068 | 0.000 | 12.19 |
-| +3 | 1.00 | 9.5 | 0.077 | 0.000 | 14.71 |
+| -6 | 0.87 | 9.7 | 0.098 | 0.000 | 12.47 |
+| -5 | 0.88 | 9.7 | 0.108 | 0.000 | 13.51 |
+| -4 | 0.93 | 9.9 | 0.092 | 0.000 | 12.86 |
+| -3 | 0.93 | 9.4 | 0.076 | 0.000 | 13.15 |
+| -2 | 0.94 | 9.3 | 0.064 | 0.000 | 12.77 |
+| -1 | 0.95 | 10.0 | 0.083 | 0.000 | 13.52 |
+| +0 | 1.00 | 9.6 | 0.081 | 0.000 | 13.28 |
+| +1 | 0.53 | 10.0 | 0.074 | 0.012 | 13.54 |
+| +2 | 0.07 | 9.8 | 0.080 | 0.006 | 14.00 |
+| +3 | 0.01 | 9.0 | 0.121 | 0.001 | 13.67 |
+| +4 | 1.00 | 9.3 | 0.058 | 0.000 | 10.47 |
+| +5 | 1.00 | 9.6 | 0.078 | 0.000 | 13.14 |
+| +6 | 1.00 | 10.0 | 0.091 | 0.000 | 13.03 |
+| +7 | 1.00 | 9.4 | 0.085 | 0.000 | 15.10 |
 
 ### How many KC claws one puff reaches
 
-An active PN = odor > 0.1; on average 10.2 active PNs per non-empty puff. The mean number of PN inputs (claws) per KC: 3.79; of them on average 0.32 are active in a puff. The distribution (KC × puffs) and the probability that the KC spikes in this puff, by the number of active claws:
+An active PN = odor > 0.1; on average 9.6 active PNs per non-empty puff. The mean number of PN inputs (claws) per KC: 3.79; of them on average 0.31 are active in a puff. The distribution (KC × puffs) and the probability that the KC spikes in this puff, by the number of active claws:
 
 | active claws | KC×puffs | share | P(KC active) | share among active KCs |
 |---:|---:|---:|---:|---:|
-| 0 | 4268929 | 0.723 | 0.012 | 0.104 |
-| 1 | 1413286 | 0.239 | 0.217 | 0.612 |
-| 2 | 210421 | 0.036 | 0.612 | 0.257 |
-| 3 | 14719 | 0.002 | 0.856 | 0.025 |
-| 4 | 817 | 0.000 | 0.973 | 0.002 |
-| 5 | 3 | 0.000 | 1.000 | 0.000 |
+| 0 | 5080138 | 0.735 | 0.011 | 0.094 |
+| 1 | 1573348 | 0.228 | 0.220 | 0.608 |
+| 2 | 243684 | 0.035 | 0.630 | 0.269 |
+| 3 | 17790 | 0.003 | 0.879 | 0.027 |
+| 4 | 812 | 0.000 | 0.974 | 0.001 |
+| 5 | 39 | 0.000 | 1.000 | 0.000 |
 
 ### Reliability of the KC code (the Jaccard test from PLAN) and puff duration
 
@@ -172,12 +176,12 @@ Jaccard of the sets of active (puff, KC): the same candidate seed 1 vs 2 (mean o
 
 | puff_ms | steps | KC active / puff | KC active union | J same candidate | J same, union | J different candidates | max KC, Hz |
 |---:|---:|---:|---:|---:|---:|---:|---:|
-| 20 | 2100 | 0.047 | 0.287 | 0.260 | 0.514 | 0.105 | 67 |
-| 30 | 3100 | 0.069 | 0.375 | 0.359 | 0.622 | 0.144 | 61 |
-| 40 **←** | 4100 | 0.085 | 0.431 | 0.427 | 0.687 | 0.171 | 63 |
-| 50 | 5100 | 0.097 | 0.471 | 0.484 | 0.733 | 0.193 | 63 |
+| 20 | 2900 | 0.047 | 0.315 | 0.269 | 0.550 | 0.101 | 69 |
+| 30 | 4300 | 0.067 | 0.400 | 0.362 | 0.647 | 0.140 | 72 |
+| 40 **←** | 5700 | 0.082 | 0.453 | 0.436 | 0.716 | 0.165 | 65 |
+| 50 | 7100 | 0.094 | 0.491 | 0.483 | 0.753 | 0.183 | 58 |
 
-With the current parameters: the same candidate J = 0.427 per puff, 0.687 per trial (gap to 0.5: -0.073 per puff), different candidates J = 0.171 (gap +0.329). The criterion «same > 0.5» per puff is not met (per trial it is): by the reviewer's decision after Phase 4 the corresponding test is diagnostic (xfail), the Phase 5 gate is readout accuracy.
+With the current parameters: the same candidate J = 0.436 per puff, 0.716 per trial (gap to 0.5: -0.064 per puff), different candidates J = 0.165 (gap +0.335). The criterion «same > 0.5» per puff is not met (per trial it is): by the reviewer's decision after Phase 4 the corresponding test is diagnostic (xfail), the Phase 5 gate is readout accuracy.
 <!-- calibration:end -->
 
 <!-- bench:start -->
@@ -188,18 +192,18 @@ A trial = 1100 steps of 0.1 ms (T_stim 100 + T_silence 10 ms), 2935 neurons in t
 
 | batch | s per batch | trials/s | ms per step |
 |---:|---:|---:|---:|
-| 64 | 0.316 | 202.4 | 0.287 |
-| 256 | 1.148 | 223.0 | 1.044 |
-| 1024 | 7.430 | 137.8 | 6.755 |
+| 64 | 0.350 | 183.0 | 0.318 |
+| 256 | 1.231 | 207.9 | 1.119 |
+| 1024 | 9.225 | 111.0 | 8.386 |
 
-PLAN target (Phase 3) ≥ 200 trials/s at batch 256: 223.0 — met.
+PLAN target (Phase 3) ≥ 200 trials/s at batch 256: 207.9 — met.
 
 ### Two ways to compute the synaptic current (batch 256)
 
 | drive | trials/s |
 |---|---:|
-| `events` | 229.8 |
-| `dense` | 78.3 |
+| `events` | 224.2 |
+| `dense` | 69.5 |
 
 `events`: from the step's (trial, neuron) events a CSR spike matrix S is built and `S @ W` is computed (sparse × sparse, the result is added into `g` by flat indices). `dense`: `W.T @ spikes.T` with a dense spike matrix (n_neurons × n_trials). The results are bit-for-bit identical: True. `events` is used.
 
@@ -207,35 +211,35 @@ PLAN target (Phase 3) ≥ 200 trials/s at batch 256: 223.0 — met.
 
 ```
    ncalls  tottime  percall  cumtime  percall filename:lineno(function)
-        1    0.412    0.412    1.228    1.228 fly_ftl_extract\brain\lif.py:363(_run)
-     1082    0.212    0.000    0.668    0.001 fly_ftl_extract\brain\lif.py:453(_deliver)
+        1    0.463    0.463    1.270    1.270 fly_ftl_extract\brain\lif.py:363(_run)
+     1082    0.213    0.000    0.662    0.001 fly_ftl_extract\brain\lif.py:453(_deliver)
      1082    0.172    0.000    0.172    0.000 {built-in method scipy.sparse._sparsetools.csr_matmat}
-     2100    0.098    0.000    0.098    0.000 {method 'nonzero' of 'numpy.ndarray' objects}
+     2100    0.096    0.000    0.096    0.000 {method 'nonzero' of 'numpy.ndarray' objects}
      1082    0.082    0.000    0.082    0.000 {built-in method scipy.sparse._sparsetools.csr_matmat_maxnnz}
      1000    0.041    0.000    0.041    0.000 fly_ftl_extract\brain\lif.py:267(draw)
-     6492    0.027    0.000    0.039    0.000 site-packages\scipy\sparse\_sputils.py:263(get_index_dtype)
-     1082    0.016    0.000    0.016    0.000 {built-in method scipy.sparse._sparsetools.expandptr}
-     4332    0.010    0.000    0.010    0.000 {method 'reduce' of 'numpy.ufunc' objects}
-     3246    0.009    0.000    0.066    0.000 site-packages\scipy\sparse\_compressed.py:30(__init__)
-     1082    0.007    0.000    0.007    0.000 {method 'argsort' of 'numpy.ndarray' objects}
-     1082    0.007    0.000    0.318    0.000 site-packages\scipy\sparse\_compressed.py:415(_matmul_sparse)
-     6492    0.007    0.000    0.049    0.000 site-packages\scipy\sparse\_base.py:1695(_get_index_dtype)
-     3246    0.007    0.000    0.015    0.000 site-packages\scipy\sparse\_compressed.py:1132(prune)
+     6492    0.024    0.000    0.035    0.000 site-packages\scipy\sparse\_sputils.py:263(get_index_dtype)
+     1082    0.015    0.000    0.015    0.000 {built-in method scipy.sparse._sparsetools.expandptr}
+     4332    0.011    0.000    0.011    0.000 {method 'reduce' of 'numpy.ufunc' objects}
+     1082    0.009    0.000    0.009    0.000 {method 'argsort' of 'numpy.ndarray' objects}
+     3246    0.008    0.000    0.061    0.000 site-packages\scipy\sparse\_compressed.py:30(__init__)
+     1082    0.007    0.000    0.313    0.000 site-packages\scipy\sparse\_compressed.py:415(_matmul_sparse)
+     6492    0.006    0.000    0.044    0.000 site-packages\scipy\sparse\_base.py:1695(_get_index_dtype)
+     3246    0.006    0.000    0.013    0.000 site-packages\scipy\sparse\_compressed.py:1132(prune)
 ```
 <!-- bench:end -->
 
 <!-- bench_sequence:start -->
 ## 3a. Speed: temporal coding (`Brain.simulate_sequence`)
 
-A trial = 10 puffs × 40 ms + 10 ms of silence = 4100 steps of 0.1 ms; syn_scale 5.0, apl_scale 0.5. Odours — real candidate sequences from the fixtures, repeated up to the needed count. The 200 trials/s per process threshold was lifted by the reviewer's decision after Phase 5; the budget is ≤ 2 h of brain per full `scripts/train.py` run.
+A trial = 14 puffs × 40 ms + 10 ms of silence = 5700 steps of 0.1 ms; syn_scale 5.0, apl_scale 0.5. Odours — real candidate sequences from the fixtures, repeated up to the needed count. The 200 trials/s per process threshold was lifted by the reviewer's decision after Phase 5; the budget is ≤ 2 h of brain per full `scripts/train.py` run.
 
 ### One process
 
 | batch | s per batch | trials/s | ms per step |
 |---:|---:|---:|---:|
-| 64 | 0.772 | 82.9 | 0.188 |
-| 128 | 1.200 | 106.7 | 0.293 |
-| 256 | 2.048 | 125.0 | 0.500 |
+| 64 | 0.980 | 65.3 | 0.172 |
+| 128 | 1.524 | 84.0 | 0.267 |
+| 256 | 2.516 | 101.7 | 0.441 |
 
 ### Several processes (`scripts/train.py::simulate_all`, chunk = 8 batches, one seed)
 
@@ -243,33 +247,33 @@ A trial = 10 puffs × 40 ms + 10 ms of silence = 4100 steps of 0.1 ms; syn_scale
 
 | processes | batch | s | trials/s |
 |---:|---:|---:|---:|
-| 16 | 64 **←** | 12.1 | 676 |
-| 16 | 128 | 28.0 | 292 |
-| 16 | 256 | 36.8 | 223 |
-| 30 | 64 | 12.6 | 650 |
-| 30 | 128 | 34.1 | 241 |
-| 30 | 256 | 41.7 | 197 |
+| 16 | 64 **←** | 12.0 | 685 |
+| 16 | 128 | 21.0 | 390 |
+| 16 | 256 | 43.2 | 190 |
+| 30 | 64 | 12.1 | 677 |
+| 30 | 128 | 20.9 | 392 |
+| 30 | 256 | 42.6 | 193 |
 
-Best: 16 processes × batch 64 = 676 trials/s. `cached_states` end to end (16384 trials, simulation + `savez_compressed`): 33 s = 496 trials/s; uint8 states 0.43 GB → 44 MB on disk.
+Best: 16 processes × batch 64 = 685 trials/s. `cached_states` end to end (16384 trials, simulation + `savez_compressed`): 37 s = 445 trials/s; uint8 states 0.60 GB → 52 MB on disk.
 
 ### Profile (cProfile, `simulate_sequence`, batch 128, sorted by tottime)
 
 ```
    ncalls  tottime  percall  cumtime  percall filename:lineno(function)
-        1    0.444    0.444    1.606    1.606 fly_ftl_extract\brain\lif.py:363(_run)
-     4082    0.199    0.000    0.939    0.000 fly_ftl_extract\brain\lif.py:453(_deliver)
-     8100    0.110    0.000    0.110    0.000 {method 'nonzero' of 'numpy.ndarray' objects}
-     4082    0.104    0.000    0.104    0.000 {built-in method scipy.sparse._sparsetools.csr_matmat}
-    24492    0.092    0.000    0.131    0.000 site-packages\scipy\sparse\_sputils.py:263(get_index_dtype)
-     4000    0.081    0.000    0.081    0.000 fly_ftl_extract\brain\lif.py:334(draw)
-     4082    0.031    0.000    0.031    0.000 {built-in method scipy.sparse._sparsetools.csr_matmat_maxnnz}
-    12246    0.030    0.000    0.227    0.000 site-packages\scipy\sparse\_compressed.py:30(__init__)
-    12246    0.023    0.000    0.052    0.000 site-packages\scipy\sparse\_compressed.py:1132(prune)
-    24492    0.022    0.000    0.165    0.000 site-packages\scipy\sparse\_base.py:1695(_get_index_dtype)
-     4082    0.022    0.000    0.356    0.000 site-packages\scipy\sparse\_compressed.py:415(_matmul_sparse)
-    12246    0.022    0.000    0.037    0.000 site-packages\scipy\sparse\_sputils.py:443(check_shape)
-    12246    0.021    0.000    0.081    0.000 site-packages\scipy\sparse\_compressed.py:166(check_format)
-    48984    0.020    0.000    0.020    0.000 site-packages\numpy\_core\getlimits.py:399(__init__)
+        1    0.608    0.608    2.086    2.086 fly_ftl_extract\brain\lif.py:363(_run)
+     5661    0.238    0.000    1.192    0.000 fly_ftl_extract\brain\lif.py:453(_deliver)
+    11300    0.139    0.000    0.139    0.000 {method 'nonzero' of 'numpy.ndarray' objects}
+     5654    0.124    0.000    0.124    0.000 {built-in method scipy.sparse._sparsetools.csr_matmat}
+    33959    0.118    0.000    0.171    0.000 site-packages\scipy\sparse\_sputils.py:263(get_index_dtype)
+     5600    0.106    0.000    0.106    0.000 fly_ftl_extract\brain\lif.py:334(draw)
+    16983    0.040    0.000    0.296    0.000 site-packages\scipy\sparse\_compressed.py:30(__init__)
+     5661    0.037    0.000    0.037    0.000 {built-in method scipy.sparse._sparsetools.csr_matmat_maxnnz}
+    16983    0.031    0.000    0.069    0.000 site-packages\scipy\sparse\_compressed.py:1132(prune)
+     5661    0.030    0.000    0.452    0.000 site-packages\scipy\sparse\_compressed.py:415(_matmul_sparse)
+    33959    0.029    0.000    0.214    0.000 site-packages\scipy\sparse\_base.py:1695(_get_index_dtype)
+    16983    0.029    0.000    0.049    0.000 site-packages\scipy\sparse\_sputils.py:443(check_shape)
+    16983    0.027    0.000    0.107    0.000 site-packages\scipy\sparse\_compressed.py:166(check_format)
+    67918    0.027    0.000    0.027    0.000 site-packages\numpy\_core\getlimits.py:399(__init__)
 ```
 
 Reading the profile: the ufunc calls (multiply/add/compare on (n_trials, n_int) arrays) are not shown separately by cProfile — they are part of the tottime of `_run`; `_deliver` is building the CSR spike matrix and `csr_matmat`; Poisson generation per puff (`Generator.random`) is a small share. The bottleneck is the per-step Python overhead, so steps ×2 ≈ time ×2.

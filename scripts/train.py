@@ -70,7 +70,8 @@ PROXY_V1_JSON = REPO / "docs" / "encoder_proxy_v1.json"
 CALIBRATION_JSON = REPO / "docs" / "calibration.json"
 BENCH_JSON = REPO / "docs" / "bench_sequence.json"
 LEVERS_JSON = REPO / "docs" / "lever_harness.json"
-TWINS_JSON = REPO / "docs" / "twin_diagnostics.json"
+TWINS_JSON = REPO / "docs" / "twin_diagnostics_fly-odor-5.json"
+TWINS_NOW_JSON = REPO / "docs" / f"twin_diagnostics_{ENCODER_VERSION}.json"
 TRAIN_SEEDS = (101, 102, 103, 104, 105, 106)  # sniffs of every training odour
 DEFAULT_TRAIN_SEEDS = 3
 MAX_RESNIFF = 5
@@ -979,6 +980,33 @@ def twin_section() -> list[str]:
             f"{br['same_odour_two_seeds_trial_jaccard']:.3f} per trial; the fly's θ for keys is {br['theta_key']:.2f}."
         ),
     ]
+    if TWINS_NOW_JSON.exists() and TWINS_NOW_JSON != TWINS_JSON:
+        n = json.loads(TWINS_NOW_JSON.read_text(encoding="utf-8"))
+        npr, nod, nbr = n["proxy"], n["odour"], n["brain"]
+        root = nod["focus_slot"]
+        lines += [
+            "",
+            f"### 3. The same twins after retraining (`{n['encoder_version']}`)",
+            "",
+            (
+                f"Proxy {npr['variant']}: {npr['margin_original']:+.3f} / {npr['margin_twin']:+.3f}. "
+                f"PN buckets that differ, by slot (slot {root} is the root of the focus): "
+                f"{nod['differing_buckets_per_slot']}."
+            ),
+            "",
+            "| trial | Jaccard of KCs in the root puff | Jaccard of KCs over the whole trial | fly margin: original | twin |",
+            "|---:|---:|---:|---:|---:|",
+        ]
+        lines.extend(
+            f"| {r['sniff']} | {r['jaccard_focus_puff']:.3f} | {r['jaccard_trial']:.3f} "
+            f"| {r['margin_original']:+.2f} | {r['margin_twin']:+.2f} |"
+            for r in nbr["per_seed"]
+        )
+        lines.append("")
+        lines.append(
+            f"Jaccard per puff (trial 0): "
+            f"{[round(x, 2) for x in nbr['per_seed'][0]['jaccard_per_puff']]}; θ keys {nbr['theta_key']:.2f}."
+        )
     return lines
 
 

@@ -15,7 +15,8 @@ teacher says *not a key*); its twin is the same file with line 6 replaced by
    in one puff, focus-puff Jaccard > 0.85, nearly equal margins — the KC code does not
    see ``<IGNORE>`` inside the focus.
 
-Results → ``docs/twin_diagnostics.json`` (rendered as METRICS.md §2b).
+Results → ``docs/twin_diagnostics_<encoder>.json`` (rendered as METRICS.md §2b: the
+fly-odor-5 file is the evidence for the fly-odor-6 decision, later files show the retrained fly).
 """
 
 from __future__ import annotations
@@ -42,7 +43,7 @@ from encoder_proxy import VARIANTS, encode_rows, load_corpus, probe
 from make_dataset import DEFAULT_SEED, DEFAULT_SNIPPETS
 
 REPO = Path(__file__).resolve().parent.parent
-OUT_JSON = REPO / "docs" / "twin_diagnostics.json"
+OUT_JSON = REPO / "docs" / f"twin_diagnostics_{ENCODER_VERSION}.json"
 FIXTURE, FILE, LINE = "ignore_attrs", "main.py", 6
 TWIN_LINE = "    i18n.nested.internal()"
 EXTRA_SNIFFS = 2

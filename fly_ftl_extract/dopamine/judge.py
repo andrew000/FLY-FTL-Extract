@@ -14,12 +14,15 @@ computed from Kenyon-cell spikes.
 
 Cost model: one ``simulate_sequence`` call costs ~1 s for 5700 steps whatever the batch
 (up to ~256 trials), so the judge gathers the windows of *many files* into four rounds —
-keys, key resniffs, kwargs, kwarg resniffs — instead of four rounds per file.
+keys, key resniffs, kwargs, kwarg resniffs — instead of four rounds per file.  A
+``trial_observer`` (the TUI) hears about every brain batch as soon as it is done.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import Literal
 
 import numpy as np
 
@@ -40,6 +43,8 @@ processes memory bandwidth limits and 64 wins — ``cli/extract.py`` picks per m
 
 FileInput = tuple[list[Candidate], bytes]
 """What the judge needs of one file: its candidates and its raw bytes (seed material)."""
+
+TrialKind = Literal["key", "kwarg"]
 
 
 @dataclass(frozen=True)
@@ -72,6 +77,40 @@ class Verdict:
 
 
 @dataclass(frozen=True)
+class TrialRef:
+    """Which window a trial belongs to: file (index into the judged list), candidate, kwarg."""
+
+    file: int
+    candidate: int
+    kwarg: int | None = None
+
+
+@dataclass(frozen=True)
+class Trial:
+    """One brain trial as the observer sees it."""
+
+    ref: TrialRef
+    sniff: int
+    """0 = first sniff, ``base_trials`` and above = resniffs."""
+    margin: float
+    """This trial's own margin (not the sum)."""
+    stats: Verdict
+    """Activity of this trial (``margin``/``sniffs``/``is_positive`` refer to it alone)."""
+
+
+@dataclass(frozen=True)
+class BatchEvent:
+    """One ``simulate_sequence`` call has finished."""
+
+    kind: TrialKind
+    trials: tuple[Trial, ...]
+    theta: float
+
+
+TrialObserver = Callable[[BatchEvent], None]
+
+
+@dataclass(frozen=True)
 class JudgedKey:
     """A candidate the fly called a key, with its placeable keyword arguments."""
 
@@ -83,10 +122,14 @@ class JudgedKey:
 
     @property
     def call_position(self) -> tuple[int, int]:
-        """``(line, column)`` of the call, as the original reports it."""
+        """``(line, column)`` of the call, as the original reports it.
+
+        A string literal that is no call argument (``["k", …]``) can still be *called* a
+        key by the fly — that is a fly error, not a crash: it is reported at the literal's
+        own position, where ``--fly-audit`` shows it as invented.
+        """
         pos = self.candidate.call_position
-        assert pos is not None  # noqa: S101 — a key always belongs to a call
-        return pos
+        return pos if pos is not None else self.candidate.position
 
     @property
     def path_value(self) -> str | None:
@@ -132,6 +175,9 @@ class Judge:
             (their margins are summed; θ is compared with the sum).
         seed_salt: ``--fly-seed`` — mixed into every trial seed (0 = production seeds).
         batch: trials per brain call.
+
+    ``trial_observer`` (settable) is called with a :class:`BatchEvent` after every brain
+    call; the TUI uses it to show trials as they happen.
     """
 
     def __init__(
@@ -164,6 +210,7 @@ class Judge:
         self.base_trials = base_trials
         self.seed_salt = seed_salt
         self.batch = batch
+        self.trial_observer: TrialObserver | None = None
         self.n_kc = self.brain.n_kc
         expected = N_SLOTS * self.n_kc
         for name, readout in (("key", self.weights.key), ("kwarg", self.weights.kwarg)):
@@ -177,13 +224,21 @@ class Judge:
     # ------------------------------------------------------------------------ sniffing
 
     def sniff(
-        self, windows: list[Window], seeds: np.ndarray, readout: Readout, theta: float
+        self,
+        windows: list[Window],
+        seeds: np.ndarray,
+        readout: Readout,
+        theta: float,
+        *,
+        refs: list[TrialRef] | None = None,
+        kind: TrialKind = "key",
     ) -> list[Verdict]:
         """Judge windows: ``base_trials`` each, then ``max_resniff`` more where ``|Σ| < θ``.
 
         Two rounds of brain calls: all base trials, then all extra trials of the unsure
         windows.  Every trial has its own seed, so how trials are grouped into batches
-        does not change a single spike.
+        does not change a single spike.  ``refs`` (one per window) let the
+        ``trial_observer`` attribute each trial to its candidate.
         """
         if not windows:
             return []
@@ -192,25 +247,17 @@ class Judge:
         base = self.base_trials
         margins = np.zeros((n, base + self.max_resniff), dtype=np.float32)
         first: list[Verdict | None] = [None] * n
+        round_args = (odors, seeds, readout, margins, refs, kind, theta)
         self._run_trials(
-            odors,
-            seeds,
-            np.repeat(np.arange(n), base),
-            np.tile(np.arange(base), n),
-            readout,
-            margins,
-            first,
+            np.repeat(np.arange(n), base), np.tile(np.arange(base), n), first, *round_args
         )
         unsure = np.flatnonzero(np.abs(margins[:, :base].sum(axis=1)) < theta)
         if len(unsure) and self.max_resniff:
             self._run_trials(
-                odors,
-                seeds,
                 np.repeat(unsure, self.max_resniff),
                 np.tile(np.arange(base, base + self.max_resniff), len(unsure)),
-                readout,
-                margins,
                 None,
+                *round_args,
             )
         sniffs = np.full(n, base, dtype=np.int32)
         sniffs[unsure] = base + self.max_resniff
@@ -235,28 +282,48 @@ class Judge:
 
     def _run_trials(  # noqa: PLR0917
         self,
-        odors: np.ndarray,
-        seeds: np.ndarray,
         idx: np.ndarray,
         ks: np.ndarray,
+        first: list[Verdict | None] | None,
+        odors: np.ndarray,
+        seeds: np.ndarray,
         readout: Readout,
         margins: np.ndarray,
-        first: list[Verdict | None] | None,
+        refs: list[TrialRef] | None,
+        kind: TrialKind,
+        theta: float,
     ) -> None:
         """Trial ``(idx[j], ks[j])`` = window ``idx[j]``, sniff ``ks[j]``; batched brain calls."""
         trial_seeds = np.array(
             [sniff_seed(int(seeds[i]), int(k)) for i, k in zip(idx, ks, strict=True)],
             dtype=np.uint64,
         )
+        observe = self.trial_observer if refs is not None else None
         for start in range(0, len(idx), self.batch):
             sl = slice(start, start + self.batch)
             res = self.brain.simulate_sequence(odors[idx[sl]], trial_seeds[sl])
-            margins[idx[sl], ks[sl]] = readout.margin(res.kc_counts)
+            batch_margins = readout.margin(res.kc_counts)
+            margins[idx[sl], ks[sl]] = batch_margins
+            if first is None and observe is None:
+                continue
+            stats = self._first_sniff_stats(res)
             if first is not None:
-                stats = self._first_sniff_stats(res)
                 for j, (i, k) in enumerate(zip(idx[sl], ks[sl], strict=True)):
                     if k == 0:
                         first[int(i)] = stats[j]
+            if observe is not None and refs is not None:
+                observe(
+                    BatchEvent(
+                        kind,
+                        tuple(
+                            Trial(refs[int(i)], int(k), float(m), stats[j])
+                            for j, (i, k, m) in enumerate(
+                                zip(idx[sl], ks[sl], batch_margins, strict=True)
+                            )
+                        ),
+                        theta,
+                    )
+                )
 
     @staticmethod
     def _first_sniff_stats(res: SequenceResult) -> list[Verdict]:
@@ -298,45 +365,57 @@ class Judge:
         """Judge several files in four brain rounds (keys, resniffs, kwargs, resniffs)."""
         judged = [JudgedFile(candidates, [None] * len(candidates)) for candidates, _ in files]
         refs = [
-            (f, i)
+            TrialRef(f, i)
             for f, (candidates, _) in enumerate(files)
             for i, c in enumerate(candidates)
             if c.key_name is not None
         ]
-        seeds = np.array([self._seed(files[f][1], i) for f, i in refs], dtype=np.uint64)
+        seeds = np.array([self._seed(files[r.file][1], r.candidate) for r in refs], dtype=np.uint64)
         verdicts = self.sniff(
-            [files[f][0][i].window for f, i in refs],
+            [files[r.file][0][r.candidate].window for r in refs],
             seeds,
             self.weights.key,
             self.weights.theta_key,
+            refs=refs,
+            kind="key",
         )
-        for (f, i), verdict in zip(refs, verdicts, strict=True):
-            judged[f].verdicts[i] = verdict
-        positives = [(f, i) for (f, i), v in zip(refs, verdicts, strict=True) if v.is_positive]
+        for r, verdict in zip(refs, verdicts, strict=True):
+            judged[r.file].verdicts[r.candidate] = verdict
+        positives = [r for r, v in zip(refs, verdicts, strict=True) if v.is_positive]
         # keyword arguments of the keys, judged in one round
-        kwarg_refs = [(f, i, k) for f, i in positives for k in range(len(files[f][0][i].kwargs))]
+        kwarg_refs = [
+            TrialRef(r.file, r.candidate, k)
+            for r in positives
+            for k in range(len(files[r.file][0][r.candidate].kwargs))
+        ]
         kwarg_seeds = np.array(
-            [self._seed(files[f][1], kwarg_trial_index(i, k)) for f, i, k in kwarg_refs],
+            [
+                self._seed(files[r.file][1], kwarg_trial_index(r.candidate, r.kwarg or 0))
+                for r in kwarg_refs
+            ],
             dtype=np.uint64,
         )
         kwarg_verdicts = self.sniff(
-            [files[f][0][i].kwargs[k].window for f, i, k in kwarg_refs],
+            [files[r.file][0][r.candidate].kwargs[r.kwarg or 0].window for r in kwarg_refs],
             kwarg_seeds,
             self.weights.kwarg,
             self.weights.theta_kwarg,
+            refs=kwarg_refs,
+            kind="kwarg",
         )
         by_candidate: dict[tuple[int, int], list[tuple[Kwarg, Verdict]]] = {
-            ref: [] for ref in positives
+            (r.file, r.candidate): [] for r in positives
         }
-        for (f, i, k), v in zip(kwarg_refs, kwarg_verdicts, strict=True):
-            by_candidate[(f, i)].append((files[f][0][i].kwargs[k], v))
-        for f, i in positives:
-            c = files[f][0][i]
+        for r, v in zip(kwarg_refs, kwarg_verdicts, strict=True):
+            kwarg = files[r.file][0][r.candidate].kwargs[r.kwarg or 0]
+            by_candidate[(r.file, r.candidate)].append((kwarg, v))
+        for r in positives:
+            c = files[r.file][0][r.candidate]
             assert c.key_name is not None  # noqa: S101 — nameable by construction
-            key_verdict = judged[f].verdicts[i]
+            key_verdict = judged[r.file].verdicts[r.candidate]
             assert key_verdict is not None  # noqa: S101 — positives were judged
-            pairs = tuple(by_candidate[(f, i)])
-            judged[f].keys.append(
+            pairs = tuple(by_candidate[(r.file, r.candidate)])
+            judged[r.file].keys.append(
                 JudgedKey(
                     candidate=c,
                     key_name=c.key_name,

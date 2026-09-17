@@ -242,14 +242,15 @@ lines of ours at all. After `✅ Done`:
 [INFO  fly]   - Neurons online: 2935 (PN 124, KC 2597, APL 1, MBON 48, DAN 165)
 [INFO  fly]   - Encoder fly-odor-6, brain cd3a9c7616718a25, puffs/trial 14
 [INFO  fly]   - Files sniffed: 4 (from cache: 0, without i18n names: 2, walked: 6)
-[INFO  fly]   - Candidates: 98 (keys: 29)
+[INFO  fly]   - Candidates: 98 (key occurrences: 29, merged keys: 22)
 [INFO  fly]   - Trials: 150 (resniffs: 60, base trials per window: 1, θ 5.59 / 4.51)
 [INFO  fly]   - Trials/s: 53.2 (1 process, batch 256)
 [INFO  fly]   - Brain wall time: 2.818s
 ```
 
 `Files sniffed` counts the files that reached the fly (an i18n name is present, UTF-8,
-parses); `Candidates` — all tokenizer candidates, `keys` — positive occurrences before merging;
+parses); `Candidates` — all tokenizer candidates, `key occurrences` — positive occurrences
+before merging, `merged keys` — after merging by name (= the original's `FTL keys in code`);
 `Trials` — brain trials in this run (from the cache — 0). `--fly-audit` adds
 `[WARN  fly::audit] …` for every difference from `reference/` and the summary
 `[INFO  fly::audit] Audit: 0 differences …` / `[ERROR fly::audit] Audit: N differences …`

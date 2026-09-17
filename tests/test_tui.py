@@ -112,6 +112,43 @@ def test_render_shows_real_numbers(judged_state: TuiState, width: int, height: i
     assert all(len(line) <= width for line in text.splitlines())
 
 
+def test_batches_stream_into_the_tui_without_duplicates(
+    judge: Judge, judged_file: tuple[FileJob, JudgedFile]
+) -> None:
+    """With a trial observer every brain batch lands in the log; on_judged adds only
+    RESNIFF summaries afterwards (no second ODOR/MBON line per window)."""
+    job, expected = judged_file
+    tui = FlyTui(
+        TuiState.from_judge(judge, "ftl extract app locales"), console=Console(file=io.StringIO())
+    )
+    assert tui.live
+    events = []
+    judge.batch = 16
+    judge.trial_observer = lambda event: (
+        events.append(event),
+        tui.on_batch([job], event, _stats(job, expected)),
+    )
+    try:
+        judged = judge.judge_candidates(job.candidates, job.content)
+    finally:
+        judge.trial_observer = None
+        judge.batch = 256
+    assert events, "no batch events"
+    assert all(len(e.trials) <= 16 for e in events)
+    assert sum(len(e.trials) for e in events) == judged.trials == expected.trials
+    assert [v.margin for v in judged.all_verdicts()] == [v.margin for v in expected.all_verdicts()]
+    kinds = [e.kind for e in events]
+    assert kinds.index("kwarg") > kinds.index("key")
+    tui.on_judged(job, judged, _stats(job, judged))
+    log = list(tui.state.events)
+    odor_lines = [e for e in log if e.kind == "ODOR"]
+    assert len(odor_lines) == sum(v is not None for v in judged.verdicts)
+    resniffed = sum(v.sniffs > 1 for v in judged.all_verdicts())
+    assert sum(e.kind == "RESNIFF" for e in log) == resniffed
+    assert len(tui.state.raster) == min(64, judged.trials)
+    assert tui.state.trials == judged.trials
+
+
 def test_live_driver_starts_updates_and_stops(
     judge: Judge, judged_file: tuple[FileJob, JudgedFile]
 ) -> None:

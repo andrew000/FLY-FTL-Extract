@@ -34,7 +34,7 @@ import sys
 import threading
 import time
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 from rich.console import Console, ConsoleOptions, RenderableType, RenderResult
@@ -45,7 +45,7 @@ from rich.text import Text
 
 from fly_ftl_extract.cli.extract import FlyStats
 from fly_ftl_extract.cli.workers import FileJob
-from fly_ftl_extract.dopamine.judge import Judge, JudgedFile, Verdict
+from fly_ftl_extract.dopamine.judge import BatchEvent, Judge, JudgedFile, Verdict
 from fly_ftl_extract.dopamine.seed import trial_seed
 from fly_ftl_extract.ftl.model import ExtractOptions
 from fly_ftl_extract.odor.encoder import ENCODER_VERSION, N_SLOTS
@@ -93,6 +93,8 @@ class TuiState:
     theta_kwarg: float
     apl_max_spikes: float
     """Spikes the APL could fire in one trial at its refractory limit (bar scale)."""
+    base_trials: int = 1
+    """Sniffs every window gets before the resniff rule (``--fly-trials``)."""
     started: float = field(default_factory=time.perf_counter)
     files_total: int = 0
     files_done: int = 0
@@ -141,6 +143,7 @@ class TuiState:
             theta_key=judge.weights.theta_key,
             theta_kwarg=judge.weights.theta_kwarg,
             apl_max_spikes=p.sequence_steps(N_SLOTS) * p.dt / p.t_refractory,
+            base_trials=judge.base_trials,
         )
 
 
@@ -282,12 +285,12 @@ def _footer(state: TuiState, width: int) -> Text:
     if width >= NARROW:
         text.append(
             f" {state.command} · files {state.files_done}/{state.files_total} · candidates "
-            f"{state.candidates} · keys {state.keys} · trials {state.trials} "
+            f"{state.candidates} · key hits {state.keys} · trials {state.trials} "
             f"(resniffs {state.resniffs}) · {rate:.0f} trials/s"
         )
     else:
         text.append(
-            f" files {state.files_done}/{state.files_total} · keys {state.keys} · "
+            f" files {state.files_done}/{state.files_total} · key hits {state.keys} · "
             f"trials {state.trials} · {rate:.0f} trials/s"
         )
     if state.finished:
@@ -345,11 +348,16 @@ def describe_key(judged: JudgedFile, index: int) -> str:
 class FlyTui:
     """``Live`` driver: implements the extractor's ``Observer`` protocol."""
 
+    live = True
+    """Asks the extractor for every brain batch (``Observer.live``)."""
+
     def __init__(self, state: TuiState, console: Console | None = None) -> None:
         self.state = state
         self.console = console if console is not None else Console(file=sys.stdout)
         self._lock = threading.Lock()
         self._live: Live | None = None
+        self._streamed: set[int] = set()
+        """Walker indices of files whose trials arrived through ``on_batch``."""
         self.frames: list[str] = []
         """Text of every frame drawn on an event (for recordings; empty when live)."""
         self.record_frames = False
@@ -401,8 +409,79 @@ class FlyTui:
                 f"{stats.files_prefiltered} without i18n names, {stats.files_cached} cached",
             )
 
+    def _odor_line(self, job: FileJob, index: int) -> None:
+        candidate = job.candidates[index]
+        seed = trial_seed(job.content, index, ENCODER_VERSION)
+        window = len(candidate.window.tokens())
+        self.state.log(
+            "ODOR",
+            f"{job.path}:{candidate.line}:{candidate.column}  0x{seed >> 40:06x}  "
+            f"window {window} tok  {candidate.kind} {candidate.text}",
+        )
+
+    def on_batch(self, jobs: list[FileJob], event: BatchEvent, stats: FlyStats) -> None:
+        """One brain call is done: raster rows and, for first sniffs, ODOR + MBON lines.
+
+        ``unsure`` marks ``|margin| < θ``: a resniff follows and ``on_judged`` closes it.
+        """
+        del stats
+        with self._lock:
+            s = self.state
+            for trial in event.trials:
+                job = jobs[trial.ref.file]
+                self._streamed.add(job.index)
+                candidate = job.candidates[trial.ref.candidate]
+                s.trials += 1
+                if trial.sniff >= s.base_trials:
+                    s.resniffs += 1
+                if trial.sniff == 0:
+                    sure = abs(trial.margin) >= event.theta
+                    if trial.ref.kwarg is None:
+                        self._odor_line(job, trial.ref.candidate)
+                        if not sure:
+                            answer, style = (
+                                f"→ unsure (|m| < θ {event.theta:.2f}), resniff",
+                                "yellow",
+                            )
+                        elif trial.margin > 0:
+                            answer, style = f"→ KEY  {candidate.key_name}", "bold green"
+                        else:
+                            answer, style = f"→ NOT A KEY  ({candidate.text})", "magenta"
+                        s.log("MBON", f"margin {trial.margin:+.2f} {answer}", style)
+                    else:
+                        kwarg = candidate.kwargs[trial.ref.kwarg]
+                        if not sure:
+                            answer, style = (
+                                f"→ unsure (|m| < θ {event.theta:.2f}), resniff",
+                                "yellow",
+                            )
+                        elif trial.margin > 0:
+                            answer, style = "→ placeable", "green"
+                        else:
+                            answer, style = "→ ignored", "dim"
+                        s.log(
+                            "MBON",
+                            f"kwarg {kwarg.name}= of {candidate.key_name}: "
+                            f"margin {trial.margin:+.2f} {answer}",
+                            style,
+                        )
+                s.raster.append(trial.stats.kc_bits(s.n_kc))
+                s.last = replace(
+                    trial.stats,
+                    is_positive=trial.margin > 0,
+                    margin=trial.margin,
+                    sniffs=trial.sniff + 1,
+                )
+        if self.record_frames:
+            self.frames.append(self.snapshot())
+
     def on_judged(self, job: FileJob, judged: JudgedFile, stats: FlyStats) -> None:
-        """One file has its verdicts: raster rows, drive, event lines."""
+        """One file has its verdicts.
+
+        After streamed batches only the resniffed windows get a closing ``RESNIFF`` line
+        (summed margin → verdict); without streaming (process pool) every window is logged
+        here, as the batches were never seen.
+        """
         with self._lock:
             s = self.state
             s.files_done += 1
@@ -410,35 +489,44 @@ class FlyTui:
             s.keys = stats.keys
             s.trials = stats.trials
             s.resniffs = stats.resniffs
+            streamed = job.index in self._streamed
             for i, (candidate, verdict) in enumerate(
                 zip(judged.candidates, judged.verdicts, strict=True)
             ):
                 if verdict is None:
                     continue
-                seed = trial_seed(job.content, i, ENCODER_VERSION)
-                window = len(candidate.window.tokens())
-                s.log(
-                    "ODOR",
-                    f"{job.path}:{candidate.line}:{candidate.column}  0x{seed >> 40:06x}  "
-                    f"window {window} tok  {candidate.kind} {candidate.text}",
-                )
-                if verdict.sniffs > 1:
-                    s.log("RESNIFF", f"×{verdict.sniffs}  |margin| < θ {s.theta_key:.2f}", "yellow")
                 answer = (
                     f"→ KEY  {describe_key(judged, i)}"
                     if verdict.is_positive
                     else f"→ NOT A KEY  ({candidate.text})"
                 )
-                s.log(
-                    "MBON",
-                    f"margin {verdict.margin:+.2f} {answer}",
-                    "bold green" if verdict.is_positive else "magenta",
-                )
+                style = "bold green" if verdict.is_positive else "magenta"
+                if streamed:
+                    if verdict.sniffs > s.base_trials:
+                        s.log(
+                            "RESNIFF",
+                            f"×{verdict.sniffs}  Σ margin {verdict.margin:+.2f} {answer}",
+                            style,
+                        )
+                    continue
+                self._odor_line(job, i)
+                if verdict.sniffs > s.base_trials:
+                    s.log("RESNIFF", f"×{verdict.sniffs}  |margin| < θ {s.theta_key:.2f}", "yellow")
+                s.log("MBON", f"margin {verdict.margin:+.2f} {answer}", style)
                 s.raster.append(verdict.kc_bits(s.n_kc))
                 s.last = verdict
             for key in judged.keys:
                 for kwarg, kv in key.kwarg_verdicts:
                     answer = "placeable" if kv.is_positive else "ignored"
+                    if streamed:
+                        if kv.sniffs > s.base_trials:
+                            s.log(
+                                "RESNIFF",
+                                f"×{kv.sniffs}  kwarg {kwarg.name}= of {key.key_name}: "
+                                f"Σ margin {kv.margin:+.2f} → {answer}",
+                                "green" if kv.is_positive else "dim",
+                            )
+                        continue
                     s.log(
                         "MBON",
                         f"kwarg {kwarg.name}= of {key.key_name}: margin {kv.margin:+.2f} "

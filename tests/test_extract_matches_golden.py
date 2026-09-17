@@ -132,6 +132,20 @@ def test_two_runs_are_identical_tree_and_margins(tmp_path: Path) -> None:
     assert results[0] == results[1]
 
 
+def test_batch_16_equals_batch_256(tmp_path: Path) -> None:
+    """The TUI batch (16 trials per brain call) changes no spike: same tree, same margins."""
+    results = []
+    for batch in ("16", "256"):
+        work = _copy("basic", f"batch{batch}", tmp_path)
+        exit_code, _, stderr = run_cli(work, _basic_argv(), "-v", "--fly-batch", batch)
+        assert exit_code == 0, stderr
+        assert f"batch {batch})" in stderr
+        margins = [line for line in stderr.split("\n") if MARGIN_LINE.match(line)]
+        assert len(margins) > 20
+        results.append((_tree_files(work), margins))
+    assert results[0] == results[1]
+
+
 _POOL_PROBE = """
 import sys
 from fly_ftl_extract.cli.config import ExtractOverrides

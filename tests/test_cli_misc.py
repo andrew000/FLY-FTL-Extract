@@ -75,6 +75,25 @@ def test_version_and_missing_paths(tmp_path: Path) -> None:
     )
 
 
+def test_deprecated_comment_junks_key_warns_like_the_original(tmp_path: Path) -> None:
+    """Seen on a real project: 0.12.1 prints this WARN before ``Code path`` and goes on."""
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.ftl-extract.extract]\ncode-path = "app"\nlocales-path = "locales"\n'
+        "comment-junks = true\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "app").mkdir()
+    code, out, err = run_ftl("extract", "--fly-no-tui", cwd=tmp_path)
+    assert code == 0
+    assert out == b""
+    lines = err.decode("utf-8").splitlines()
+    assert lines[0] == (
+        "[WARN  cli] comment-junks has no effect and will be removed in 0.13: syntax errors "
+        "in .ftl files abort the run"
+    )
+    assert lines[1].startswith("[INFO  cli] Code path: ")
+
+
 def test_nonexistent_code_path_is_an_empty_run(tmp_path: Path) -> None:
     """Like the original: no files, statistics of zeros, exit 0."""
     code, out, err = run_ftl("extract", "nonexistent", "locales", "--fly-no-tui", cwd=tmp_path)

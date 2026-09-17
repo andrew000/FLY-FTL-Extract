@@ -28,11 +28,12 @@ from fly_ftl_extract.cli.cache import ExtractCache
 from fly_ftl_extract.cli.config import (
     ConfigError,
     ExtractOverrides,
+    LoadedConfig,
     load_pyproject,
     resolve_options,
 )
 from fly_ftl_extract.cli.workers import FileJob, chunk_jobs, init_worker, judge_chunk
-from fly_ftl_extract.dopamine.judge import BATCH, Judge, JudgedFile
+from fly_ftl_extract.dopamine.judge import BATCH, BatchEvent, Judge, JudgedFile
 from fly_ftl_extract.dopamine.weights import WeightsMismatchError, WeightsMissingError
 from fly_ftl_extract.files import find_py_files, mentions_any_name
 from fly_ftl_extract.ftl.merge import CodeExtraction, FileExtraction, merge_extractions
@@ -76,6 +77,12 @@ importing numpy/scipy and building its brain, which is more than sniffing 128 wi
 POOL_BATCH = 64
 """Trials per brain call inside a worker (``docs/bench_sequence.json`` §parallel: 64 beats
 128 and 256 when many processes share the memory bandwidth)."""
+
+TUI_BATCH = 16
+"""Trials per brain call when the TUI is watching an in-process run (auditor's decision
+after Phase 6): every batch is published as soon as it is done, so the dashboard moves
+every ~0.5 s instead of once per file chunk.  Costs throughput (more calls of ~5700 steps);
+``--fly-batch`` overrides."""
 
 
 @dataclass(frozen=True)
@@ -125,8 +132,14 @@ class FlyStats:
 class Observer(Protocol):
     """Where the run reports progress (the TUI, or nothing)."""
 
+    live: bool
+    """Wants every brain batch as it happens (then in-process runs use ``TUI_BATCH``)."""
+
     def on_jobs(self, jobs: list[FileJob], stats: FlyStats) -> None:
         """All files that will be sniffed are known."""
+
+    def on_batch(self, jobs: list[FileJob], event: BatchEvent, stats: FlyStats) -> None:
+        """One brain call of the chunk ``jobs`` is done (in-process runs only)."""
 
     def on_judged(self, job: FileJob, judged: JudgedFile, stats: FlyStats) -> None:
         """One file has its verdicts."""
@@ -135,7 +148,12 @@ class Observer(Protocol):
 class NullObserver:
     """Reports nothing."""
 
+    live = False
+
     def on_jobs(self, jobs: list[FileJob], stats: FlyStats) -> None:
+        """Ignore."""
+
+    def on_batch(self, jobs: list[FileJob], event: BatchEvent, stats: FlyStats) -> None:
         """Ignore."""
 
     def on_judged(self, job: FileJob, judged: JudgedFile, stats: FlyStats) -> None:
@@ -258,8 +276,9 @@ def judge_jobs(
     windows = sum(job.windows for job in jobs)
     n_workers = min(fly.workers, len(jobs))
     use_pool = n_workers > 1 and windows >= fly.inprocess_threshold
+    live = observer.live and not use_pool
     stats.workers = n_workers if use_pool else 1
-    stats.batch = fly.batch or (POOL_BATCH if use_pool else BATCH)
+    stats.batch = fly.batch or (TUI_BATCH if live else POOL_BATCH if use_pool else BATCH)
     by_index = {job.index: job for job in jobs}
     chunks = chunk_jobs(jobs, stats.batch)
 
@@ -272,9 +291,18 @@ def judge_jobs(
     t0 = time.perf_counter()
     if not use_pool:
         judge.batch = stats.batch
-        for chunk in chunks:
-            judged = judge.judge_many([(job.candidates, job.content) for job in chunk])
-            collect(list(zip((job.index for job in chunk), judged, strict=True)))
+        try:
+            for chunk in chunks:
+                if live:
+
+                    def publish(event: BatchEvent, chunk: list[FileJob] = chunk) -> None:
+                        observer.on_batch(chunk, event, stats)
+
+                    judge.trial_observer = publish
+                judged = judge.judge_many([(job.candidates, job.content) for job in chunk])
+                collect(list(zip((job.index for job in chunk), judged, strict=True)))
+        finally:
+            judge.trial_observer = None
     else:
         ctx = multiprocessing.get_context("spawn")
         with ProcessPoolExecutor(
@@ -395,7 +423,14 @@ def fly_log_lines(run: FlyRun, judge: Judge, fly: FlyOptions) -> list[LogLine]:
             f"without i18n names: {s.files_prefiltered}, walked: {s.files_walked})",
         )
     )
-    lines.append(LogLine("INFO", FLY_TARGET, f"  - Candidates: {s.candidates} (keys: {s.keys})"))
+    lines.append(
+        LogLine(
+            "INFO",
+            FLY_TARGET,
+            f"  - Candidates: {s.candidates} (key occurrences: {s.keys}, merged keys: "
+            f"{len(run.extraction.keys)})",
+        )
+    )
     lines.append(
         LogLine(
             "INFO",
@@ -482,10 +517,12 @@ def run_command(
     started = time.perf_counter()
     cwd = cwd if cwd is not None else os.getcwd()
     try:
-        options = resolve_options(overrides, load_pyproject(config_path, cwd))
+        loaded = load_pyproject(config_path, cwd)
+        options = resolve_options(overrides, loaded)
     except ConfigError as err:
         emit(LogLine("ERROR", "cli", f"Configuration error: {err}").render() + "\n")
         return EXIT_CONFIG_ERROR
+    preamble = "".join(line.render() + "\n" for line in config_warnings(loaded))
     try:
         judge = load_judge(options, fly)
     except (
@@ -508,7 +545,7 @@ def run_command(
     if cache is not None:
         cache.save()
     outcome: ExtractOutcome = run_extract(run.extraction, options, extraction_seconds=run.seconds)
-    text = outcome.render_logs()
+    text = preamble + outcome.render_logs()
     if outcome.exit_code == 0:
         text += done_line(time.perf_counter() - started).render() + "\n"
         text += "".join(line.render() + "\n" for line in fly_log_lines(run, judge, fly))
@@ -516,6 +553,27 @@ def run_command(
     if fly.audit:
         return max(outcome.exit_code, _run_audit(options, run))
     return outcome.exit_code
+
+
+DEPRECATED_CONFIG_KEYS: dict[str, str] = {
+    "comment-junks": (
+        "comment-junks has no effect and will be removed in 0.13: syntax errors in .ftl "
+        "files abort the run"
+    ),
+}
+"""``[WARN  cli]`` the original prints, before ``Code path``, for config keys it still
+accepts but ignores (seen on a real project's ``pyproject.toml``)."""
+
+
+def config_warnings(loaded: LoadedConfig | None) -> list[LogLine]:
+    """The original's warnings about deprecated keys in ``[tool.ftl-extract.extract]``."""
+    if loaded is None:
+        return []
+    return [
+        LogLine("WARN", "cli", message)
+        for key, message in DEPRECATED_CONFIG_KEYS.items()
+        if key in loaded.section
+    ]
 
 
 def _make_observer(fly: FlyOptions, judge: Judge, options: ExtractOptions) -> Observer:

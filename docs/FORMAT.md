@@ -245,7 +245,7 @@ lines of ours at all. After `✅ Done`:
 [INFO  fly]   - Encoder fly-odor-6, brain cd3a9c7616718a25, puffs/trial 14
 [INFO  fly]   - Files sniffed: 4 (from cache: 0, without i18n names: 2, walked: 6)
 [INFO  fly]   - Candidates: 98 (key occurrences: 29, merged keys: 22)
-[INFO  fly]   - Trials: 150 (resniffs: 60, base trials per window: 1, θ 5.59 / 4.51)
+[INFO  fly]   - Trials: 150 (resniffs: 60, base trials per window: 1, θ 5.53 / 4.79)
 [INFO  fly]   - Trials/s: 53.2 (1 process, batch 256)
 [INFO  fly]   - Brain wall time: 2.818s
 ```

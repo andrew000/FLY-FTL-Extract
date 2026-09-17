@@ -74,7 +74,7 @@ LEVERS_JSON = REPO / "docs" / "lever_harness.json"
 TWINS_JSON = REPO / "docs" / "twin_diagnostics_fly-odor-5.json"
 TWINS_NOW_JSON = REPO / "docs" / f"twin_diagnostics_{ENCODER_VERSION}.json"
 TRAIN_SEEDS = (101, 102, 103, 104, 105, 106)  # sniffs of every training odour
-DEFAULT_TRAIN_SEEDS = 3
+DEFAULT_TRAIN_SEEDS = 6
 MAX_RESNIFF = 5
 RESNIFF_FRACTION = 0.10
 BATCH = 64
@@ -85,6 +85,11 @@ CHUNK_BATCHES = 8
 WORST = 10
 GATE = 0.995
 DEFAULT_MODES: tuple[str, ...] = ("both",)
+RELEASE_CONFIG = TrainConfig(lr=0.005, max_epochs=100, patience=10)
+"""The CLI defaults reproduce the shipped weights (0.1.0, corpus grammar-5): lr 0.005 (≈ 4800
+active features per trial), up to 100 epochs, early stopping with patience 10 (auditor after
+Phase 7), 6 augmentation seeds.  ``TrainConfig()`` itself keeps the small-run defaults used by
+the unit tests."""
 
 
 class Table:
@@ -574,10 +579,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--cache", type=Path, default=CACHE_DIR)
     parser.add_argument("--out", type=Path, default=weights_path())
     parser.add_argument("--modes", nargs="+", default=list(DEFAULT_MODES))
-    parser.add_argument("--lr", type=float, default=TrainConfig().lr)
+    parser.add_argument("--lr", type=float, default=RELEASE_CONFIG.lr)
     parser.add_argument("--l2", type=float, default=TrainConfig().l2)
-    parser.add_argument("--epochs", type=int, default=TrainConfig().max_epochs)
-    parser.add_argument("--patience", type=int, default=TrainConfig().patience)
+    parser.add_argument("--epochs", type=int, default=RELEASE_CONFIG.max_epochs)
+    parser.add_argument("--patience", type=int, default=RELEASE_CONFIG.patience)
     parser.add_argument("--batch-size", type=int, default=TrainConfig().batch_size)
     parser.add_argument("--attempt", default="", help="label of this attempt for METRICS.md §5")
     parser.add_argument("--max-resniff", type=int, default=MAX_RESNIFF)

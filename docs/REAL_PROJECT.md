@@ -101,13 +101,14 @@ read-only recipe (`--dry-run --fly-no-tui --fly-audit -v --cache-path <scratch>`
 | tokenizer candidates | 9 992 | 9 992 | — |
 | brain trials (of them resniff) | 9 453 (3 160) | 9 356 (3 045) | — |
 | trials/s (16 processes, batch 64) | 285 | 290 | — |
-| brain time / wall | 33.1 s / 35 s | 32.3 s / 34.3 s | 0.019 s / 0.079 s |
+| brain time / wall | 33.1 s / not measured | 32.3 s / 34.3 s | 0.019 s / 0.079 s |
 | keys in code | 530 | **538** | 538 |
 | files with keys | 100 | 100 | 100 |
 | **`--fly-audit` differences** | **13** | **0** | — |
 
-The trials/s are lower than the morning's 411 (the machine is busy with the owner's other work); the
-determinism does not depend on this.
+The trials/s are lower than the morning's 411; the two evening runs agree with each other
+(285 / 290), the cause of the drop was not established (machine load was not measured). It
+does not affect the result: the trial seeds are deterministic.
 
 ### The same 13 windows: margin before → after
 

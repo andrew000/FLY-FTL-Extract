@@ -156,7 +156,7 @@ the real bot's code are not part of the dataset — they are the holdout.
 
 ## How to reproduce
 
-Everything is deterministic (the seeds are fixed); the times are from this machine (16 processes for the brain).
+Everything is deterministic (the seeds are fixed); the times are from this machine (train.py: 30 processes for the brain; the `ftl extract` pool: 16).
 
 | step | command | what it does | time |
 |---|---|---|---|

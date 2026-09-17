@@ -251,14 +251,36 @@ behaviour when merging with existing files (translations kept, unused keys comme
 it is checked by golden tests against the real `ftl`, not from memory.
 
 The statistics at the end look exactly as in the original (`Extraction statistics:` …
-`✅ Done in …`), with only extra lines about the fly after them.
+`✅ Done in …`), with only extra lines about the fly after them: the block `[INFO  fly] Fly
+statistics:` (neurons from the npz, encoder/brain, files — sniffed / from cache / without i18n
+names, candidates and keys, trials and resniffs with θ, trials/s and the process count, brain
+wall time); with `-v`, before it, one line `[DEBUG fly] path:line:col … margin ±x.xx (n sniffs,
+KC y %)` per sniffed window. Everything of ours comes **only after** `✅ Done`; on an abort
+(exit 1) there are no lines of ours and stderr matches the original byte for byte
+(`tests/test_extract_matches_golden.py`, `scripts/compare_with_reference.py`). stdout/stderr
+are written as UTF-8 with LF, like the Rust binary (otherwise `✅` into a cp1251 pipe on
+Windows crashes); click's expansion of `*` in argv on Windows is disabled
+(`windows_expand_args=False`) — the original receives `-E **/tests/**` as is.
+
+`--cache`: the file `.ftl-extract-cache/extract-<version>-v1.bin` (or `--cache-path`, a directory
+or a `.bin` file) — our own format (magic + zlib JSON); a file's entry stays valid as long as
+the file's mtime/size, the options that shape the odour, the encoder version, the brain hash,
+the weights themselves, θ, the resniff limit and `--fly-trials`/`--fly-seed` are unchanged.
+The found key occurrences are stored and replayed through `FileExtraction.add`; a cached file
+is not even read (`cli/cache.py`).
 
 `ftl stub` and `ftl check` are not implemented in v1: they print
 `the fly has not been trained for this yet — use the original ftl-extract` and exit 2.
 
 Extra (our) options, all prefixed `--fly-`: `--fly-audit` (runs `reference/` alongside,
-prints the differences, exit 1 if there are any), `--fly-seed`, `--fly-no-tui`,
-`--fly-trials N` (how many times to sniff), `--fly-batch N`.
+prints the differences, exit 1 if there are any), `--fly-seed` (a salt on every trial seed —
+«another nose», 0 = the production seeds), `--fly-no-tui`, `--fly-trials N` (how many times
+to sniff every window before the resniff rule; the margins are summed), `--fly-batch N`
+(trials per brain call; default 256 in a single process, 64 in a worker), `--fly-workers N`
+(processes for the brain, spawn; below 128 windows always a single process, because a worker
+takes ≈ 2–3 s to start). The fly judges files in portions of ≈ one batch of windows per four
+brain calls (keys, resniff, kwargs, resniff) — not four calls per file (`dopamine/judge.py`,
+`judge_many`).
 
 ## TUI (tui/)
 
@@ -285,6 +307,19 @@ DIPTERA_  CONNECTOME · FAFB v783 · MB-L      NEURONS ONLINE 4 812   HUMAN INPU
 
 The numbers in the TUI are real (neuron count from the npz, real sparsity, real margin).
 Nothing is drawn «for looks» from random. This is a matter of principle.
+
+Implementation (Phase 6, `tui/__init__.py`): `render(state, width, height)` is a pure
+function, `FlyTui` is the `rich.live.Live` driver (≤ 15 fps) and at the same time the
+extractor's `Observer`. In the raster one dot = one Kenyon cell that spiked in the trial's
+**summary puff** (`Verdict.kc_pattern`; the union over 14 puffs lights ~70 % of the cells and
+shows nothing); the panel shows as many cells as it has columns (2 per character) and writes
+`KC 0–149 of 2597` on its last line. REGION DRIVE — PN/KC/APL activity of the last trial,
+MBON = σ(margin) of the readout and the share of MBONs that spiked; EVENT LOG — ODOR
+(path:line, seed, window size), RESNIFF, MBON (margin → KEY / NOT A KEY / placeable) with
+real time since start; the footer — files, candidates, keys, trials, resniffs, trials/s.
+Updates arrive per portion of files (one portion = one brain pass). Recording a run:
+`scripts/record_tui.py` → `docs/tui_basic.txt` / `.svg` (final frame) and
+`docs/tui_basic_frames.txt` (all frames).
 
 ## Rules for the agent
 

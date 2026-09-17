@@ -278,3 +278,29 @@ Best: 16 processes × batch 64 = 685 trials/s. `cached_states` end to end (16384
 
 Reading the profile: the ufunc calls (multiply/add/compare on (n_trials, n_int) arrays) are not shown separately by cProfile — they are part of the tottime of `_run`; `_deliver` is building the CSR spike matrix and `csr_matmat`; Poisson generation per puff (`Generator.random`) is a small share. The bottleneck is the per-step Python overhead, so steps ×2 ≈ time ×2.
 <!-- bench_sequence:end -->
+
+## 4. End-to-end speed of `ftl extract` (Phase 6)
+
+Numbers from `docs/COMPARE.md` (all fixtures, one process, `--fly-no-tui`; a full run in
+`docs/tui_basic.txt`). One `simulate_sequence` call for 14 puffs (5700 steps) costs
+≈ 0.6–1.0 s almost independently of the number of trials in the batch (up to 256), so what
+matters is not the number of trials but the number of calls. `Judge.judge_many` judges a
+portion of files with four calls (keys → resniff → kwargs → resniff) instead of four per file:
+the `basic` fixture (98 candidates, 150 trials with 60 resniffs) — 7.0 s per file → 2.8 s in
+portions.
+
+| fixture | trials (resniff) | brain, s | trials/s | ref, s | ours, s total |
+|---|---|---|---|---|---|
+| basic | 150 (60) | 2.80 | 53 | 0.04 | 3.3 |
+| existing/comment | 70 (40) | 1.98 | 35 | 0.04 | 2.4 |
+| exclude_dirs/default | 8 (5) | 0.59 | 14 | 0.04 | 1.05 |
+| pyproject_config/config | 9 (5) | 0.82 | 11 | 0.04 | 1.3 |
+
+«Ours, s total» = interpreter start-up + numpy/scipy + loading the connectome and the weights
+(≈ 0.8 s) + brain + writing. The process pool (`--fly-workers`, spawn) kicks in from 128
+windows: a worker takes 2–3 s to start, so on small projects it is only slower; on 2 workers
+`basic` gives the same tree (`tests/test_extract_matches_golden.py::test_process_pool_gives_the_same_tree`)
+in the same time (2.76 s — two portions of ~70 windows instead of one, four calls each).
+Expectation for a real project with ~2000 candidates: ≈ 2000/64 ≈ 32 portions of 4 calls
+≈ 130 calls × ~0.9 s ≈ 2 min in one process, ≈ 10–15 s on 16 workers (§3a: 685 trials/s at
+batch 64).

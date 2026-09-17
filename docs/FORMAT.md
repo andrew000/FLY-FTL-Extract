@@ -222,7 +222,44 @@ NOT reproduced (deliberately, approximations):
   Python error text;
 - other kinds of fluent-rs errors (`Expected a token starting with "="`, a select without a
   default, etc.) — the text is taken from python-fluent's annotation, the position may differ;
-- `--cache*` (Phase 6), `-v` (debug lines).
+- `-v`: the original's debug lines (`[DEBUG globset] …`, `key "star" is called with **kwargs …`,
+  `Saved locales\en\_default.ftl. 20 entries.`) are not reproduced; instead, after
+  `✅ Done`, our `[DEBUG fly] …` lines with the margin of every window are printed.
+- `--cache*` (Phase 6): the file's place and name as in the original (`.ftl-extract-cache/extract-<version>-v<schema>.bin`,
+  `--cache-path` — a directory or a `.bin` file; `--clear-cache` without `--cache` writes the
+  cache too — so does the original), but the format is ours (see CLAUDE.md, «CLI
+  compatibility»); the file contents are not compatible with the original.
+
+## 9. What our `ftl` adds after `✅ Done`
+
+Verified by `tests/test_extract_matches_golden.py` and `scripts/compare_with_reference.py`
+(31/31 runs, `docs/COMPARE.md`): everything up to and including the `✅ Done` line (timings →
+`<t>`) is byte for byte as in the original, stdout is empty; on an abort (exit 1) there are no
+lines of ours at all. After `✅ Done`:
+
+```
+[INFO  fly] Fly statistics:
+[INFO  fly]   - Neurons online: 2935 (PN 124, KC 2597, APL 1, MBON 48, DAN 165)
+[INFO  fly]   - Encoder fly-odor-6, brain cd3a9c7616718a25, puffs/trial 14
+[INFO  fly]   - Files sniffed: 4 (from cache: 0, without i18n names: 2, walked: 6)
+[INFO  fly]   - Candidates: 98 (keys: 29)
+[INFO  fly]   - Trials: 150 (resniffs: 60, base trials per window: 1, θ 5.59 / 4.51)
+[INFO  fly]   - Trials/s: 53.2 (1 process, batch 256)
+[INFO  fly]   - Brain wall time: 2.818s
+```
+
+`Files sniffed` counts the files that reached the fly (an i18n name is present, UTF-8,
+parses); `Candidates` — all tokenizer candidates, `keys` — positive occurrences before merging;
+`Trials` — brain trials in this run (from the cache — 0). `--fly-audit` adds
+`[WARN  fly::audit] …` for every difference from `reference/` and the summary
+`[INFO  fly::audit] Audit: 0 differences …` / `[ERROR fly::audit] Audit: N differences …`
+(exit 1). Errors of the fly itself (no connectome, no weights, weights from another fly) are
+`[ERROR fly] …`, exit 2, like a configuration error.
+
+Two behavioural differences of the interpreter that had to be removed to match the Rust
+binary: click on Windows expands `*` in argv (`-E **/tests/**` became `app\tests\test_x.py`)
+— disabled; Python writes `\r\n` and cp1251 into a redirected stdout — the streams are
+reconfigured to UTF-8 + LF.
 - A commented-out key with **a blank line inside a multi-line value**: fluent-rs writes a
   whitespace-only line as a bare `#`; python-fluent — only an empty one. In
   `comment_ftl_key` such lines are replaced with empty ones before serialization, so the

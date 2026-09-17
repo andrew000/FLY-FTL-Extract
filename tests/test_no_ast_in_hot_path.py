@@ -12,8 +12,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
-
 PACKAGE_DIR = Path(__file__).resolve().parent.parent / "fly_ftl_extract"
 FIXTURE_APP = PACKAGE_DIR.parent / "tests" / "fixtures" / "projects" / "basic" / "app"
 GREP_EXEMPT_PACKAGES = frozenset({"reference", "audit"})
@@ -98,11 +96,9 @@ print("LEAKED " + ",".join(leaked) if leaked else "CLEAN")
 
 
 def test_plain_extract_does_not_load_reference_or_audit(tmp_path: Path) -> None:
-    # TODO(phase-6): remove the skip once ``ftl extract`` exists.
-    if not (PACKAGE_DIR / "cli" / "extract.py").exists():
-        pytest.skip("ftl extract is not implemented until Phase 6")
-    if not (PACKAGE_DIR / "__main__.py").exists():
-        pytest.skip("fly_ftl_extract.__main__ is not implemented until Phase 6")
+    """A real ``ftl extract`` in a fresh interpreter: the fly decides, the teacher stays out."""
+    assert (PACKAGE_DIR / "cli" / "extract.py").exists()
+    assert (PACKAGE_DIR / "__main__.py").exists()
     app = tmp_path / "app"
     shutil.copytree(FIXTURE_APP, app)
     locales = tmp_path / "locales"

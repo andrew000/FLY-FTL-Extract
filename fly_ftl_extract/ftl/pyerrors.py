@@ -88,11 +88,20 @@ def check_syntax(source: str, path: str) -> SyntaxError | None:
     """The ``SyntaxError`` the original would report for ``source``, or ``None``.
 
     CLAUDE.md rule 2c: this is the only place in the hot path that parses Python, and it
-    does so only to learn *whether* the file parses — the code object is discarded and
-    nothing is executed.  Deciding what is a key stays with the fly.
+    does so only to learn *whether* the file parses — the result is discarded and nothing
+    is executed.  Deciding what is a key stays with the fly.
+
+    The parser is stopped after parsing (``_PARSE_ONLY`` = ``PyCF_ONLY_AST``): the original
+    uses ruff's *parser*, which never sees compile-stage errors such as ``return`` outside
+    a function, so those must not become ``parse-error`` diagnostics here either.
     """
     try:
-        compile(source, path, "exec", dont_inherit=True)
+        compile(source, path, "exec", flags=_PARSE_ONLY, dont_inherit=True)
     except SyntaxError as err:
         return err
     return None
+
+
+_PARSE_ONLY = 0x400
+"""``PyCF_ONLY_AST``: stop after parsing.  The numeric value is used so that this module
+needs no import of the ``ast`` module (CLAUDE.md rule 2)."""

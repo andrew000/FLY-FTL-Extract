@@ -20,8 +20,8 @@ connectome = [
 ]
 
 [project.scripts]
-ftl = "fly_ftl_extract.cli:main"
-fly-ftl = "fly_ftl_extract.cli:main"
+ftl = "fly_ftl_extract.cli:run"
+fly-ftl = "fly_ftl_extract.cli:run"
 
 [dependency-groups]
 dev = [
@@ -73,6 +73,7 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "D", "PLR2004", "INP001", "S603", "S607", "SLF001"]
 "scripts/**" = ["T201", "INP001", "S603", "S607", "D", "E501", "PD010", "S101"]
+"fly_ftl_extract/cli/__init__.py" = ["FBT001"]  # click passes flags positionally
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

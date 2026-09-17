@@ -38,3 +38,14 @@ def kwarg_trial_index(candidate_index: int, kwarg_index: int) -> int:
 def sniff_seed(base_seed: int, sniff: int) -> int:
     """Seed of the ``sniff``-th extra trial (``sniff = 0`` is the base seed itself)."""
     return (base_seed + _SNIFF_STRIDE * sniff) & _MASK
+
+
+def salted_seed(base_seed: int, salt: int) -> int:
+    """``--fly-seed``: another nose for the same code (``salt = 0`` keeps the production seed).
+
+    The salt is hashed so that neighbouring salts give unrelated streams.
+    """
+    if salt == 0:
+        return base_seed
+    digest = hashlib.sha256(salt.to_bytes(8, "little", signed=True) + b"fly-seed").digest()
+    return (base_seed ^ int.from_bytes(digest[:8], "little")) & _MASK

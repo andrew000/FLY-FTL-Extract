@@ -106,8 +106,14 @@ def _import_languages(options: ExtractOptions) -> dict[str, LocaleImport]:
     return imports
 
 
-def run_extract(extraction: CodeExtraction, options: ExtractOptions) -> ExtractOutcome:
-    """Run the post-extraction pipeline and return logs, exit code and statistics."""
+def run_extract(
+    extraction: CodeExtraction, options: ExtractOptions, *, extraction_seconds: float | None = None
+) -> ExtractOutcome:
+    """Run the post-extraction pipeline and return logs, exit code and statistics.
+
+    ``extraction_seconds`` is what the ``FTL Extraction completed in …`` line reports (the
+    time the caller spent producing ``extraction``); without it the line shows ~0 s.
+    """
     outcome = ExtractOutcome(EXIT_OK)
     logs = outcome.logs
     logs.append(LogLine("INFO", "cli", f"Code path: {options.code_path}"))
@@ -119,13 +125,10 @@ def run_extract(extraction: CodeExtraction, options: ExtractOptions) -> ExtractO
         per_locale.insert(lang, LocaleStatistics())
     outcome.per_locale = per_locale
     outcome.py_files_count = extraction.py_files_with_keys
-    logs.append(
-        LogLine(
-            "INFO",
-            "extractor::ftl",
-            f"FTL Extraction completed in {time.perf_counter() - started:.3f}s.",
-        )
+    elapsed = (
+        extraction_seconds if extraction_seconds is not None else time.perf_counter() - started
     )
+    logs.append(LogLine("INFO", "extractor::ftl", f"FTL Extraction completed in {elapsed:.3f}s."))
 
     abort = _check_diagnostics(
         extraction.diagnostics, allow_parse_errors=options.allow_parse_errors, logs=logs

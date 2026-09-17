@@ -58,6 +58,7 @@ from fly_ftl_extract.reference.extractor import key_occurrences
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _fixtures import fixture_files, fixture_names
+from _statecache import load_states, save_states
 
 REPO = Path(__file__).resolve().parent.parent
 DATASET_DIR = REPO / "fly_ftl_extract" / "data" / "dataset"
@@ -188,12 +189,12 @@ def cached_states(
     ).hexdigest()[:24]
     cache_dir.mkdir(parents=True, exist_ok=True)
     path = cache_dir / f"{label.replace(' ', '_')}_{key}.npz"
-    if path.exists():
-        with np.load(path) as z:
-            return np.asarray(z["counts"])
+    cached = load_states(path)  # raises CacheIntegrityError on a half-written file
+    if cached is not None:
+        return cached
     counts = simulate_all(brain, odors, seeds, label)
     t0 = time.perf_counter()
-    np.savez_compressed(path, counts=counts)
+    save_states(path, counts)
     print(
         f"  {label}: cached {counts.nbytes / 1e9:.2f} GB -> {path.stat().st_size / 1e6:.0f} MB "
         f"in {time.perf_counter() - t0:.0f} s",

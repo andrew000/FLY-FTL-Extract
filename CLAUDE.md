@@ -209,7 +209,17 @@ Python constructs (`i18n.get` calls, attribute chains of various lengths, `self.
 `LazyProxy`, `I18nFormat`, ignore attributes such as `set_locale`, `_path=`, kwargs, nested
 calls, f-strings, comments, strings in other positions, look-alike names such as
 `i18n_utils`), and the label comes from `reference/` (ast). Split 80/10/10 by snippet. The
-fixtures from `tests/` are **not** part of the dataset — they are the holdout.
+fixtures from `tests/` are **not** part of the dataset — they are the holdout. The `grammar-4`
+corpus (reviewer's decision after attempt 9) added mutation families (an ignore attribute at
+various levels, prefixes, ignore-kwargs in various positions); `grammar-5` (after Phase 7,
+15 differences on a real bot — `docs/REAL_PROJECT.md`) — ten families of **call positions**:
+`<I18N>(<STR>)` as a dict value (string key and `Enum.X`), a kwarg of another constructor
+(including after a line break), a decorator argument, an element of a list/tuple/set,
+`return`/`yield`, plus twin negatives without an i18n call (tuples of strings, dict keys,
+`@router.message(Command("s"))`, `foo(("s", 1))`); each ~6 % of family occurrences, on one
+line and broken over lines. The real bot's code is not part of the dataset.
+A new unseen construct is cured the same way — with a family in the grammar, not a rule in
+the code.
 
 Goal: precision and recall ≥ 0.995 on the test split, and 100 % on the golden fixtures. If it
 is not reached — turn the encoder knobs (window, n-grams) and KC sparsity, do not add rules.

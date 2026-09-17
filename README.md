@@ -67,7 +67,7 @@ pip install ./dist/fly_ftl_extract-0.1.0-py3-none-any.whl                       
 ```
 
 The wheel contains the connectome (`fly_ftl_extract/data/mb_fafb783.npz`, 106 KB), its
-metadata (`meta.json`) and the trained weights (`mbon_weights.npz`, 595 KB); runtime
+metadata (`meta.json`) and the trained weights (`mbon_weights.npz`, 598 KB); runtime
 dependencies — `numpy`, `scipy`, `rich`, `click`, `fluent.syntax`.
 
 **Entry-point conflict.** The package installs the scripts `ftl` and `fly-ftl`. The original
@@ -115,18 +115,19 @@ connectome, the spikes and the readout; the module has no `random`.
 
 ## Accuracy
 
-Dataset `grammar-4`: 20 000 synthetic snippets labelled by the AST reference (376 336
-candidates, 113 688 kwargs; split 80/10/10 by snippet). The golden fixtures from `tests/` are
-not part of the dataset.
+Dataset `grammar-5`: 20 000 synthetic snippets labelled by the AST reference (460 672
+candidates, 147 876 kwargs; split 80/10/10 by snippet). The golden fixtures from `tests/` and
+the real bot's code are not part of the dataset — they are the holdout.
 
 | what | result | source |
 |---|---|---|
-| keys, test, with resniff (≤ 5 extra trials, 9.8 % of windows) | **P 0.9991 · R 0.9999** (tp 9531, fp 9, fn 1, tn 28251) | [METRICS.md §1](docs/METRICS.md) |
-| keys, test, without resniff | P 0.9963 · R 0.9970 | same |
+| keys, test, with resniff (≤ 5 extra trials, 9.8 % of windows) | **P 0.9987 · R 1.0000** (tp 11554, fp 15, fn 0, tn 34354) | [METRICS.md §1](docs/METRICS.md) |
+| keys, test, without resniff | P 0.9949 · R 0.9978 | same |
 | kwargs (placeable / ignore), test | P 1.0000 · R 1.0000 | same |
 | golden fixtures through the whole fly | 24 / 24 files match the reference | `tests/test_judge_on_fixtures.py` |
 | the real `ftl 0.12.1` against ours on every fixture | **31 / 31** runs byte for byte (exit, stderr, tree), `config sample` too | [COMPARE.md](docs/COMPARE.md) |
-| a real aiogram bot (291 files, 10 163 candidates, 502 keys) | 15 differences: 1 false key, 8 missed, 5 shifted positions, +1 in the file counter | [REAL_PROJECT.md](docs/REAL_PROJECT.md), the «Limitations» section |
+| a real aiogram bot (280 files, 9 992 candidates, 538 keys) | **0 differences** from the reference (`--fly-audit`); the fly of the previous corpus `grammar-4` had 13 on the same code (all of them `L("…")` in dict values, constructor fields and decorator arguments), 15 in the first run | [REAL_PROJECT.md](docs/REAL_PROJECT.md) — the honest before/after story |
+| the old weights (`grammar-4`) on the `grammar-5` test | keys R 0.870 (1503 misses) — the price of call positions that were not in the corpus | [METRICS.md §8](docs/METRICS.md) |
 
 ## Limitations
 
@@ -135,12 +136,12 @@ not part of the dataset.
 - `syn_scale = 5.0` and `apl_scale = 0.5` are calibrated on our odours (8–10 % KCs per puff, APL inhibits ≥ 2×), not taken from Shiu et al.; the APL weight is scaled separately.
 - A 40 ms puff, not 20 (the reviewer asked for 20; at 20 the per-puff KC code was not reproducible — Jaccard 0.34).
 - Synapse threshold `syn_count ≥ 5` per neuron pair; DANs carry no current in the forward simulation.
-- Speed ≈ 50 trials/s per process (one trial = 5700 LIF steps), ≈ 400 trials/s on 16 processes; a bot with 10 163 candidates takes 24 s against 0.03 s for the Rust original.
+- Speed ≈ 50 trials/s per process (one trial = 5700 LIF steps), 290–410 trials/s on 16 processes depending on machine load; a bot with ~10 000 candidates takes 24–34 s against 0.02 s for the Rust original.
 - `ftl stub` and `ftl check` are not implemented (a message and exit 2).
 - The `--cache` cache is written to the same file as in the original, but the format is ours and not compatible with the original.
 - `-v` does not reproduce the original's debug lines (`globset`, `Saved …`); our margins come instead.
 - `i18n.get("dotted.key.name")` and other invalid Fluent identifiers are written as is — the original does the same (the next run of either will fail reading the `.ftl`).
-- The fly makes mistakes. On the test split (with resniff) 9 false keys among 28 260 negatives and 1 miss among 9 532 positives; the typical false key is `return self.get("ok.button")` with `-p self` (margin +8.96; for the reference `self.get` without an i18n name is not a key), the typical miss is `self.i18n.group_label()` right after a line with an assignment (margin −2.00). On the real bot every `L("…", _path=…)` in dict values and in dataclass constructor fields was missed (`name=L("resource-silver-name", …)` recognised, `description=L(…)` on the next line — margin −5.6…−31), `LF("…")` as the first argument of the decorator `@router.message(` (margin −18.7), and a string in a tuple `("captcha_timeout_task", …)` without a call was called a key (+7.00). These are contexts the dataset grammar does not have; they are not cured with rules in the code — only with the grammar and retraining.
+- The fly makes mistakes. On the `grammar-5` test split (with resniff) 15 false keys among 34 369 negatives and 0 misses among 11 554 positives; all 10 worst false keys are `self.get("…")` / `cls.get("…")` with `-p self -p cls` (margin up to +10.5; for the reference a prefix without an i18n name right after it is not a key). The fly learns only what is in the grammar: the first version (`grammar-4`) missed on the real bot every `L("…", _path=…)` in dict values and in constructor fields (`description=L(…)` on the line after a recognised `name=L(…)`, margin −1…−31), `LF("…")` as the first argument of the decorator `@router.message(` (−8…−32), and called a string in a tuple `("captcha_timeout_task", …)` without a call a key (+7.00). This was cured not with rules in the code but with the `grammar-5` corpus holding these positions and their twin negatives: on the same bot it became 0 differences, and the same 13 windows give +5.7…+40.7 ([REAL_PROJECT.md](docs/REAL_PROJECT.md)). The next unseen construct will likewise be a miss until it gets into the grammar.
 
 ## Citations and licences
 
@@ -161,7 +162,7 @@ Everything is deterministic (the seeds are fixed); the times are from this machi
 |---|---|---|---|
 | 1 | download `proofread_connections_783.feather` (852 MB), `proofread_root_ids_783.npy`, `Supplemental_file1_neuron_annotations.tsv` into `.cache/flywire/` | raw FlyWire data | — |
 | 2 | `uv run --extra connectome python scripts/build_connectome.py` | the mushroom-body subgraph → `data/mb_fafb783.npz` + `meta.json`, `docs/CONNECTOME.md` | ≈ 4 s (the feather is read through a memory map in batches, only the needed columns); a repeated run gives byte-for-byte the same npz, only the build date changes in `meta.json` |
-| 3 | `uv run python scripts/make_dataset.py` | 20 000 snippets of the `grammar-4` grammar, labelling by the AST reference, encoding → `data/dataset/` | 10.7 s generation + 142 s labelling and encoding |
-| 4 | `uv run python scripts/train.py` | the brain on every window (train × 6 seeds, val, test; state cache in `.cache/brain_states/`), delta rule, θ, fixtures → `data/mbon_weights.npz`, `docs/METRICS.md` | 7563 s in total in a run with the state cache: brain keys 748 s (without the cache — a full recompute ≈ 50 min, 16 processes), kwargs 1006 s, readout keys 5222 s (100 epochs), kwargs 135 s, fixtures 32 s |
-| 5 | `uv run pytest -q` | 295 tests (294 passed + 1 diagnostic xfail), among them golden through the fly and `--fly-audit` on the fixtures | ≈ 2.5 min |
+| 3 | `uv run python scripts/make_dataset.py` | 20 000 snippets of the `grammar-5` grammar (14 grammar-4 mutation families + 10 call-position families), labelling by the AST reference, encoding → `data/dataset/` | 12 s generation + 212 s labelling and encoding |
+| 4 | `uv run python scripts/train.py --lr 0.005 --epochs 100 --patience 10 --train-seeds 6 [--baseline-weights old.npz]` | the brain on every window (train × 6 seeds, val, test; state cache in `.cache/brain_states/`, ≈ 8 GB per corpus), delta rule, θ, fixtures → `data/mbon_weights.npz`, `docs/METRICS.md` | 12 260 s (3.4 h) without the state cache, 30 processes: brain keys 4466 s (2.3 M trials, ≈ 665 trials/s), kwargs 1310 s, readout keys 5506 s (86 epochs, early stopping), kwargs 223 s, fixtures 23 s; with the state cache — only the readout |
+| 5 | `uv run pytest -q` | 297 tests (296 passed + 1 diagnostic xfail), among them golden through the fly and `--fly-audit` on the fixtures | ≈ 3 min |
 | 6 | `uv run python scripts/compare_with_reference.py` | the real `ftl 0.12.1` (via `uv tool run`) against ours → `docs/COMPARE.md` | ≈ 45 s |

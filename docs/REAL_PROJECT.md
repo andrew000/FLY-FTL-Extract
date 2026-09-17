@@ -78,3 +78,63 @@ The differences **were not fixed**: by the reviewer's decision the retraining (g
 the GPU question are theirs to decide. What is NOT a fly error: `comment-junks` in the
 config — the original prints `[WARN  cli] comment-junks has no effect …` as the first line;
 now so do we (commit `b183a1d`).
+
+## After grammar-5 (the same day, updated bot code)
+
+The reviewer's decision after the report above: the `grammar-5` corpus
+(`scripts/make_dataset.py`, `GRAMMAR5_FAMILIES`; shares — METRICS.md §6c) — the call
+`<I18N>(<STR>)` in positions grammar-4 never had (a dict value, a kwarg of another
+constructor, a decorator argument, a sequence element, `return`/`yield`), and twin negatives
+without an i18n call; retraining (`train.py --lr 0.005 --epochs 100 --patience 10
+--train-seeds 6`, keys stopped at epoch 86). The bot's code is not part of the dataset — it is
+the holdout. The grammar-5 test before/after (the old weights on the same test states) is
+METRICS.md §8: keys recall 0.870 → 1.000 with resniff.
+
+The bot changed during these hours (the owner is working: 538 keys instead of 502, `main.py`
+rewritten — the tuple `("captcha_timeout_task", …)` is gone, 0 commented keys instead of 36),
+so both runs below were made on **one and the same** state of today's code, with the same
+read-only recipe (`--dry-run --fly-no-tui --fly-audit -v --cache-path <scratch>`).
+
+| | grammar-4 weights (before) | grammar-5 weights (after) | the original `ftl 0.12.1` |
+|---|---:|---:|---:|
+| .py in the tree / without i18n names / sniffed | 280 / 104 / 176 | 280 / 104 / 176 | — / — / 100 with keys |
+| tokenizer candidates | 9 992 | 9 992 | — |
+| brain trials (of them resniff) | 9 453 (3 160) | 9 356 (3 045) | — |
+| trials/s (16 processes, batch 64) | 285 | 290 | — |
+| brain time / wall | 33.1 s / 35 s | 32.3 s / 34.3 s | 0.019 s / 0.079 s |
+| keys in code | 530 | **538** | 538 |
+| files with keys | 100 | 100 | 100 |
+| **`--fly-audit` differences** | **13** | **0** | — |
+
+The trials/s are lower than the morning's 411 (the machine is busy with the owner's other work); the
+determinism does not depend on this.
+
+### The same 13 windows: margin before → after
+
+| # | file : line | code | before (grammar-4) | after (grammar-5) |
+|---|---|---|---:|---:|
+| 2 | `simple_inventory/main.py:104:36` | `i18n.inventory.deprecated(_path=…)` after `if not state_data:` | −6.54 (1 trial) | **+40.69** (6) |
+| 3 | `stackable_ids.py:346` | `StackableID.KUS: L("item-kus-aliases", _path=…)` | −19.19 (6) | **+11.50** (1) |
+| 4 | `stackable_ids.py:347` | `…ARMOR: L("item-armor-aliases", …)` | −17.89 (6) | **+6.90** (1) |
+| 5 | `stackable_ids.py:348` | `…KUKUS: L("item-kukus-aliases", …)` | −24.54 (6) | **+7.14** (1) |
+| 6 | `stackable_ids.py:349` | `…KUSCOIN: L("item-kuscoin-aliases", …)` | −30.93 (6) | **+5.99** (1) |
+| 7 | `stackable_ids.py:350` | `…VIP: L("item-vip-aliases", …)` | −27.80 (6) | **+6.07** (1) |
+| 8 | `stackable_ids.py:177` | `description=L("resource-silver-description", …)` | −5.56 (6) | **+5.72** (1) |
+| 9 | `stackable_ids.py:257` | `description=L("resource-topaz-description", …)` | −1.94 (6) | **+7.72** (1) |
+| 10 | `stackable_ids.py:289` | `description=L("resource-uranium-description", …)` | −1.03 (6) | **+36.89** (6) |
+| 11 | `kukus_handler.py:57` | `@router.message(` ⏎ `LF("item-kukus-name", …)` | −32.31 (6) | **+22.14** (6) |
+| 12 | `kus_handler.py:69` | `@router.message(` ⏎ `LF("item-kus-name", …)` | −8.16 (1) | **+25.88** (6) |
+| 13 | `gender.py:28` | `"m": L("settings-gender-male-btn", …)` | −5.12 (6) | **+9.07** (1) |
+| 14 | `gender.py:29` | `"f": L("settings-gender-female-btn", …)` | −18.47 (6) | **+9.46** (1) |
+
+The numbers are those of the first run's table (the bot's lines shifted by a few positions).
+Nos. 1 and 15 from the first run (the false key in a tuple and the file counter) cannot be
+re-checked on today's code — the construct is gone; a twin of this construct is in the corpus
+(`g5-neg-seq-str`), and `"f"` / `"m"` — string dict keys next to the keys — the fly, as
+before, does not call keys (−11.08). Every `_path=` of a found key is ignored, as it should
+be. The full logs with the margins of every window are `bot_run_g4_today.txt` and
+`bot_run_g5.txt` in the report to the reviewer (not committed to the repo: it is someone
+else's code).
+
+Phase 7 gates after grammar-5: the bot's `--fly-audit --dry-run` — 0 differences ✓; fixtures
+24/24 ✓; test grammar-5 keys P 0.9987 R 1.0000, kwargs P 1.0000 R 1.0000 ✓ (METRICS.md §1).

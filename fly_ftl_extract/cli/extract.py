@@ -24,6 +24,7 @@ from typing import Protocol
 from fly_ftl_extract.brain import Connectome
 from fly_ftl_extract.brain import connectome as connectome_module
 from fly_ftl_extract.brain.connectome import ConnectomeInvalidError, ConnectomeMissingError
+from fly_ftl_extract.cli.cache import ExtractCache
 from fly_ftl_extract.cli.config import (
     ConfigError,
     ExtractOverrides,
@@ -302,8 +303,13 @@ def extract_with_fly(
     fly: FlyOptions,
     judge: Judge,
     observer: Observer | None = None,
+    cache: ExtractCache | None = None,
 ) -> FlyRun:
-    """Walk ``code_path`` and let the fly extract every file; merged like the original."""
+    """Walk ``code_path`` and let the fly extract every file; merged like the original.
+
+    With ``cache`` an unchanged file (same bytes on disk, same fly) is not even read: its
+    stored occurrences are replayed instead of sniffed.
+    """
     observer = observer if observer is not None else NullObserver()
     t0 = time.perf_counter()
     stats = FlyStats()
@@ -312,6 +318,13 @@ def extract_with_fly(
     files: list[FileExtraction | None] = [None] * len(paths)
     jobs: list[FileJob] = []
     for index, path in enumerate(paths):
+        hit = cache.lookup(path, options) if cache is not None else None
+        if hit is not None:
+            files[index], meta = hit
+            stats.files_cached += 1
+            stats.candidates += meta.candidates
+            stats.keys += meta.keys
+            continue
         prepared = prepare_file(index, path, options)
         if isinstance(prepared, FileExtraction):
             files[index] = prepared
@@ -325,6 +338,8 @@ def extract_with_fly(
     for job in jobs:
         files[job.index] = file_extraction_from_judged(job.path, judged[job.index], options)
         judged_by_index[job.index] = (job, judged[job.index])
+        if cache is not None:
+            cache.store(job.path, judged[job.index])
     complete = [f for f in files if f is not None]
     assert len(complete) == len(paths)  # noqa: S101 — every walked file has a result
     return FlyRun(
@@ -482,11 +497,26 @@ def run_command(
         emit(LogLine("ERROR", FLY_TARGET, str(err)).render() + "\n")
         return EXIT_FLY_ERROR
 
-    run = extract_with_fly(options, fly, judge)
+    cache = ExtractCache.open(options, judge) if options.cache else None
+    run = extract_with_fly(options, fly, judge, cache=cache)
+    if cache is not None:
+        cache.save()
     outcome: ExtractOutcome = run_extract(run.extraction, options, extraction_seconds=run.seconds)
     text = outcome.render_logs()
     if outcome.exit_code == 0:
         text += done_line(time.perf_counter() - started).render() + "\n"
         text += "".join(line.render() + "\n" for line in fly_log_lines(run, judge, fly))
     emit(text)
+    if fly.audit:
+        return max(outcome.exit_code, _run_audit(options, run))
     return outcome.exit_code
+
+
+def _run_audit(options: ExtractOptions, run: FlyRun) -> int:
+    """``--fly-audit``: the teacher next to the fly; 1 when they disagree."""
+    # CLAUDE.md rule 2b: the only import of the audit package, only in this branch.
+    from fly_ftl_extract import audit  # noqa: PLC0415
+
+    differences = audit.compare(options, run.extraction)
+    emit("".join(line.render() + "\n" for line in audit.report_lines(differences)))
+    return 1 if differences else 0

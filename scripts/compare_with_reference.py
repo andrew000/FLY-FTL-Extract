@@ -1,0 +1,233 @@
+"""The real ``ftl`` 0.12.1 binary against our ``ftl`` on every fixture run — a diff report.
+
+Not a replay of stored golden files: both binaries run *now*, in two copies of the same
+fixture, and their exit codes, stdout, stderr (timings scrubbed; ours cut after the
+original's ``✅ Done`` line, since the fly's own lines follow it) and locale trees are
+compared.  ``ftl config sample`` (all four variants) is compared byte-for-byte too.
+
+Usage::
+
+    uv run python scripts/compare_with_reference.py            # report to stdout + docs/COMPARE.md
+    uv run python scripts/compare_with_reference.py --no-write # stdout only
+
+Exit code 1 when any run differs.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+from dataclasses import dataclass, field
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _reference_bin import REFERENCE_VERSION, reference_ftl_command
+from gen_golden import scrub
+
+REPO = Path(__file__).resolve().parent.parent
+FIXTURES = REPO / "tests" / "fixtures" / "projects"
+REPORT = REPO / "docs" / "COMPARE.md"
+DONE_PREFIX = "[INFO  cli] ✅ Done in "
+OUR_COMMAND = [sys.executable, "-m", "fly_ftl_extract"]
+
+
+@dataclass
+class RunResult:
+    exit_code: int
+    stdout: str
+    stderr: str
+    tree: dict[str, bytes]
+    seconds: float
+
+
+@dataclass
+class Comparison:
+    fixture: str
+    run: str
+    argv: list[str]
+    reference: RunResult
+    ours: RunResult
+    fly_lines: list[str]
+    differences: list[str] = field(default_factory=list)
+
+
+def _tree(root: Path) -> dict[str, bytes]:
+    return {
+        p.relative_to(root).as_posix(): p.read_bytes()
+        for p in sorted(root.rglob("*"))
+        if p.is_file() and p.suffix != ".py" and p.name != "args.json"
+    }
+
+
+def _run(cmd: list[str], work: Path) -> RunResult:
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONUTF8"}
+    t0 = time.perf_counter()
+    result = subprocess.run(cmd, cwd=work, capture_output=True, check=False, env=env, timeout=900)
+    seconds = time.perf_counter() - t0
+    return RunResult(
+        result.returncode,
+        scrub(result.stdout.decode("utf-8", errors="replace"), work),
+        scrub(result.stderr.decode("utf-8", errors="replace"), work),
+        _tree(work),
+        seconds,
+    )
+
+
+def split_at_done(stderr: str) -> tuple[str, list[str]]:
+    lines = stderr.split("\n")
+    for i, line in enumerate(lines):
+        if line.startswith(DONE_PREFIX):
+            return "\n".join(lines[: i + 1]) + "\n", [x for x in lines[i + 1 :] if x]
+    return stderr, []
+
+
+def compare_run(fixture: str, run: str, argv: list[str], tmp: Path) -> Comparison:
+    ref_work = tmp / f"{fixture}__{run}__ref"
+    our_work = tmp / f"{fixture}__{run}__fly"
+    shutil.copytree(FIXTURES / fixture, ref_work)
+    shutil.copytree(FIXTURES / fixture, our_work)
+    reference = _run([*reference_ftl_command(), "extract", *argv], ref_work)
+    ours = _run([*OUR_COMMAND, "extract", *argv, "--fly-no-tui"], our_work)
+    head, fly_lines = split_at_done(ours.stderr)
+    ours.stderr = head
+    cmp = Comparison(fixture, run, argv, reference, ours, fly_lines)
+    if reference.exit_code != ours.exit_code:
+        cmp.differences.append(f"exit code {reference.exit_code} vs {ours.exit_code}")
+    if reference.stdout != ours.stdout:
+        cmp.differences.append("stdout differs")
+    if reference.stderr != ours.stderr:
+        cmp.differences.append("stderr differs (up to ✅ Done)")
+    for path in sorted(set(reference.tree) | set(ours.tree)):
+        if path not in ours.tree:
+            cmp.differences.append(f"missing in ours: {path}")
+        elif path not in reference.tree:
+            cmp.differences.append(f"extra in ours: {path}")
+        elif reference.tree[path] != ours.tree[path]:
+            cmp.differences.append(f"differs: {path}")
+    return cmp
+
+
+def compare_config_samples() -> list[str]:
+    diffs = []
+    for variant in ([], ["--command", "extract"], ["--command", "stub"], ["--command", "check"]):
+        ref = subprocess.run(
+            [*reference_ftl_command(), "config", "sample", *variant],
+            capture_output=True,
+            check=False,
+            timeout=300,
+        )
+        ours = subprocess.run(
+            [*OUR_COMMAND, "config", "sample", *variant],
+            capture_output=True,
+            check=False,
+            timeout=300,
+        )
+        label = "config sample " + " ".join(variant)
+        if ref.stdout != ours.stdout or ref.returncode != ours.returncode:
+            diffs.append(label.strip())
+    return diffs
+
+
+def _stat_line(text: str, key: str) -> str:
+    for line in text.splitlines():
+        if key in line:
+            return line.split("]", 1)[1].strip()
+    return ""
+
+
+def render(comparisons: list[Comparison], sample_diffs: list[str], version: str) -> str:
+    intro = (
+        f"Generated by `scripts/compare_with_reference.py`; the reference: `{version}`, ours: "
+        f"`python -m fly_ftl_extract` (the fly, `--fly-no-tui`). Both run here and now in "
+        "two copies of every fixture; compared are the exit code, stdout, stderr up to and including the `✅ Done` "
+        "line (timings → `<t>`) and the locale tree byte for byte."
+    )
+    header = (
+        "| fixture / run | argv | exit ref/ours | stderr | tree | trials (resniffs) | brain s "
+        "| ref s | ours s | result |"
+    )
+    out = [
+        "# The real `ftl 0.12.1` against our `ftl` on every fixture",
+        "",
+        intro,
+        "",
+        header,
+        "|---|---|---|---|---|---|---|---|---|---|",
+    ]
+    for c in comparisons:
+        fly_text = "\n".join(c.fly_lines)
+        trials = _stat_line(fly_text, "- Trials:").removeprefix("- Trials: ").split(", base")[0]
+        brain = _stat_line(fly_text, "- Brain wall time:").removeprefix("- Brain wall time: ")
+        ok = "✅" if not c.differences else "❌ " + "; ".join(c.differences)
+        stderr_ok = "=" if c.reference.stderr == c.ours.stderr else "≠"
+        tree_ok = "=" if c.reference.tree == c.ours.tree else "≠"
+        out.append(
+            f"| {c.fixture}/{c.run} | `{' '.join(c.argv) or '—'}` "
+            f"| {c.reference.exit_code}/{c.ours.exit_code} | {stderr_ok} | {tree_ok} "
+            f"| {trials + ')' if trials else '—'} | {brain or '—'} "
+            f"| {c.reference.seconds:.2f} | {c.ours.seconds:.2f} | {ok} |"
+        )
+    bad = [c for c in comparisons if c.differences]
+    out.append("")
+    out.append(
+        f"**Summary:** {len(comparisons) - len(bad)} / {len(comparisons)} runs match; "
+        f"`config sample` (4 variants): {'matches' if not sample_diffs else 'differences: ' + ', '.join(sample_diffs)}."
+    )
+    total_ref = sum(c.reference.seconds for c in comparisons)
+    total_ours = sum(c.ours.seconds for c in comparisons)
+    out.append("")
+    out.append(
+        f"Time: the reference {total_ref:.1f} s in total (the Rust binary via `uv tool run`), ours {total_ours:.1f} s "
+        "(interpreter start-up + loading the brain ≈ 1 s per run, the rest is the LIF simulation)."
+    )
+    for c in bad:
+        out.append("")
+        out.append(f"## {c.fixture}/{c.run}")
+        out.extend(f"- {d}" for d in c.differences)
+    return "\n".join(out) + "\n"
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--no-write", action="store_true", help="do not write docs/COMPARE.md")
+    parser.add_argument("--fixture", action="append", help="only these fixtures")
+    ns = parser.parse_args()
+    version = subprocess.run(
+        [*reference_ftl_command(), "--version"], capture_output=True, text=True, check=True
+    ).stdout.strip()
+    print(f"reference: {version}")
+    if version != f"ftl {REFERENCE_VERSION}":
+        print(f"expected ftl {REFERENCE_VERSION}", file=sys.stderr)
+        return 2
+    comparisons: list[Comparison] = []
+    with tempfile.TemporaryDirectory(prefix="fly-ftl-compare-") as tmp:
+        for fixture in sorted(FIXTURES.iterdir()):
+            if not fixture.is_dir() or (ns.fixture and fixture.name not in ns.fixture):
+                continue
+            spec = json.loads((fixture / "args.json").read_text(encoding="utf-8"))
+            for run, argv in spec["runs"].items():
+                cmp = compare_run(fixture.name, run, argv, Path(tmp))
+                comparisons.append(cmp)
+                status = "OK " if not cmp.differences else "DIFF"
+                print(f"{status} {fixture.name}/{run}: ftl extract {' '.join(argv)}", flush=True)
+                for d in cmp.differences:
+                    print(f"     {d}")
+    sample_diffs = compare_config_samples()
+    print("config sample:", "OK" if not sample_diffs else "DIFF " + ", ".join(sample_diffs))
+    report = render(comparisons, sample_diffs, version)
+    if not ns.no_write and not ns.fixture:
+        REPORT.write_text(report, encoding="utf-8", newline="\n")
+        print(f"wrote {REPORT}")
+    bad = sum(1 for c in comparisons if c.differences)
+    print(f"{len(comparisons) - bad} / {len(comparisons)} runs identical")
+    return 1 if bad or sample_diffs else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -58,10 +58,10 @@ Python file ──tokenize──▶ candidate + window (6 tokens before · focus
 ## Installation
 
 **Python 3.14** is required (`requires-python = ">=3.14,<3.15"`). The package is not on PyPI;
-it is installed from a local checkout or from the wheel (`uv build` → `dist/`):
+it is installed from a git checkout or from the wheel (`uv build` → `dist/`):
 
 ```bash
-uv tool install --python 3.14 /path/to/checkout/fly_ftl_extract                        # from a checkout, or
+uv tool install --python 3.14 git+https://github.com/andrew000/FLY-FTL-Extract                        # from a checkout, or
 uv tool install --python 3.14 ./dist/fly_ftl_extract-0.1.0-py3-none-any.whl
 pip install ./dist/fly_ftl_extract-0.1.0-py3-none-any.whl                            # in a 3.14 venv
 ```

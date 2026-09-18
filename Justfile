@@ -3,10 +3,10 @@
 #   just sniff app locales -l en -l uk
 #
 # On Windows `just` uses PowerShell (set below); elsewhere `sh`. Every recipe is
-# written to work in both.
+# written to work in both: multi-step recipes are one command per line (each line is
+# its own shell and `just` stops at the first failure), so no `&&` is needed.
 
 set windows-shell := ["powershell.exe", "-NoLogo", "-NoProfile", "-Command"]
-set positional-arguments
 
 root    := justfile_directory()
 scratch := root / ".cache" / "scratch"
@@ -52,7 +52,8 @@ fx NAME *ARGS:
 # Dry-run audit of a project; prints only audit lines and the statistics
 project DIR:
     uv run python -c "import os; os.makedirs(r'{{scratch}}', exist_ok=True)"
-    cd "{{DIR}}"; uv run --project "{{root}}" ftl extract --dry-run --fly-audit -v --fly-no-tui --cache-path "{{scratch}}/project-cache.bin" > "{{scratch}}/project_run.txt" 2>&1; uv run --project "{{root}}" python -c "import re,sys; [print(l.rstrip()) for l in open(r'{{scratch}}/project_run.txt', encoding='utf-8') if re.search(r'fly::audit|Fly statistics|Trials|keys in code|Done in', l)]"
+    cd "{{DIR}}"; uv run --project "{{root}}" python -c "import subprocess; subprocess.call(['uv', 'run', '--project', r'{{root}}', 'ftl', 'extract', '--dry-run', '--fly-audit', '-v', '--fly-no-tui', '--cache-path', r'{{scratch}}/project-cache.bin'], stdout=open(r'{{scratch}}/project_run.txt', 'w', encoding='utf-8'), stderr=subprocess.STDOUT)"
+    uv run python -c "import re; [print(l.rstrip()) for l in open(r'{{scratch}}/project_run.txt', encoding='utf-8') if re.search(r'fly::audit|Fly statistics|Trials|keys in code|Done in', l)]"
 
 # Only the audit differences from the last `just project` run
 project-diff:
@@ -66,7 +67,10 @@ project-tui DIR:
 
 # ruff + mypy + pytest (~3 min); stops at the first failure
 check:
-    uv run ruff check . && uv run ruff format --check . && uv run mypy fly_ftl_extract && uv run pytest -q
+    uv run ruff check .
+    uv run ruff format --check .
+    uv run mypy fly_ftl_extract
+    uv run pytest -q
 
 # Fast tests only (skips golden-through-the-fly and fixtures-through-the-fly)
 test-fast:
@@ -134,7 +138,8 @@ record-tui *ARGS:
 
 # wheel + sdist; list the data/ files inside the wheel
 build:
-    uv build && uv run python -c "import zipfile,glob; z=zipfile.ZipFile(sorted(glob.glob('dist/*.whl'))[-1]); [print(i.filename, i.file_size) for i in z.infolist() if '/data/' in i.filename]"
+    uv build
+    uv run python -c "import zipfile,glob; z=zipfile.ZipFile(sorted(glob.glob('dist/*.whl'))[-1]); [print(i.filename, i.file_size) for i in z.infolist() if '/data/' in i.filename]"
 
 # Remove extractor caches and scratch (brain states in .cache/brain_states are kept)
 clean:

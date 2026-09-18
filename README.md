@@ -50,20 +50,26 @@ Python file ──tokenize──▶ candidate + window (6 tokens before · focus
   the margin.
 - **Resniff.** θ is chosen on val so that ≤ 10 % of windows get extra sniffs; trial seed =
   sha256(file bytes, candidate index, encoder version) — two runs give the same output.
-- **Details:** [CLAUDE.md](CLAUDE.md) (the contract), [docs/CONNECTOME.md](docs/CONNECTOME.md)
-  (the subgraph), [docs/BENCH.md](docs/BENCH.md) (calibration, speed),
-  [docs/ODOR.md](docs/ODOR.md) (the encoder), [docs/METRICS.md](docs/METRICS.md) (training),
-  [docs/FORMAT.md](docs/FORMAT.md) (what exactly the original does and what is reproduced).
+- **Details:** [CLAUDE.md](https://github.com/andrew000/FLY-FTL-Extract/blob/master/CLAUDE.md) (the contract), [docs/CONNECTOME.md](https://github.com/andrew000/FLY-FTL-Extract/blob/master/docs/CONNECTOME.md)
+  (the subgraph), [docs/BENCH.md](https://github.com/andrew000/FLY-FTL-Extract/blob/master/docs/BENCH.md) (calibration, speed),
+  [docs/ODOR.md](https://github.com/andrew000/FLY-FTL-Extract/blob/master/docs/ODOR.md) (the encoder), [docs/METRICS.md](https://github.com/andrew000/FLY-FTL-Extract/blob/master/docs/METRICS.md) (training),
+  [docs/FORMAT.md](https://github.com/andrew000/FLY-FTL-Extract/blob/master/docs/FORMAT.md) (what exactly the original does and what is reproduced).
 
 ## Installation
 
-**Python 3.14** is required (`requires-python = ">=3.14,<3.15"`). The package is not on PyPI;
-it is installed from a git checkout or from the wheel (`uv build` → `dist/`):
+**Python 3.14** is required (`requires-python = ">=3.14,<3.15"`). From PyPI:
 
 ```bash
-uv tool install --python 3.14 git+https://github.com/andrew000/FLY-FTL-Extract                        # from a checkout, or
-uv tool install --python 3.14 ./dist/fly_ftl_extract-0.1.0-py3-none-any.whl
-pip install ./dist/fly_ftl_extract-0.1.0-py3-none-any.whl                            # in a 3.14 venv
+pip install fly-ftl-extract                              # into a 3.14 venv, or
+uv tool install --python 3.14 fly-ftl-extract            # as an isolated tool
+```
+
+The same wheel is attached to every [GitHub release](https://github.com/andrew000/FLY-FTL-Extract/releases);
+the repository itself installs too (`uv build` → `dist/`):
+
+```bash
+uv tool install --python 3.14 ./fly_ftl_extract-0.1.0-py3-none-any.whl
+uv tool install --python 3.14 git+https://github.com/andrew000/FLY-FTL-Extract
 ```
 
 The wheel contains the connectome (`fly_ftl_extract/data/mb_fafb783.npz`, 106 KB), its
@@ -111,7 +117,7 @@ trial), the PN/KC/APL/MBON activity of the last trial, an event log (ODOR → MB
 KEY / NOT A KEY / placeable, RESNIFF) and counters. All numbers are real — from the
 connectome, the spikes and the readout; the TUI module never imports `random`.
 
-![TUI: ftl extract on the basic fixture](docs/tui_basic.svg)
+![TUI: ftl extract on the basic fixture](https://raw.githubusercontent.com/andrew000/FLY-FTL-Extract/master/docs/tui_basic.svg)
 
 ## Accuracy
 
@@ -121,13 +127,13 @@ the real bot's code are not part of the dataset — they are the holdout.
 
 | what | result | source |
 |---|---|---|
-| keys, test, with resniff (≤ 5 extra trials, 9.8 % of windows) | **P 0.9987 · R 1.0000** (tp 11554, fp 15, fn 0, tn 34354) | [METRICS.md §1](docs/METRICS.md) |
+| keys, test, with resniff (≤ 5 extra trials, 9.8 % of windows) | **P 0.9987 · R 1.0000** (tp 11554, fp 15, fn 0, tn 34354) | [METRICS.md §1](https://github.com/andrew000/FLY-FTL-Extract/blob/master/docs/METRICS.md) |
 | keys, test, without resniff | P 0.9949 · R 0.9978 | same |
 | kwargs (placeable / ignore), test | P 1.0000 · R 1.0000 | same |
 | golden fixtures through the whole fly | 24 / 24 files match the reference | `tests/test_judge_on_fixtures.py` |
-| the real `ftl 0.12.1` against ours on every fixture | **31 / 31** runs byte for byte (exit, stderr, tree), `config sample` too | [COMPARE.md](docs/COMPARE.md) |
-| a real aiogram bot (280 files, 9 992 candidates, 538 keys) | **0 differences** from the reference (`--fly-audit`); the fly trained on the previous corpus (`grammar-4`) had 13 on the same code (all of them `L("…")` in dict values, constructor fields and decorator arguments), 15 in the first run | [REAL_PROJECT.md](docs/REAL_PROJECT.md) — the honest before/after story |
-| the old weights (`grammar-4`) on the `grammar-5` test | keys R 0.870 (1503 misses) — the price of call positions that were not in the corpus | [METRICS.md §8](docs/METRICS.md) |
+| the real `ftl 0.12.1` against ours on every fixture | **31 / 31** runs byte for byte (exit, stderr, tree), `config sample` too | [COMPARE.md](https://github.com/andrew000/FLY-FTL-Extract/blob/master/docs/COMPARE.md) |
+| a real aiogram bot (280 files, 9 992 candidates, 538 keys) | **0 differences** from the reference (`--fly-audit`); the fly trained on the previous corpus (`grammar-4`) had 13 on the same code (all of them `L("…")` in dict values, constructor fields and decorator arguments), 15 in the first run | [REAL_PROJECT.md](https://github.com/andrew000/FLY-FTL-Extract/blob/master/docs/REAL_PROJECT.md) — the honest before/after story |
+| the old weights (`grammar-4`) on the `grammar-5` test | keys R 0.870 (1503 misses) — the price of call positions that were not in the corpus | [METRICS.md §8](https://github.com/andrew000/FLY-FTL-Extract/blob/master/docs/METRICS.md) |
 
 ## Limitations
 
@@ -141,7 +147,7 @@ the real bot's code are not part of the dataset — they are the holdout.
 - The `--cache` cache is written to the same file as in the original, but the format is ours and not compatible with the original.
 - `-v` does not reproduce the original's debug lines (`globset`, `Saved …`); our margin lines are printed instead.
 - `i18n.get("dotted.key.name")` and other invalid Fluent identifiers are written as is — the original does the same (the next run of either will fail reading the `.ftl`).
-- The fly makes mistakes. On the `grammar-5` test split (with resniff) 15 false keys among 34 369 negatives and 0 misses among 11 554 positives; all 10 worst false keys are `self.get("…")` / `cls.get("…")` with `-p self -p cls` (margin up to +10.5; for the reference a prefix without an i18n name right after it is not a key). The fly learns only what is in the grammar: the first version (`grammar-4`) missed on the real bot every `L("…", _path=…)` in dict values and in constructor fields (`description=L(…)` on the line after a recognised `name=L(…)`, margin −1…−31), `LF("…")` as the first argument of the decorator `@router.message(` (−8…−32), and flagged a string inside a tuple, `("captcha_timeout_task", …)`, with no call at all, as a key (+7.00). This was fixed not by adding rules to the code but by extending the corpus (`grammar-5`) with these positions and their negative twins: on the same bot it became 0 differences, and the same 13 windows give +5.7…+40.7 ([REAL_PROJECT.md](docs/REAL_PROJECT.md)). The next unseen construct will likewise be a miss until it gets into the grammar.
+- The fly makes mistakes. On the `grammar-5` test split (with resniff) 15 false keys among 34 369 negatives and 0 misses among 11 554 positives; all 10 worst false keys are `self.get("…")` / `cls.get("…")` with `-p self -p cls` (margin up to +10.5; for the reference a prefix without an i18n name right after it is not a key). The fly learns only what is in the grammar: the first version (`grammar-4`) missed on the real bot every `L("…", _path=…)` in dict values and in constructor fields (`description=L(…)` on the line after a recognised `name=L(…)`, margin −1…−31), `LF("…")` as the first argument of the decorator `@router.message(` (−8…−32), and flagged a string inside a tuple, `("captcha_timeout_task", …)`, with no call at all, as a key (+7.00). This was fixed not by adding rules to the code but by extending the corpus (`grammar-5`) with these positions and their negative twins: on the same bot it became 0 differences, and the same 13 windows give +5.7…+40.7 ([REAL_PROJECT.md](https://github.com/andrew000/FLY-FTL-Extract/blob/master/docs/REAL_PROJECT.md)). The next unseen construct will likewise be a miss until it gets into the grammar.
 
 ## Citations and licences
 

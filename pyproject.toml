@@ -1,10 +1,34 @@
 [project]
 name = "fly-ftl-extract"
 version = "0.1.0"
-description = "Drop-in replacement for ftl-extract where a simulated Drosophila mushroom body decides what is a Fluent key"
+description = "Drop-in replacement for ftl-extract where a simulated Drosophila mushroom body (FlyWire connectome, LIF neurons, dopamine-trained readout) decides which strings are Fluent keys. Byte-for-byte the same output. A joke that is literally true."
 readme = "README.md"
 license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "andrew000", email = "help@kusbot.com" }]
 requires-python = ">=3.14,<3.15"
+keywords = [
+    "i18n",
+    "ftl",
+    "fluent",
+    "ftl-extract",
+    "drosophila",
+    "connectome",
+    "flywire",
+    "mushroom-body",
+    "spiking-neural-network",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Operating System :: OS Independent",
+    "Topic :: Software Development :: Localization",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Environment :: Console",
+    "Typing :: Typed",
+]
 dependencies = [
     "numpy>=2.3",
     "scipy>=1.16",
@@ -12,6 +36,13 @@ dependencies = [
     "click>=8.2",
     "fluent-syntax>=0.19.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/andrew000/FLY-FTL-Extract"
+Repository = "https://github.com/andrew000/FLY-FTL-Extract"
+Issues = "https://github.com/andrew000/FLY-FTL-Extract/issues"
+Original = "https://github.com/andrew000/FTL-Extract"
+FlyWire = "https://flywire.ai"
 
 [project.optional-dependencies]
 connectome = [
@@ -41,6 +72,12 @@ packages = ["fly_ftl_extract"]
 # survives VCS-ignore rules; the generated dataset is explicitly kept out.
 artifacts = ["fly_ftl_extract/data/*.npz", "fly_ftl_extract/data/meta.json"]
 exclude = ["fly_ftl_extract/data/dataset/"]
+
+[tool.hatch.build.targets.sdist]
+# The sdist is the source tree minus VCS-ignored paths (.cache, dist, the dataset) and the
+# per-fold proxy error dumps, which are training diagnostics, not source. Tests, golden
+# files and fixtures stay in: they are what `pytest` on an unpacked sdist needs.
+exclude = ["docs/proxy_errors/", ".cache/", "dist/", ".idea/"]
 
 [tool.ruff]
 target-version = "py314"

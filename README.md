@@ -6,8 +6,8 @@ in which the decision «is this a Fluent key» is made not by a parser but by a 
 fruit-fly mushroom body: LIF neurons on the real FlyWire FAFB v783 connectome (124 projection
 neurons → 2597 Kenyon cells ⇄ 1 APL → 48 MBONs), a readout on the MBONs trained with
 «dopamine» (delta rule). The tokenizer only proposes candidates (string literals and
-attribute chains before `(`) and encodes their context into an odour; which of them is a key,
-and which kwarg is placeable, the fly says.
+attribute chains before `(`) and encodes their context into an odour; the fly decides which
+of them is a key and which kwarg is placeable.
 **Switch the fly off and no keys are found:** the hot path has neither `ast` nor rules about
 `i18n.get`; the test `tests/test_no_ast_in_hot_path.py` checks that a plain `ftl extract`
 loads neither the AST reference nor the audit.

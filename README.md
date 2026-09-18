@@ -2,12 +2,12 @@
 
 Drop-in replacement for [`ftl-extract`](https://github.com/andrew000/FTL-Extract) 0.12.1 — the
 same `ftl extract <code> <locales>`, with the same options and byte-for-byte the same output —
-in which the decision «is this a Fluent key» is made not by a parser but by a simulated
+in which the decision "is this a Fluent key" is made not by a parser but by a simulated
 fruit-fly mushroom body: LIF neurons on the real FlyWire FAFB v783 connectome (124 projection
 neurons → 2597 Kenyon cells ⇄ 1 APL → 48 MBONs), a readout on the MBONs trained with
-«dopamine» (delta rule). The tokenizer only proposes candidates (string literals and
+"dopamine" (delta rule). The tokenizer only proposes candidates (string literals and
 attribute chains before `(`) and encodes their context into an odour; the fly decides which
-of them is a key and which kwarg is placeable.
+of them is a key and which kwarg is placeable. This is a joke — but a joke that is literally true.
 **Switch the fly off and no keys are found:** the hot path has neither `ast` nor rules about
 `i18n.get`; the test `tests/test_no_ast_in_hot_path.py` checks that a plain `ftl extract`
 loads neither the AST reference nor the audit.
@@ -28,12 +28,12 @@ Python file ──tokenize──▶ candidate + window (6 tokens before · focus
         │               (feedback inhibition,         │                       │
         │             8–10 % of KCs active per puff)  │                       │
         │                                             │                       │
-        │   DAN 165 — teaching signal only ──────┘      (current = 0 in the sim)│
+        │   DAN 165 — teaching signal only ───────────┘  (sim current = 0)    │
         └─────────────────────────────────────────────────────────────────────┘
                                    │  KC spike counts per puff (14 × 2597)
                                    ▼
         readout  w · [KC spiked, log1p(spikes)] + b  →  margin
-        |margin| < θ  →  «sniff again» (up to 5 extra trials with other seeds), vote = Σ margin
+        |margin| < θ  →  "sniff again" (up to 5 extra trials with other seeds), vote = Σ margin
         margin > 0  →  key  /  kwarg placeable
 ```
 
@@ -50,7 +50,7 @@ Python file ──tokenize──▶ candidate + window (6 tokens before · focus
   the margin.
 - **Resniff.** θ is chosen on val so that ≤ 10 % of windows get extra sniffs; trial seed =
   sha256(file bytes, candidate index, encoder version) — two runs give the same output.
-- **In detail:** [CLAUDE.md](CLAUDE.md) (the contract), [docs/CONNECTOME.md](docs/CONNECTOME.md)
+- **Details:** [CLAUDE.md](CLAUDE.md) (the contract), [docs/CONNECTOME.md](docs/CONNECTOME.md)
   (the subgraph), [docs/BENCH.md](docs/BENCH.md) (calibration, speed),
   [docs/ODOR.md](docs/ODOR.md) (the encoder), [docs/METRICS.md](docs/METRICS.md) (training),
   [docs/FORMAT.md](docs/FORMAT.md) (what exactly the original does and what is reproduced).
@@ -68,7 +68,7 @@ pip install ./dist/fly_ftl_extract-0.1.0-py3-none-any.whl                       
 
 The wheel contains the connectome (`fly_ftl_extract/data/mb_fafb783.npz`, 106 KB), its
 metadata (`meta.json`) and the trained weights (`mbon_weights.npz`, 598 KB); runtime
-dependencies — `numpy`, `scipy`, `rich`, `click`, `fluent.syntax`.
+dependencies are `numpy`, `scipy`, `rich`, `click` and `fluent.syntax`.
 
 **Entry-point conflict.** The package installs the scripts `ftl` and `fly-ftl`. The original
 `ftl-extract` also installs `ftl`; in one environment the last one installed wins, so do not
@@ -77,14 +77,14 @@ put both into one venv — keep them in separate `uv tool` environments or call 
 
 ## Usage
 
-Everything as in the original 0.12.1 (the FTL-Extract README): `ftl extract CODE_PATH
+Everything works as in the original 0.12.1 (the FTL-Extract README): `ftl extract CODE_PATH
 LOCALES_PATH`, `-l/--language`, `-k/--i18n-keys`, `-K`, `-p/--i18n-keys-prefix`, `-e/-E`,
 `-i/-I`, `--ignore-kwargs`, `--default-ftl-file`, `--comment-keys-mode {comment,warn}`,
 `--line-endings`, `--dry-run`, `--cache`/`--cache-path`/`--clear-cache`,
 `--allow-parse-errors`, `-v`, the global `--config`, the `[tool.ftl-extract.extract]` section
 in `pyproject.toml` (CLI > pyproject > defaults), `ftl config sample`. Output, exit codes and
-the `.ftl` tree — as with the Rust binary; after its `✅ Done` the block `[INFO  fly] Fly
-statistics:` is printed (neurons, files, candidates, trials, resniffs, trials/s, brain time).
+the `.ftl` tree match the Rust binary; after its `✅ Done` line the block `[INFO  fly] Fly
+statistics:` is appended (neurons, files, candidates, trials, resniffs, trials/s, brain time).
 
 ```bash
 ftl extract app/bot app/bot/locales -l en -l uk          # drop-in
@@ -101,7 +101,7 @@ Our options (all prefixed `--fly-`):
 | `--fly-workers N` | processes for the brain (spawn; default CPU−2, ≤ 16); below 128 windows always a single process |
 | `--fly-batch N` | trials per brain call (256 in a single process, 64 in a worker, 16 under the TUI) |
 | `--fly-trials N` | base trials per window before the resniff rule (the margins are summed) |
-| `--fly-seed S` | a salt on every trial seed — «another nose»; 0 = the production seeds |
+| `--fly-seed S` | a salt on every trial seed — "another nose"; 0 = the production seeds |
 
 ### TUI
 
@@ -109,7 +109,7 @@ In a terminal `ftl extract` draws a live panel (`rich`, ≤ 15 fps): a spike ras
 Kenyon cells (one dot = one cell that spiked in the trial's summary puff, one row = one
 trial), the PN/KC/APL/MBON activity of the last trial, an event log (ODOR → MBON margin →
 KEY / NOT A KEY / placeable, RESNIFF) and counters. All numbers are real — from the
-connectome, the spikes and the readout; the module has no `random`.
+connectome, the spikes and the readout; the TUI module never imports `random`.
 
 ![TUI: ftl extract on the basic fixture](docs/tui_basic.svg)
 
@@ -126,22 +126,22 @@ the real bot's code are not part of the dataset — they are the holdout.
 | kwargs (placeable / ignore), test | P 1.0000 · R 1.0000 | same |
 | golden fixtures through the whole fly | 24 / 24 files match the reference | `tests/test_judge_on_fixtures.py` |
 | the real `ftl 0.12.1` against ours on every fixture | **31 / 31** runs byte for byte (exit, stderr, tree), `config sample` too | [COMPARE.md](docs/COMPARE.md) |
-| a real aiogram bot (280 files, 9 992 candidates, 538 keys) | **0 differences** from the reference (`--fly-audit`); the fly of the previous corpus `grammar-4` had 13 on the same code (all of them `L("…")` in dict values, constructor fields and decorator arguments), 15 in the first run | [REAL_PROJECT.md](docs/REAL_PROJECT.md) — the honest before/after story |
+| a real aiogram bot (280 files, 9 992 candidates, 538 keys) | **0 differences** from the reference (`--fly-audit`); the fly trained on the previous corpus (`grammar-4`) had 13 on the same code (all of them `L("…")` in dict values, constructor fields and decorator arguments), 15 in the first run | [REAL_PROJECT.md](docs/REAL_PROJECT.md) — the honest before/after story |
 | the old weights (`grammar-4`) on the `grammar-5` test | keys R 0.870 (1503 misses) — the price of call positions that were not in the corpus | [METRICS.md §8](docs/METRICS.md) |
 
 ## Limitations
 
 - One hemisphere (right: 2597 KCs vs 2580 in the left); the left one is not used.
-- 15 GABAergic iPNs per side are excluded from the PNs (three have ≥ 5 synapses onto KCs and would break the rule «PN→KC only positive»).
+- 15 GABAergic iPNs per side are excluded from the PNs (three have ≥ 5 synapses onto KCs and would break the rule "PN→KC only positive").
 - `syn_scale = 5.0` and `apl_scale = 0.5` are calibrated on our odours (8–10 % KCs per puff, APL inhibits ≥ 2×), not taken from Shiu et al.; the APL weight is scaled separately.
-- A 40 ms puff, not 20 (the reviewer asked for 20; at 20 the per-puff KC code was not reproducible — Jaccard 0.34).
+- A 40 ms puff, not 20: at 20 ms the per-puff KC code was not reproducible (same-candidate Jaccard 0.34).
 - Synapse threshold `syn_count ≥ 5` per neuron pair; DANs carry no current in the forward simulation.
-- Speed ≈ 50 trials/s per process (one trial = 5700 LIF steps), 290–410 trials/s on 16 processes depending on machine load; a bot with ~10 000 candidates takes 24–34 s against 0.02 s for the Rust original.
+- Speed ≈ 50 trials/s per process (one trial = 5700 LIF steps), 290–410 trials/s on 16 processes depending on machine load; a bot with ~10 000 candidates takes 24–34 s versus 0.02 s for the Rust original.
 - `ftl stub` and `ftl check` are not implemented (a message and exit 2).
 - The `--cache` cache is written to the same file as in the original, but the format is ours and not compatible with the original.
-- `-v` does not reproduce the original's debug lines (`globset`, `Saved …`); our margins come instead.
+- `-v` does not reproduce the original's debug lines (`globset`, `Saved …`); our margin lines are printed instead.
 - `i18n.get("dotted.key.name")` and other invalid Fluent identifiers are written as is — the original does the same (the next run of either will fail reading the `.ftl`).
-- The fly makes mistakes. On the `grammar-5` test split (with resniff) 15 false keys among 34 369 negatives and 0 misses among 11 554 positives; all 10 worst false keys are `self.get("…")` / `cls.get("…")` with `-p self -p cls` (margin up to +10.5; for the reference a prefix without an i18n name right after it is not a key). The fly learns only what is in the grammar: the first version (`grammar-4`) missed on the real bot every `L("…", _path=…)` in dict values and in constructor fields (`description=L(…)` on the line after a recognised `name=L(…)`, margin −1…−31), `LF("…")` as the first argument of the decorator `@router.message(` (−8…−32), and called a string in a tuple `("captcha_timeout_task", …)` without a call a key (+7.00). This was cured not with rules in the code but with the `grammar-5` corpus holding these positions and their twin negatives: on the same bot it became 0 differences, and the same 13 windows give +5.7…+40.7 ([REAL_PROJECT.md](docs/REAL_PROJECT.md)). The next unseen construct will likewise be a miss until it gets into the grammar.
+- The fly makes mistakes. On the `grammar-5` test split (with resniff) 15 false keys among 34 369 negatives and 0 misses among 11 554 positives; all 10 worst false keys are `self.get("…")` / `cls.get("…")` with `-p self -p cls` (margin up to +10.5; for the reference a prefix without an i18n name right after it is not a key). The fly learns only what is in the grammar: the first version (`grammar-4`) missed on the real bot every `L("…", _path=…)` in dict values and in constructor fields (`description=L(…)` on the line after a recognised `name=L(…)`, margin −1…−31), `LF("…")` as the first argument of the decorator `@router.message(` (−8…−32), and flagged a string inside a tuple, `("captcha_timeout_task", …)`, with no call at all, as a key (+7.00). This was fixed not by adding rules to the code but by extending the corpus (`grammar-5`) with these positions and their negative twins: on the same bot it became 0 differences, and the same 13 windows give +5.7…+40.7 ([REAL_PROJECT.md](docs/REAL_PROJECT.md)). The next unseen construct will likewise be a miss until it gets into the grammar.
 
 ## Citations and licences
 
@@ -156,7 +156,7 @@ the real bot's code are not part of the dataset — they are the holdout.
 
 ## How to reproduce
 
-Everything is deterministic (the seeds are fixed); the times are from this machine (train.py: 30 processes for the brain; the `ftl extract` pool: 16).
+Everything is deterministic (the seeds are fixed); the times are from the author's machine (Ryzen 9 9950X3D, 32 threads) (train.py: 30 processes for the brain; the `ftl extract` pool: 16).
 
 | step | command | what it does | time |
 |---|---|---|---|

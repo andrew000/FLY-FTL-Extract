@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+# Pure Python: no compiled extension, no OS matrix. The wheel is py3-none-any and is
+# built once, on Linux. Windows runs the same checks because development happens there
+# and the golden tests normalise paths differently per OS (both branches under CI).
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          python-version: "3.14"
+          version: "latest"
+          activate-environment: "true"
+
+      - name: Prepare the project for linting and testing
+        shell: bash
+        run: uv sync --group dev
+
+      - name: Lint
+        shell: bash
+        run: uv run ruff check .
+
+      - name: Check formatting
+        shell: bash
+        run: uv run ruff format --check .
+
+      - name: Type-check
+        shell: bash
+        run: uv run mypy fly_ftl_extract
+
+      # The full suite (~3 min): golden fixtures through the whole fly, --fly-audit on
+      # every fixture. Tests that need the raw FlyWire download (.cache/flywire) or the
+      # generated dataset skip themselves on a clean clone.
+      - name: Test
+        shell: bash
+        run: uv run pytest -q
+
+      # Coverage is not collected yet: there is no Codecov token for this repository.
+      # - name: Upload coverage to Codecov
+      #   uses: codecov/codecov-action@v6
+      #   with:
+      #     token: ${{ secrets.CODECOV_TOKEN }}
+      #     files: coverage.xml
+      #     fail_ci_if_error: true
+
+      - name: Build the wheel and the sdist
+        shell: bash
+        run: uv build
+
+      # The wheel in an environment without the project: the connectome and the trained
+      # weights must be inside it, and the fly must agree with the ast reference.
+      - name: Smoke-test the wheel
+        shell: bash
+        run: |
+          uv run --no-project --with dist/*.whl -- ftl --version
+          uv run --no-project --with dist/*.whl -- ftl extract tests/fixtures/projects/basic/app /tmp/out -l en --fly-audit --fly-no-tui 2>&1 | tee smoke.log
+          grep -F "Audit: 0 differences" smoke.log
+
+      - name: Store artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: fly_ftl_extract-${{ github.run_id }}
+          if-no-files-found: error
+          path: dist/*
+
+  test-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          python-version: "3.14"
+          version: "latest"
+          activate-environment: "true"
+
+      - name: Prepare the project for linting and testing
+        shell: bash
+        run: uv sync --group dev
+
+      - name: Lint
+        shell: bash
+        run: uv run ruff check .
+
+      - name: Check formatting
+        shell: bash
+        run: uv run ruff format --check .
+
+      - name: Type-check
+        shell: bash
+        run: uv run mypy fly_ftl_extract
+
+      - name: Test
+        shell: bash
+        run: uv run pytest -q
